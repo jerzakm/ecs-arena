@@ -85,12 +85,12 @@ const u = (maxHp: number, attack: number, armor: number, rangeTiles: number, sig
 
 /** Indexed by KIND 0..5. The summoner has no range, so 0. */
 export const UNIT_STATS: readonly UnitStats[] = [
-  u(200, 14, 4, 1.5, 12, 20, 96),
-  u(80, 10, 1, 8, 14, 30, 80),
-  u(70, 9, 0, 7, 14, 45, 80),
-  u(90, 15, 1, 6, 10, 40, 80),
-  u(100, 0, 2, 0, 12, 120, 72),
-  u(30, 5, 0, 1.5, 10, 20, 112),
+  u(200, 14, 4, 1.5, 12, 20, 384),
+  u(80, 10, 1, 8, 14, 30, 320),
+  u(70, 9, 0, 7, 14, 45, 320),
+  u(90, 15, 1, 6, 10, 40, 320),
+  u(100, 0, 2, 0, 12, 120, 288),
+  u(30, 5, 0, 1.5, 10, 20, 448),
 ]
 
 export const PROJECTILE_SPEED = 512
@@ -119,13 +119,13 @@ export const FORMATION_SPACING = 2 * FX
 
 export const ITEMS: readonly { attack: number; armor: number; speed: number }[] = [
   { attack: 3, armor: 0, speed: 0 },
-  { attack: 5, armor: 0, speed: -8 },
-  { attack: 0, armor: 3, speed: -8 },
+  { attack: 5, armor: 0, speed: -32 },
+  { attack: 0, armor: 3, speed: -32 },
   { attack: 0, armor: 2, speed: 0 },
-  { attack: 0, armor: 0, speed: 16 },
+  { attack: 0, armor: 0, speed: 64 },
   { attack: 2, armor: 0, speed: 0 },
-  { attack: 1, armor: 1, speed: 4 },
-  { attack: 0, armor: 1, speed: 8 },
+  { attack: 1, armor: 1, speed: 16 },
+  { attack: 0, armor: 1, speed: 32 },
 ]
 
 /** SPEC §7.1 */

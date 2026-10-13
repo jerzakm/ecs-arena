@@ -60,6 +60,8 @@ randInt(n, ...args) = rand(...args) % n
 | Projectile | 6 | |
 | Item | 7 | equipped or a **ground item** |
 
+Every entity has an **age**: 0 in the tick it is created. At the start of the `spawn` phase, the age of each projectile, minion and ground item grows by 1. Cleanup destroys an entity whose age is at its lifetime or more.
+
 Every entity has a **gameId**. One counter gives gameIds to all kinds. The counter starts at 1 and never reuses a value.
 
 ### Relations
@@ -79,12 +81,12 @@ Speeds are in fixed point units per tick. Ranges are in tiles.
 
 | Kind | maxHp | attack | armor | range | sight | cooldown | speed |
 |---|---|---|---|---|---|---|---|
-| Warrior | 200 | 14 | 4 | 1.5 | 12 | 20 | 96 |
-| Archer | 80 | 10 | 1 | 8 | 14 | 30 | 80 |
-| Mage | 70 | 9 | 0 | 7 | 14 | 45 | 80 |
-| Healer | 90 | 15 (heal) | 1 | 6 | 10 | 40 | 80 |
-| Summoner | 100 | 0 | 2 | — | 12 | 120 | 72 |
-| Minion | 30 | 5 | 0 | 1.5 | 10 | 20 | 112 |
+| Warrior | 200 | 14 | 4 | 1.5 | 12 | 20 | 384 |
+| Archer | 80 | 10 | 1 | 8 | 14 | 30 | 320 |
+| Mage | 70 | 9 | 0 | 7 | 14 | 45 | 320 |
+| Healer | 90 | 15 (heal) | 1 | 6 | 10 | 40 | 320 |
+| Summoner | 100 | 0 | 2 | — | 12 | 120 | 288 |
+| Minion | 30 | 5 | 0 | 1.5 | 10 | 20 | 448 |
 
 - The heal range of a healer is its range. A summoner has range 0 and never attacks.
 - The member order in §5.2 is the slot order. Crit chance is 10%. Pickup range is 1.5 tiles.
@@ -111,6 +113,7 @@ Derived stats are recomputed in the `stats` phase (§6.7), and also at spawn.
 - A wave starts on tick 0 and then each `wavePeriod` ticks.
 - In a wave, each team spawns squads while its alive unit count is below `targetPop`. Team 0 spawns first, then team 1.
 - A team can spawn at most `maxSquadsPerWave` squads in one wave.
+- The alive count of a team is the number of its units of every kind, minions included. Each spawned squad adds to the count before the next squad check.
 
 ### 5.2 Squads
 
@@ -127,6 +130,7 @@ The squad kind is `randInt(4, seed, tick, teamGameId, SQUAD_KIND, squadIndex)`.
 - The leader `y` in tiles is `16 + randInt(224, seed, tick, teamGameId, SPAWN_Y, squadIndex)`.
 - Member `i` (from 0) has offset `col = i % 3 - 1`, `row = 1 + floor(i / 3)`. The offset is `(-facing * row * 2 tiles, col * 2 tiles)`.
 - Clamp every spawn position to the arena.
+- A new unit has `hp = maxHp`, cooldown 0, no target and no buffs. A new summoner has `lastSummon` = the spawn tick.
 
 ### 5.3 Items _(tune)_
 
@@ -135,13 +139,13 @@ Each new unit (not a minion) gets `randInt(4, seed, tick, unitGameId, ITEM_COUNT
 | Item | attack | armor | speed |
 |---|---|---|---|
 | 0 Sword | 3 | 0 | 0 |
-| 1 Axe | 5 | 0 | -8 |
-| 2 Shield | 0 | 3 | -8 |
+| 1 Axe | 5 | 0 | -32 |
+| 2 Shield | 0 | 3 | -32 |
 | 3 Helm | 0 | 2 | 0 |
-| 4 Boots | 0 | 0 | 16 |
+| 4 Boots | 0 | 0 | 64 |
 | 5 Bow | 2 | 0 | 0 |
-| 6 Ring | 1 | 1 | 4 |
-| 7 Cloak | 0 | 1 | 8 |
+| 6 Ring | 1 | 1 | 16 |
+| 7 Cloak | 0 | 1 | 32 |
 
 ### 5.4 gameId order in the `spawn` phase
 
@@ -155,13 +159,13 @@ The runner calls the phases in this order each tick. A read of another entity se
 
 ### 6.1 `spawn`
 
-Do the waves and summons from §5. A summoner spawns a minion when `tick - lastSummon >= 120` and it has fewer than 3 alive minions.
+Do the waves and summons from §5. A summoner spawns a minion at its own position and team when `tick - lastSummon >= 120` and it has fewer than 3 alive minions. A stunned summoner also spawns. A spawn sets `lastSummon = tick`.
 
 ### 6.2 `ai/target`
 
 For each unit that is not stunned:
 
-- **Healer:** the target is the ally in heal range with `hp < maxHp` and the lowest `hp / maxHp`. Compare `a.hp * b.maxHp < b.hp * a.maxHp`. A tie goes to the lowest gameId. If there is no such ally, the healer has no target.
+- **Healer:** the target is the ally (not the healer itself) in heal range with `hp < maxHp` and the lowest `hp / maxHp`. Compare `a.hp * b.maxHp < b.hp * a.maxHp`. A tie goes to the lowest gameId. If there is no such ally, the healer has no target.
 - **Other units:** keep the current target if it is alive and in sight. Otherwise the target is the nearest enemy unit in sight by **squared distance**. A tie goes to the lowest gameId.
 - A summoner has no target.
 
@@ -172,24 +176,25 @@ For each unit that is not stunned:
 Hierarchy order: move all leaders and units with no squad first. Then move all members.
 
 - A unit that is stunned does not move.
-- A unit with a target in attack range does not move.
-- A leader moves toward its target. With no target, it moves toward the far edge at its own `y`. A summoner leader with no target also moves toward the far edge.
+- A unit with a target in attack range does not move. A read of the target position, and of the summoner position for a minion, sees the start-of-phase value.
+- A leader moves toward its target. With no target, it moves toward the far edge at its own `y`. The far edge is `x = 262143` for team 0 and `x = 0` for team 1. A summoner leader with no target also moves toward the far edge.
 - A member moves toward `leader.position + offset`. It uses the leader position from this phase. A member never leaves its slot to chase a target. It attacks only a target that comes into range.
 - A minion moves toward its target. With no target, it moves toward its summoner.
-- A projectile moves toward the current position of its target.
+- A projectile moves after all units, toward the position that its target has after the unit moves. This is a third pass of the hierarchy order: leaders, members, projectiles.
 
 ### 6.4 `combat`
 
-1. **Hits.** A projectile hits when it reaches the position of its target. It makes a damage intent and gets the `Spent` tag.
-   - Mage projectile: every enemy unit within 2 tiles of the hit point gets the damage intent and `Burn`.
+1. **Hits.** A projectile hits when its position is equal to the position of its target. It makes a damage intent and gets the `Spent` tag. A new projectile from step 2 cannot hit in the tick that creates it.
+   - A projectile stores the attack value and the crit result of its owner at fire time. The crit uses the draw of §7.1 for the owner and the firing tick. The damage uses the armor of the target at hit time.
+   - Mage projectile: every unit of the other team within 2 tiles of the hit point gets the damage intent and `Burn`. This includes the target and minions.
 2. **Attacks.** A unit that is not stunned, has cooldown 0, and has a target in range attacks:
    - Warrior, Minion: a damage intent. If the hit is a crit and the attacker is a warrior, the target gets `Stun`.
    - Archer, Mage: a projectile spawn intent. The phase sorts these intents by attacker gameId, then assigns gameIds.
    - Healer: a heal intent. The target gets `Haste`.
-   - Then the cooldown resets to the base cooldown.
-3. Decrement each cooldown above 0 by 1.
+   - Then the cooldown resets to the base cooldown. Buffs, heals and damage from this phase take effect in step 4, so no attack in step 2 sees them.
+3. Decrement each cooldown above 0 by 1. This includes a cooldown that step 2 just reset.
 4. **Resolve.** For each unit, sum its damage and heal intents. Then `hp = min(maxHp, hp - damage + heal)`. A unit with `hp <= 0` gets the `Dead` tag.
-5. Add the damage to `damageDealt[attackerTeam]`.
+5. Add each damage intent value to `damageDealt[attackerTeam]`. The value is the full damage, not limited by the hp left. Heals and burn damage do not count.
 
 ### 6.5 `effects`
 
@@ -200,7 +205,7 @@ Hierarchy order: move all leaders and units with no squad first. Then move all m
 | `Haste` | 2 | 40 | speed × 3/2 (derived stat) |
 
 - A new buff of a kind that the unit already has resets `ticksLeft` to the full duration.
-- Each tick, decrement `ticksLeft` by 1. Apply burn damage. Remove a buff at 0.
+- Each tick, for each buff: decrement `ticksLeft` by 1, then apply burn damage when the new `ticksLeft % 10 == 0`, then remove the buff when `ticksLeft` is 0. A new buff from `combat` has the full duration at the start of this step, so it shows `duration - 1` in the snapshot. A full burn deals 2 damage 6 times.
 - A unit at `hp <= 0` after burn gets `Dead`.
 
 ### 6.6 `cleanup`
@@ -210,21 +215,24 @@ Handle dead units in gameId order:
 1. If the unit is not a minion, `kills[enemyTeam] += 1`.
 2. The equipped item with the lowest gameId becomes a ground item at the unit position. Destroy the other items.
 3. Destroy all minions with `ChildOf` this unit. Minions destroyed this way give no kill.
-4. If the unit is a squad leader, the member with the lowest gameId becomes the leader. Each other member offset becomes `old offset - promoted member offset`.
-5. Destroy the unit. Remove all `Targets` relations to it.
+4. If the unit is a squad leader, the member with the lowest gameId that is not destroyed yet becomes the leader. It loses its `MemberOf`. Each other member of the squad gets the new leader, and its offset becomes `old offset - promoted member offset`. A dead member that waits in the dead list can be promoted. It is then destroyed in its turn, and the same rule applies again.
+5. Destroy the unit.
 
 Then:
 
-6. Destroy projectiles that are `Spent`, that have no target, or that are 60 ticks old.
-7. Destroy minions that are 300 ticks old.
-8. **Pickup.** Handle ground items in gameId order. Each one goes to the nearest ally of any team in 1.5 tiles that has fewer than 3 items. A tie goes to the lowest gameId. Quality stays the same.
+6. Destroy minions that are 300 ticks old. They give no kill and drop nothing.
+
+Then remove all `Targets` relations to every unit destroyed so far.
+
+7. Destroy projectiles that are `Spent`, that have no target, or that are 60 ticks old.
+8. **Pickup.** Handle ground items in gameId order. Each one goes to the nearest unit of either team in 1.5 tiles that has fewer than 3 items. A minion can pick up. A tie goes to the lowest gameId. Quality stays the same. An item that an earlier pickup in this step gave to a unit counts toward its 3 items.
 9. Destroy ground items that are 300 ticks old.
 
 ### 6.7 `stats`
 
 - Recompute derived stats for each unit with a change to its `Equips` relations or its buffs this tick. Use change detection (`Added`, `Removed`, `Changed`).
-- Count alive units for each team.
-- If a team has 0 alive units after tick 0, set `winner` to the other team. The game does not stop.
+- Count alive units for each team. All unit kinds count.
+- If exactly one team has 0 alive units after tick 0 and `winner` is -1, set `winner` to the other team. A set `winner` never changes. The game does not stop.
 
 ## 7. Formulas
 
