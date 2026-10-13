@@ -80,17 +80,17 @@ describe('spawn order', () => {
 
   // The snapshot is taken after the move phase of tick 0, so positions are one step away from the spawn point.
   it('places leaders at the team edge and members on their formation slots', () => {
-    const near = (a: number, b: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(200)
+    const near = (a: number, b: number, tol: number) => expect(Math.abs(a - b)).toBeLessThanOrEqual(tol)
     for (const u of s.units) {
       if (u.leader !== -1) continue
-      near(u.x, u.team === 0 ? 4 * FX : 252 * FX)
+      near(u.x, u.team === 0 ? 4 * FX : 252 * FX, u.speed)
       expect(u.y).toBeGreaterThanOrEqual(16 * FX)
       const members = s.units.filter((m) => m.leader === u.gameId)
       members.forEach((m, i) => {
         const row = 1 + Math.floor(i / 3)
         const facing = u.team === 0 ? 1 : -1
-        near(m.x, Math.min(kernel.MAX_COORD, u.x - facing * row * 2 * FX))
-        near(m.y, u.y + ((i % 3) - 1) * 2 * FX)
+        near(m.x, Math.min(kernel.MAX_COORD, u.x - facing * row * 2 * FX), u.speed + m.speed)
+        near(m.y, u.y + ((i % 3) - 1) * 2 * FX, u.speed + m.speed)
       })
     }
   })
@@ -147,7 +147,7 @@ describe('stats recompute', () => {
   it('uses Haste speed 3/2 for a hasted unit (healer target)', () => {
     const hasted = battle().flatMap((s) => s.units.filter((u) => u.buffs.some((b) => b.kind === BUFF.HASTE) && u.kind !== KIND.MINION))
     expect(hasted.length).toBeGreaterThan(0)
-    for (const u of hasted) expect(u.speed).toBeGreaterThan(UNIT_STATS[u.kind].speed - 8 * 3 * 3)
+    for (const u of hasted) expect(u.speed).toBe(kernel.fx.div((UNIT_STATS[u.kind].speed + u.items.reduce((a, i) => a + ITEMS[i.kind].speed * i.quality, 0)) * 3, 2))
   })
 })
 
@@ -230,7 +230,7 @@ describe('leader promotion', () => {
 
   // With no enemy left, the survivors walk to the far edge and settle. A member then rests at
   // leaderPos + (its slot offset - the promoted leader's slot offset), clamped to the arena.
-  it.each([15, 23])('re-bases formation offsets on the promoted leader (seed %i)', (seed) => {
+  it.each([7, 21, 23])('re-bases formation offsets on the promoted leader (seed %i)', (seed) => {
     const h = run(scenario({ seed, ticks: 4200 }))
     const first = h[0], last = h[h.length - 1]
     const team = last.alive[0] > 0 ? 0 : 1
