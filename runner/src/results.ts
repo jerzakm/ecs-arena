@@ -80,7 +80,9 @@ export const lineChart = (title: string, unit: string, series: { name: string; s
     const v = max * f
     return `<line class="g" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="m" x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${+v.toPrecision(3)}</text>`
   })
-  const lines = series.map((s) => `<polyline class="s${s.slot}" fill="none" stroke-width="2" stroke-linejoin="round" points="${s.ys.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')}"><title>${esc(s.name)}</title></polyline>`)
+  // About one point per 2px. The series is a 20-tick mean, so this loses no visible detail.
+  const step = Math.max(1, Math.ceil(n / ((W - L - R) / 2)))
+  const lines = series.map((s) => `<polyline class="s${s.slot}" fill="none" stroke-width="2" stroke-linejoin="round" points="${s.ys.flatMap((v, i) => (i % step && i !== s.ys.length - 1 ? [] : [`${x(i).toFixed(1)},${y(v).toFixed(1)}`])).join(' ')}"><title>${esc(s.name)}</title></polyline>`)
   const legend = series.map((s, i) => `<rect class="f${s.slot}" x="${L + i * 170}" y="${T - 36}" width="10" height="10" rx="2"/><text class="p" x="${L + i * 170 + 14}" y="${T - 27}">${esc(s.name)}</text>`)
   const css = SERIES.map(([l], i) => `.s${i}{stroke:${l}}.f${i}{fill:${l}}`).join('')
   const dark = SERIES.map(([, d], i) => `.s${i}{stroke:${d}}.f${i}{fill:${d}}`).join('')
