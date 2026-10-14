@@ -2,10 +2,19 @@
 // Rules that need a fight run the skirmish scenario once, then check every tick against the tick before it.
 // "p" is the snapshot at the start of a tick, "c" the snapshot at its end.
 import { describe, it } from 'vitest'
-import { PHASES, SCENARIOS, kernel } from '@ecs-arena/spec'
+import { PHASES, SCENARIOS, kernel, type Scenario } from '@ecs-arena/spec'
 import { expect } from './fast-expect.ts'
-import { FLEEING, ROUTED, VETERAN, parse, run, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
+import { FLEEING, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
 import createSim from './index.ts'
+
+/** Runs `sc.ticks` ticks and returns the parsed snapshot after each one. */
+const run = (sc: Scenario): Parsed[] => {
+  const sim = createSim(sc, kernel)
+  return Array.from({ length: sc.ticks }, () => {
+    for (const p of PHASES) sim.phases[p]()
+    return parse(sim.snapshot())
+  })
+}
 
 const { KIND, BUFF, UNIT_STATS, ITEMS, FX, SQUADS, PURPOSE, distSq, stepToward, randInt, teamGameId, isCrit } = kernel
 

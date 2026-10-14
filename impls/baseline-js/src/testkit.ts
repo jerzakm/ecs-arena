@@ -1,6 +1,5 @@
-// Test helpers: run a scenario through the Sim API and parse the SPEC §8 snapshot.
-import { PHASES, SCENARIOS, kernel, type CanonicalState, type Scenario } from '@ecs-arena/spec'
-import createSim from './index.ts'
+// Implementation-agnostic helpers: parse the SPEC §8 snapshot and build test scenarios.
+import { SCENARIOS, type CanonicalState, type Scenario } from '@ecs-arena/spec'
 
 export const FLEEING = 1
 export const VETERAN = 2
@@ -66,14 +65,3 @@ export const scenario = (o: Partial<Scenario> = {}): Scenario => ({
   ...SCENARIOS.skirmish, name: 'test', targetPop: 1, wavePeriod: 1_000_000, maxSquadsPerWave: 1,
   surgePeriod: 1_000_000, surgeBase: 1, surgeCap: 1, ticks: 1, ...o,
 })
-
-/** Runs `sc.ticks` ticks and returns the parsed snapshot after each one. */
-export const run = (sc: Scenario): Parsed[] => {
-  const sim = createSim(sc, kernel)
-  const out: Parsed[] = []
-  for (let t = 0; t < sc.ticks; t++) {
-    for (const p of PHASES) sim.phases[p]()
-    out.push(parse(sim.snapshot()))
-  }
-  return out
-}

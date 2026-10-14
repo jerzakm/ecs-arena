@@ -10,6 +10,7 @@
     "profile": "tsx runner/src/profile.ts",
     "bench": "tsx runner/src/bench.ts",
     "compare": "tsx runner/src/compare.ts",
+    "diff": "tsx runner/src/diff.ts",
     "verify:all": "tsx runner/src/verify-all.ts"
   },
   "devDependencies": {
