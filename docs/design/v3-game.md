@@ -15,11 +15,11 @@ Each library gets one headline number. The number is the geometric mean, over th
 Each facet that the game claims to test must use a known share of the tick.
 
 - **Reference.** Shares are measured in `baseline-js` time. Each facet is a named, timed region in `baseline-js`.
-- **Floor and cap.** Each facet uses at least 2% and at most 25% of the tick.
+- **Floor and cap (D20).** The floor is on the naive share, the cap on the normal share. A facet passes the floor when its naive run's region time is at least 2% of the normal run's tick total. A facet passes the cap when its normal region time is at most 25% of the normal tick total.
 - **Naive way.** A flag switches each region to naive code. The naive code must be at least 1.5 times slower than the normal region. If it is not, the game does not reward the library feature, and the facet is not a real test.
 - **Where.** The check must pass in every scenario and with each of the K = 3 seeds.
 
-`pnpm budget [scenario...] [--seeds] [--report-only]` measures the table. The `Regions` argument of the `baseline-js` `createSim` times each region (nested regions count their own time only) and names the regions that run naive code. Only `runner/src/budget.ts` sets it. The thresholds are constants in `runner/src/budget-check.ts`. The tool also checks that each naive run keeps the hash of the normal run. The `baseline-js` rows for facets A to G and for save and load do not exist yet.
+`pnpm budget [scenario...] [--seeds] [--report-only] [--runs N]` measures the table. Each variant runs N times (default 5) in fresh child processes after a full warmup run, and the verdicts use medians. The `Regions` argument of the `baseline-js` `createSim` times each region (nested regions count their own time only) and names the regions that run naive code. Only `runner/src/budget.ts` sets it. The thresholds are constants in `runner/src/budget-check.ts`. The tool also checks that each naive run keeps the hash of the normal run. The `baseline-js` rows for facets A to G and for save and load do not exist yet.
 
 A facet that fails the floor gets more load from a tuned number. A facet that passes the cap gets less. Tuning changes the goldens.
 
