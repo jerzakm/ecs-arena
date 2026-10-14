@@ -21,14 +21,17 @@ let acc = 0
 let last = 0
 let timer: ReturnType<typeof setTimeout> | undefined
 let generation = 0
+let run = 0
 
 const stop = () => { playing = false; clearTimeout(timer) }
 
-const post = (m: FromWorker, transfer?: Transferable[]) => ctx.postMessage(m, transfer)
+const post = (m: DistributiveOmit<FromWorker, 'run'>, transfer?: Transferable[]) => ctx.postMessage({ ...m, run } as FromWorker, transfer)
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
 
 const start = async () => {
   stop()
   const mine = ++generation
+  sim = null
   try {
     const create = (await registry[impl]()).default as CreateSim
     if (mine !== generation) return
@@ -80,7 +83,7 @@ const step = () => {
 ctx.onmessage = (e) => {
   const m = e.data
   if (m.type === 'init') {
-    ;({ impl, scenario, speed } = m)
+    ;({ run, impl, scenario, speed } = m)
     void start()
   } else if (m.type === 'restart') void start()
   else if (m.type === 'play') play()

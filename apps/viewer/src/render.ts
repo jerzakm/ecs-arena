@@ -39,7 +39,7 @@ void main() {
   vec3 world;
   if (uMode > 0.5) {
     vec3 right = normalize(vec3(viewMatrix[0][0], 0.0, viewMatrix[2][0]));
-    world = aPos + right * (q.x - 0.5) * size * aParams.y + vec3(0.0, 1.0, 0.0) * (q.y - uAnchor) * size;
+    world = aPos + right * (q.x - 0.5) * size * aParams.y * (right.x < 0.0 ? -1.0 : 1.0) + vec3(0.0, 1.0, 0.0) * (q.y - uAnchor) * size;
   } else {
     float c = cos(aParams.y);
     float s = sin(aParams.y);

@@ -28,6 +28,7 @@ let playing = true
 let finished = false
 let emaMs = 0
 let pending: Int32Array | null = null
+let run = 0
 const dots = new ImageData(mini.width, mini.height)
 const dots32 = new Uint32Array(dots.data.buffer)
 const dotCanvas = document.createElement('canvas')
@@ -50,11 +51,12 @@ const start = () => {
   $('banner').style.display = 'none'
   $('err').textContent = ''
   viewer.setTickIntervalMs(tickIntervalMs(speed))
-  send({ type: 'init', impl: implSel.value, scenario: SCENARIOS[scenSel.value], speed })
+  send({ type: 'init', run: ++run, impl: implSel.value, scenario: SCENARIOS[scenSel.value], speed })
 }
 
 worker.onmessage = (e: MessageEvent<FromWorker>) => {
   const m = e.data
+  if (m.run !== run) return
   if (m.type === 'snap') {
     pending = m.snapshot
     emaMs = emaMs === 0 ? m.tickMs : emaMs * 0.9 + m.tickMs * 0.1
@@ -85,7 +87,7 @@ const consume = (raw: Int32Array) => {
   dots32.fill(0)
   const k = mini.width / (ARENA * 1024)
   for (const u of s.units) {
-    const px = (u.x * k) | 0, py = (u.y * k) | 0
+    const px = Math.min((u.x * k) | 0, mini.width - 1), py = Math.min((u.y * k) | 0, mini.height - 1)
     dots32[py * mini.width + px] = TEAM_PX[u.team] ?? TEAM_PX[0]
   }
   dotCtx.putImageData(dots, 0, 0)
