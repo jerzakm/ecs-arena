@@ -4,7 +4,7 @@
   "packageManager": "pnpm@11.9.0",
   "type": "module",
   "scripts": {
-    "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/**",
+    "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/** --exclude **/.claude/**",
     "typecheck": "tsc --noEmit -p .",
     "lint": "oxlint --deny-warnings",
     "verify": "tsx runner/src/verify.ts",
