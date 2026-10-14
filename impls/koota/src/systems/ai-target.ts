@@ -2,15 +2,15 @@ import type { Entity } from 'koota'
 import type { Context } from '../context.ts'
 import { Fleeing, Health, Position, Team } from '../components.ts'
 import { Targets, Threat } from '../relations.ts'
-import { buildGrid, forNear, type Cell } from '../spatial.ts'
 
 export const aiTargetSystem = (ctx: Context) => {
   const { k, world, gid, inRange, isThinkTick } = ctx
-  const { KIND, UNIT_STATS, distSq } = k
+  const { KIND, UNIT_STATS } = k
+  let seekerTeam = 0
+  const isEnemy = (h: number) => ctx.teamAt[h] !== seekerTeam && !ctx.unitAt[h].has(Fleeing)
 
   return () => {
     const tick = ctx.tickNow()
-    const grid = buildGrid(ctx)
     const retarget: [Entity, Entity | undefined][] = []
 
     const validTarget = (team: number, x: number, y: number, sight: number, t: Entity) => {
@@ -43,29 +43,26 @@ export const aiTargetSystem = (ctx: Context) => {
         const cp = cur?.get(Position)
         if (cur && curHurt && cp && inRange(x, y, cp.x, cp.y, stats.range)) return
         if (isThinkTick(g.id, tick)) {
-          let bestCell: Cell | undefined
-          forNear(ctx, grid, x, y, stats.range, (v) => {
-            if (v.team !== team || v.e === e || v.hp >= v.maxHp || !inRange(x, y, v.x, v.y, stats.range)) return
-            if (!bestCell) { bestCell = v; return }
-            const a = v.hp * bestCell.maxHp, b = bestCell.hp * v.maxHp
-            if (a < b || (a === b && v.id < bestCell.id)) bestCell = v
+          let bestHp = 0, bestMax = 0, bestId = 0
+          ctx.grid.forNear(x, y, stats.range, (h, _d2, id) => {
+            const v = ctx.unitAt[h]
+            if (ctx.teamAt[h] !== team || v === e) return
+            const { hp, maxHp } = v.get(Health)!
+            if (hp >= maxHp) return
+            if (best) {
+              const a = hp * bestMax, b = bestHp * maxHp
+              if (a > b || (a === b && id > bestId)) return
+            }
+            best = v; bestHp = hp; bestMax = maxHp; bestId = id
           })
-          best = bestCell?.e
         }
       } else {
         best = retaliation(e, team, x, y, stats.sight)
         if (!best && cur && validTarget(team, x, y, stats.sight, cur)) best = cur
         if (!best && isThinkTick(g.id, tick)) {
-          let bestCell: Cell | undefined
-          let bestD = 0
-          const sightSq = stats.sight * stats.sight
-          forNear(ctx, grid, x, y, stats.sight, (v) => {
-            if (v.team === team || v.fleeing) return
-            const d = distSq(x, y, v.x, v.y)
-            if (d > sightSq) return
-            if (!bestCell || d < bestD || (d === bestD && v.id < bestCell.id)) { bestCell = v; bestD = d }
-          })
-          best = bestCell?.e
+          seekerTeam = team
+          const h = ctx.grid.nearest(x, y, stats.sight, isEnemy)
+          best = h === -1 ? undefined : ctx.unitAt[h]
         }
       }
       if (best !== cur) retarget.push([e, best])

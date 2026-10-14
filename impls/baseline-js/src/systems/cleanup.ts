@@ -1,11 +1,11 @@
 import { byGameId, type Context } from '../context.ts'
 import { memberIndex } from '../hierarchy.ts'
-import { buildGrid, forNear } from '../spatial.ts'
 import type { Unit } from '../types.ts'
 
 export const cleanupSystem = (ctx: Context) => {
-  const { k, add, dirty, unitById, world, homeX, inRange, kindName } = ctx
-  const { distSq, KIND } = k
+  const { k, add, dirty, unitById, world, homeX, kindName } = ctx
+  const { KIND } = k
+  const hasRoom = (h: number) => ctx.slots[h].items.length < k.MAX_ITEMS
 
   const destroy = (u: Unit) => {
     if (ctx.counters) {
@@ -79,7 +79,7 @@ export const cleanupSystem = (ctx: Context) => {
 
     for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.kind === KIND.MINION && u.age >= k.MINION_LIFETIME && !u.destroyed) destroy(u)
 
-    for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.destroyed) unitById.delete(u.gameId)
+    for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.destroyed) { unitById.delete(u.gameId); ctx.grid.remove(u.h); ctx.freeSlots.push(u.h) }
     ctx.units = before.filter((u) => !u.destroyed)
     const alive = ctx.units
     for (let u_i = 0, u = alive[0]; u_i < alive.length; u = alive[++u_i]) {
@@ -99,17 +99,10 @@ export const cleanupSystem = (ctx: Context) => {
     add('q.cleanup.groundItems', ctx.groundItems.length)
     if (ctx.groundItems.length > 0) {
       ctx.groundItems.sort(byGameId)
-      const grid = buildGrid(ctx)
       ctx.groundItems = ctx.groundItems.filter((g) => {
-        let best: Unit | null = null
-        let bestD = 0
-        forNear(ctx, grid, g.x, g.y, k.PICKUP_RANGE, (v) => {
-          if (v.items.length >= k.MAX_ITEMS || !inRange(g.x, g.y, v.x, v.y, k.PICKUP_RANGE)) return
-          const d = distSq(g.x, g.y, v.x, v.y)
-          if (!best || d < bestD || (d === bestD && v.gameId < best.gameId)) { best = v; bestD = d }
-        }, 'pickup')
-        if (!best) return true
-        const taker = best as Unit
+        const h = ctx.grid.nearest(g.x, g.y, k.PICKUP_RANGE, hasRoom, 'pickup')
+        if (h === -1) return true
+        const taker = ctx.slots[h]
         add('item.pickup'); add('rel.Equips.add'); dirty?.add(taker.gameId)
         taker.items.push({ gameId: g.gameId, kind: g.kind, quality: g.quality })
         taker.items.sort(byGameId)

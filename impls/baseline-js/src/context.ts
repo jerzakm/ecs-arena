@@ -1,5 +1,4 @@
-import type { CreateSim, Scenario } from '@ecs-arena/spec'
-import { CELL } from './spatial.ts'
+import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
 import type { Counters, GroundItem, Projectile, Shrine, Unit } from './types.ts'
 
 export type Kernel = Parameters<CreateSim>[1]
@@ -12,9 +11,11 @@ export interface Context {
   k: Kernel
   scenario: Scenario
   counters: Counters | undefined
-  gridN: number
+  grid: SpatialGrid
   // State
   units: Unit[]
+  slots: Unit[] // grid handle -> unit
+  freeSlots: number[]
   projectiles: Projectile[]
   groundItems: GroundItem[]
   readonly shrines: Shrine[]
@@ -40,6 +41,8 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
   const ctx: Context = {
     k, scenario, counters,
     units: [],
+    slots: [],
+    freeSlots: [],
     projectiles: [],
     groundItems: [],
     shrines: [],
@@ -48,7 +51,7 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     tick: 0,
     world: { tick: -1, alive: [0, 0], kills: [0, 0], damage: [0, 0], winner: -1, score: [0, 0] },
     dirty: counters ? new Set<number>() : null,
-    gridN: Math.ceil(k.ARENA / CELL),
+    grid: new SpatialGrid(counters),
     add: (name, n = 1) => counters?.add(name, n),
     kindName: (kind) => (kind === KIND.MINION ? 'minion' : kind === KIND.WARLORD ? 'warlord' : 'unit'),
     isStunned: (u) => u.buffs[BUFF.STUN] > 0,

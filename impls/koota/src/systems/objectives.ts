@@ -1,18 +1,16 @@
 import type { Context } from '../context.ts'
-import { Position, Score, Shrine } from '../components.ts'
-import { buildGrid, forNear } from '../spatial.ts'
+import { Fleeing, Position, Score, Shrine } from '../components.ts'
 
 export const objectivesSystem = (ctx: Context) => {
-  const { k, world, inRange } = ctx
+  const { k, world } = ctx
 
   return () => {
-    const grid = buildGrid(ctx)
     const shrines = ctx.sortedByGameId(Shrine)
     for (const { e } of shrines) {
       const pos = e.get(Position)!
       const count = [0, 0]
-      forNear(ctx, grid, pos.x, pos.y, k.SHRINE_RADIUS, (v) => {
-        if (inRange(pos.x, pos.y, v.x, v.y, k.SHRINE_RADIUS) && !v.fleeing) count[v.team]++
+      ctx.grid.forNear(pos.x, pos.y, k.SHRINE_RADIUS, (h) => {
+        if (!ctx.unitAt[h].has(Fleeing)) count[ctx.teamAt[h]]++
       })
       const step = Math.max(-k.SHRINE_STEP_MAX, Math.min(k.SHRINE_STEP_MAX, count[0] - count[1]))
       e.set(Shrine, (s) => {

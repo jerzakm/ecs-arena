@@ -2,7 +2,6 @@ import type { Entity } from 'koota'
 import type { Context } from '../context.ts'
 import { Age, Burn, Dead, Fleeing, GameId, Haste, Health, Metrics, Position, Projectile, Spent, Stats, Stun } from '../components.ts'
 import { FiredBy, LastHitBy, Targets, Threat } from '../relations.ts'
-import { buildGrid, forNear } from '../spatial.ts'
 
 interface Damage { victim: Entity; victimId: number; attacker: Entity | undefined; attackerId: number; team: number; value: number }
 interface Incoming { damage: number; heal: number; stun: boolean; burn: boolean; haste: boolean }
@@ -20,7 +19,6 @@ export const combatSystem = (ctx: Context) => {
 
   return () => {
     const tick = ctx.tickNow()
-    const grid = buildGrid(ctx)
     const damages: Damage[] = []
     const incoming = new Map<Entity, Incoming>()
     const incomingOf = (e: Entity) => {
@@ -43,10 +41,11 @@ export const combatSystem = (ctx: Context) => {
       const crit = pr.crit === 1
       const shooter = e.targetFor(FiredBy)
       if (pr.ownerKind === KIND.MAGE) {
-        forNear(ctx, grid, p.x, p.y, k.SPLASH_RADIUS, (v) => {
-          if (v.team === pr.ownerTeam || !inRange(p.x, p.y, v.x, v.y, k.SPLASH_RADIUS)) return
-          hurt(v.e, shooter, pr.owner, pr.ownerTeam, k.damage(pr.attack, v.e.get(Stats)!.armor, crit))
-          incomingOf(v.e).burn = true
+        ctx.grid.forNear(p.x, p.y, k.SPLASH_RADIUS, (h) => {
+          if (ctx.teamAt[h] === pr.ownerTeam) return
+          const v = ctx.unitAt[h]
+          hurt(v, shooter, pr.owner, pr.ownerTeam, k.damage(pr.attack, v.get(Stats)!.armor, crit))
+          incomingOf(v).burn = true
         })
       } else {
         const armor = t.get(Stats)!.armor

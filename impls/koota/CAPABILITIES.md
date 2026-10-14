@@ -28,7 +28,7 @@ Each row shows where the implementation uses the library API for a required capa
 
 ## Notes
 
-- **Spatial index.** A plain array grid, rebuilt in each phase that needs it ([spatial.ts L11](src/spatial.ts#L11)). The spec makes this implementation-owned.
+- **Spatial index.** The kernel owns the grid (`SpatialGrid` in `packages/spec/src/grid.ts`). koota keeps it current with three calls: `add` at spawn ([spawning.ts L20](src/spawning.ts#L20)), `update` for each unit that `move` sets ([move.ts L50](src/systems/move.ts#L50)), and `remove` from an `onRemove(Unit)` observer, which also catches the minions that `ChildOf` destroys ([context.ts L40](src/context.ts#L40)). The handle is the entity id. `unitAt` and `teamAt` map a handle back to the entity and its team ([context.ts L14](src/context.ts#L14)).
 - **Start-of-phase positions.** koota has no double-buffered stores. The `Start` trait copies `Position` at the top of `move` ([move.ts L11](src/systems/move.ts#L11)). This costs one extra pass.
 - **Hierarchy order.** `move` computes the depth of each unit by walking `MemberOf` and `ChildOf` ([move.ts L15](src/systems/move.ts#L15)), memoizes it for the phase, buckets the units by depth with one `readEach`, and moves them with `get` and `set` on each entity ([move.ts L29](src/systems/move.ts#L29)). A query cannot filter by depth, so this pass does not use `updateEach`.
 - **Intents.** Damage, heal and buff intents are plain per-phase accumulators in `combat`, resolved in the same phase. Nothing is added to or removed from entities to carry them.
