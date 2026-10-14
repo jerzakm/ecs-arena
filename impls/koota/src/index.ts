@@ -262,17 +262,18 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       const kind = kindT.value
       if (kind === KIND.SUMMONER) return
       const stats = UNIT_STATS[kind]
+      const team = teamT.value, x = p.x, y = p.y
       const cur = e.targetFor(Targets)
       let best: Entity | undefined
 
       if (kind === KIND.HEALER) {
         const curHurt = cur && cur.get(Health)!.hp < cur.get(Health)!.maxHp
         const cp = cur?.get(Position)
-        if (cur && curHurt && cp && inRange(p.x, p.y, cp.x, cp.y, stats.range)) return
+        if (cur && curHurt && cp && inRange(x, y, cp.x, cp.y, stats.range)) return
         if (isThinkTick(g.id, tick)) {
           let bestCell: Cell | undefined
-          forNear(grid, p.x, p.y, stats.range, (v) => {
-            if (v.team !== teamT.value || v.e === e || v.hp >= v.maxHp || !inRange(p.x, p.y, v.x, v.y, stats.range)) return
+          forNear(grid, x, y, stats.range, (v) => {
+            if (v.team !== team || v.e === e || v.hp >= v.maxHp || !inRange(x, y, v.x, v.y, stats.range)) return
             if (!bestCell) { bestCell = v; return }
             const a = v.hp * bestCell.maxHp, b = bestCell.hp * v.maxHp
             if (a < b || (a === b && v.id < bestCell.id)) bestCell = v
@@ -280,12 +281,12 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
           best = bestCell?.e
         }
       } else {
-        best = retaliation(e, teamT.value, p.x, p.y, stats.sight)
-        if (!best && cur && validTarget(teamT.value, p.x, p.y, stats.sight, cur)) best = cur
+        best = retaliation(e, team, x, y, stats.sight)
+        if (!best && cur && validTarget(team, x, y, stats.sight, cur)) best = cur
         if (!best && isThinkTick(g.id, tick)) {
           let bestCell: Cell | undefined
           let bestD = 0
-          const team = teamT.value, x = p.x, y = p.y, sightSq = stats.sight * stats.sight
+          const sightSq = stats.sight * stats.sight
           forNear(grid, x, y, stats.sight, (v) => {
             if (v.team === team || v.fleeing) return
             const d = distSq(x, y, v.x, v.y)
