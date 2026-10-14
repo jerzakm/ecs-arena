@@ -19,6 +19,7 @@ export interface Summary {
 export interface Aggregate {
   runs: number
   totalMs: Summary
+  phasesSumMs: Summary
   phasesMs: Record<string, Summary>
   peakHeap: Summary
 }
@@ -30,6 +31,7 @@ export const aggregate = (runs: RunResult[]): Aggregate => {
   return {
     runs: runs.length,
     totalMs: sum(runs.map((r) => r.totalMs)),
+    phasesSumMs: sum(runs.map((r) => Object.values(r.phasesMs).reduce((a, b) => a + b, 0))),
     phasesMs: Object.fromEntries(phases.map((p) => [p, sum(runs.map((r) => r.phasesMs[p]))])),
     peakHeap: sum(runs.map((r) => r.peakHeap)),
   }
@@ -37,3 +39,9 @@ export const aggregate = (runs: RunResult[]): Aggregate => {
 
 /** Percent change of b relative to a (positive = b slower/larger). */
 export const deltaPct = (a: number, b: number): number => ((b - a) / a) * 100
+
+/** Run-to-run noise of a summary: how far the p95 sits above the median. */
+export const spread = (s: Summary): number => s.p95 - s.median
+
+/** A delta is noise when it is smaller than the two sides' combined spread. */
+export const isNoise = (a: Summary, b: Summary): boolean => Math.abs(b.median - a.median) < spread(a) + spread(b)

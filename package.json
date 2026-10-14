@@ -4,7 +4,7 @@
   "packageManager": "pnpm@11.9.0",
   "type": "module",
   "scripts": {
-    "test": "vitest run",
+    "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/**",
     "typecheck": "tsc --noEmit -p .",
     "verify": "tsx runner/src/verify.ts",
     "profile": "tsx runner/src/profile.ts",
