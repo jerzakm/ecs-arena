@@ -6,6 +6,7 @@
   "scripts": {
     "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/**",
     "typecheck": "tsc --noEmit -p .",
+    "lint": "oxlint --deny-warnings",
     "verify": "tsx runner/src/verify.ts",
     "profile": "tsx runner/src/profile.ts",
     "bench": "tsx runner/src/bench.ts",
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "oxlint": "^1.88.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

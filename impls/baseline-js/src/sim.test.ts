@@ -169,7 +169,7 @@ describe('snapshot layout', () => {
       for (let i = 1; i < c.units.length; i++) expect(c.units[i].gameId).toBeGreaterThan(c.units[i - 1].gameId)
       for (const u of c.units) {
         for (const r of [u.target, u.leader, u.parent, u.lastHitBy]) expect(r === -1 || s.cm.has(r)).toBe(true)
-        expect(u.items.map((x) => x.gameId)).toEqual([...u.items.map((x) => x.gameId)].sort((a, b) => a - b))
+        expect(u.items.map((x) => x.gameId)).toEqual(u.items.map((x) => x.gameId).sort((a, b) => a - b))
       }
       for (const p of c.projectiles) expect(s.cm.has(p.target)).toBe(true)
     }
@@ -206,7 +206,7 @@ describe('spawn order and warbands', () => {
   })
 
   it('spawns team 0 first, and a warlord before the first squad of each warband of 4 squads', () => {
-    expect(s.units.map((u) => u.team)).toEqual([...s.units.map((u) => u.team)].sort())
+    expect(s.units.map((u) => u.team)).toEqual(s.units.map((u) => u.team).sort())
     for (const n of [0, 1]) {
       const units = team(n)
       const warlords = units.filter((u) => u.kind === KIND.WARLORD)
