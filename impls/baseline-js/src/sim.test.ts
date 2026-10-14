@@ -26,6 +26,9 @@ const fights = memo(() => SEEDS.map((seed) => {
   return { sc, h: run(sc) }
 }))
 
+/** A fight where a projectile spawns on top of its target. Rare, so the seed is picked. */
+const closeFight = memo(() => stepsOf(37, run({ ...SCENARIOS.skirmish, seed: 37 })))
+
 interface Step { seed: number; t: number; h: Parsed[]; p: Parsed; c: Parsed; pm: Map<number, PUnit>; cm: Map<number, PUnit> }
 const index = (s: Parsed) => new Map(s.units.map((u) => [u.gameId, u]))
 const stepsOf = (seed: number, h: Parsed[]): Step[] => {
@@ -52,6 +55,11 @@ const ambiguous = (s: Step) => vanished(s).some((u) => !leaves(u) && Math.abs(u.
 const spawned = (s: Step) => s.c.units.some((u) => !s.pm.has(u.gameId))
 const attacked = (p: PUnit, c: PUnit) => p.cooldown === 0 && c.cooldown === UNIT_STATS[c.kind].cooldown - 1
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+/** SPEC §4 set bonus of a unit, from its items only. */
+const setBonus = (u: PUnit, f: 'attack' | 'armor' | 'speed') => {
+  const has = (k: number) => u.items.some((it) => it.kind === k)
+  return sum(kernel.SETS.map((st) => (has(st.items[0]) && has(st.items[1]) ? st[f] : 0)))
+}
 const MELEE = new Set<number>([KIND.WARRIOR, KIND.MINION, KIND.WARLORD])
 const STUNNERS = new Set<number>([KIND.WARRIOR, KIND.WARLORD])
 
@@ -272,13 +280,13 @@ describe('spawn order and warbands', () => {
     for (const u of s.units) {
       expect(u.hp).toBe(UNIT_STATS[u.kind].maxHp)
       expect(u.cooldown).toBe(0)
-      expect(u.attack).toBe(UNIT_STATS[u.kind].attack + sum(u.items.map((it) => ITEMS[it.kind].attack * it.quality)))
+      expect(u.attack).toBe(UNIT_STATS[u.kind].attack + sum(u.items.map((it) => ITEMS[it.kind].attack * it.quality)) + setBonus(u, 'attack'))
     }
   })
 })
 
 describe('stats recompute', () => {
-  const base = (u: PUnit, f: 'attack' | 'armor' | 'speed') => UNIT_STATS[u.kind][f] + sum(u.items.map((it) => ITEMS[it.kind][f] * it.quality))
+  const base = (u: PUnit, f: 'attack' | 'armor' | 'speed') => UNIT_STATS[u.kind][f] + sum(u.items.map((it) => ITEMS[it.kind][f] * it.quality)) + setBonus(u, f)
 
   it('derives attack, armor and speed from base, items, Veteran and Haste on every tick', () => {
     let hasted = 0, veterans = 0
@@ -476,7 +484,7 @@ describe('projectiles', () => {
 
   it('keeps a projectile that is created on its target position until the next tick', () => {
     let onTarget = 0
-    for (const s of [...steps(), ...veteranFight()]) for (const pr of s.c.projectiles) {
+    for (const s of [...steps(), ...veteranFight(), ...closeFight()]) for (const pr of s.c.projectiles) {
       if (pr.age !== 0) continue
       const t = s.cm.get(pr.target)
       if (t && t.x === pr.x && t.y === pr.y) onTarget++
@@ -895,6 +903,7 @@ describe('Veteran and chronicle', () => {
 
   it('credits killCount only for units that were destroyed in that tick', () => {
     for (const s of steps()) {
+      if (spawned(s)) continue // a unit that spawns and dies in one tick can give a kill and is in no snapshot
       const gained = sum(s.p.units.flatMap((u) => { const now = s.cm.get(u.gameId); return now ? [now.killCount - u.killCount] : [] }))
       expect(gained).toBeLessThanOrEqual(vanished(s).filter((v) => !leaves(v)).length)
     }

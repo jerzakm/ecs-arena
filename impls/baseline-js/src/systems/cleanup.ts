@@ -148,6 +148,7 @@ export const cleanupSystem = (ctx: Context) => {
         add('item.pickup'); add('rel.Equips.add'); dirty.add(taker)
         taker.items.push({ gameId: g.gameId, kind: g.kind, quality: g.quality })
         taker.items.sort(byGameId)
+        taker.itemMask |= 1 << g.kind
         return false
       })
     }

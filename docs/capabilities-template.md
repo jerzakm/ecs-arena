@@ -27,6 +27,7 @@ The reviewer judges each `Support` value. `pnpm verify` checks the result of the
 | Rout and flight | Add a flag to many entities in one tick, flag state machine | | |
 | Rules on `Added` | React when an entity gains a flag | | |
 | Stat recompute on a change of items, haste, kills or veteran | React to a change of membership or value | | |
+| Item tags and buff tags, set bonuses | Many distinct tags per entity, tag membership reads | | |
 | `Threat`, many to many with data | Link with data, eviction, decay | | |
 | `lastHitBy` | Exclusive link, cleared when the unit is destroyed | | |
 | Veteran chronicle | Array data per entity | | |

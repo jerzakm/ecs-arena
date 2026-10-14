@@ -11,6 +11,7 @@ export interface Unit {
   offX: number; offY: number
   childOf: number
   items: Item[]
+  itemMask: number // item tags: bit k is set while the unit holds an item of kind k
   buffs: [number, number, number] // ticksLeft by buff kind, 0 = absent
   threat: Edge[] // victim side of Threat, ascending attacker gameId
   morale: Morale | null

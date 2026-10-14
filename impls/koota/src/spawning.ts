@@ -1,6 +1,6 @@
 import type { Entity } from 'koota'
 import type { Context } from './context.ts'
-import { Age, Cooldown, GameId, Health, Item, ItemKind, KillCount, Kind, Minion, Morale, Position, Start, Stats, Summoner, Team, Unit } from './components.ts'
+import { Age, Cooldown, GameId, Health, Item, ItemKind, ItemTags, KillCount, Kind, Minion, Morale, Position, Start, Stats, Summoner, Team, Unit } from './components.ts'
 import { Equips, MemberOf } from './relations.ts'
 import { recomputeStats } from './derived-stats.ts'
 
@@ -22,10 +22,14 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
   if (kind === k.KIND.MINION) e.add(Minion, Age)
   else {
     const count = k.randInt(4, seed, tick, id, k.PURPOSE.ITEM_COUNT)
+    const tags = new Set<(typeof ItemTags)[number]>()
     for (let i = 0; i < count; i++) {
-      const item = world.spawn(Item, GameId({ id: ctx.nextId() }), ItemKind({ value: k.randInt(8, seed, tick, id, k.PURPOSE.ITEM_KIND, i) }))
+      const kindOfItem = k.randInt(8, seed, tick, id, k.PURPOSE.ITEM_KIND, i)
+      const item = world.spawn(Item, GameId({ id: ctx.nextId() }), ItemKind({ value: kindOfItem }))
       e.add(Equips(item, { quality: 1 + k.randInt(3, seed, tick, id, k.PURPOSE.ITEM_QUALITY, i) }))
+      tags.add(ItemTags[kindOfItem])
     }
+    if (tags.size > 0) e.add(...tags)
   }
   recomputeStats(ctx, e)
   return e

@@ -19,10 +19,12 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
       })
     }
   }
+  let itemMask = 0
+  for (const it of items) itemMask |= 1 << it.kind
   const u: Unit = {
     gameId, team, kind, x: clampToArena(x), y: clampToArena(y), h: ctx.freeSlots.pop() ?? ctx.slots.length,
     hp: UNIT_STATS[kind].maxHp, maxHp: UNIT_STATS[kind].maxHp, attack: 0, armor: 0, speed: 0, cooldown: 0,
-    target: -1, memberOf: -1, offX: 0, offY: 0, childOf: -1, items, buffs: [0, 0, 0], threat: [],
+    target: -1, memberOf: -1, offX: 0, offY: 0, childOf: -1, items, itemMask, buffs: [0, 0, 0], threat: [],
     morale: null, fleeing: false, routed: false, veteran: false, killCount: 0, lastHitBy: -1, chronicle: [],
     lastSummon: ctx.tick, age: 0, sx: 0, sy: 0, dmgIn: 0, healIn: 0, stunIn: false, burnIn: false, hasteIn: false,
     dead: false, destroyed: false,

@@ -1,6 +1,6 @@
 import type { Entity, World } from 'koota'
 import type { Context } from './context.ts'
-import { Haste, ItemKind, KillCount, Kind, Stats, Veteran } from './components.ts'
+import { Haste, ItemKind, ItemTags, KillCount, Kind, Stats, Veteran } from './components.ts'
 import { Equips } from './relations.ts'
 
 export const recomputeStats = (ctx: Context, e: Entity) => {
@@ -14,6 +14,10 @@ export const recomputeStats = (ctx: Context, e: Entity) => {
     armor += def.armor * q
     speed += def.speed * q
   }
+  let mask = 0
+  ItemTags.forEach((tag, kind) => { if (e.has(tag)) mask |= 1 << kind })
+  const set = k.SET_BONUS[mask]
+  attack += set.attack; armor += set.armor; speed += set.speed
   if (e.has(Veteran)) attack += k.VETERAN_ATTACK_STEP * Math.min(k.VETERAN_MAX_STEPS, k.fx.div(e.get(KillCount)!.value, k.VETERAN_KILLS))
   if (e.has(Haste)) speed = k.fx.div(speed * 3, 2)
   e.set(Stats, { attack, armor, speed })

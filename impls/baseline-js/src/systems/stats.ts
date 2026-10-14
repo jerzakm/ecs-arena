@@ -1,11 +1,11 @@
 import type { Context } from '../context.ts'
-import { recomputeStats } from '../derived-stats.ts'
+import { recomputeStats, scanItemMask } from '../derived-stats.ts'
 import { sampleEntities } from '../profiling.ts'
 import type { Unit } from '../types.ts'
 
 export const statsSystem = (ctx: Context) => {
   const { k, add, begin, end, dirty, world, parentOf, depthOf } = ctx
-  const naive = ctx.isNaive('stats.recompute')
+  const naive = ctx.isNaive('stats.recompute'), naiveSet = ctx.isNaive('stats.setBonus')
 
   const refresh = (u: Unit) => {
     if (u.killCount >= k.VETERAN_KILLS && !u.veteran) {
@@ -18,6 +18,9 @@ export const statsSystem = (ctx: Context) => {
 
   return () => {
     const { units, counters } = ctx
+    begin('stats.setBonus')
+    if (naiveSet) for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) u.itemMask = scanItemMask(u)
+    end('stats.setBonus')
     begin('stats.recompute')
     // New units are not dirty: spawn already computed them and only items, buffs and kills change them later.
     if (naive) for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) refresh(u)
