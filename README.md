@@ -2,19 +2,26 @@
 
 A deterministic autobattler that plays itself. It is a benchmark for JS/TS ECS libraries.
 
-Two teams fight on a 256 × 256 tile arena. Squads of warriors, archers, mages, healers and summoners spawn in waves. A session uses the ECS features that real games depend on: entity churn, tags, relations with data, change detection, hierarchies and large numeric queries. Synthetic micro-benchmarks do not cover this mix.
+Two armies fight for 7 shrines on a 256 x 256 tile arena. A team that holds more shrines gets larger reinforcement waves. Squads of warriors, archers, mages, healers and summoners spawn in waves. Warlords lead several warbands. A squad that loses too many members routs. Its members flee to their home edge and leave the battle. A unit that takes damage builds a `Threat` list and fights back against the worst attacker. A unit with 3 kills becomes a veteran and remembers its last kills.
+
+The game loads the ECS features that real games depend on: entity churn, tags, relations with data, change detection, hierarchies and large numeric queries. Synthetic micro-benchmarks do not cover this mix. [docs/design/v2-game.md](docs/design/v2-game.md) gives the design and the reasons.
+
+Each tick runs 9 phases in this order: `spawn`, `ai/target`, `move`, `combat`, `effects`, `morale`, `cleanup`, `objectives`, `stats`.
 
 The primary goal is a regression harness for [koota](https://github.com/pmndrs/koota). The secondary goal is a comparison of ECS libraries.
 
 ## Commands
 
-Use Node 24.2 or later (`.nvmrc`). The koota build needs it.
+Use Node 24.2 or later (`.nvmrc`). The runner and the koota build need it.
 
 ```sh
 pnpm install
 pnpm test                                   # unit and behaviour tests
 pnpm verify koota skirmish-smoke            # compare the per-tick hash trace with the golden
 pnpm verify:all                             # every implementation, every smoke scenario
+pnpm run diff koota skirmish 120 7 9        # find the first differing record against baseline-js
+pnpm run profile skirmish battle war        # count ECS operations per tick (baseline-js)
+pnpm run check:caps                         # check the links in every CAPABILITIES.md
 pnpm bench koota battle --runs 5            # timed runs, one child process for each run
 pnpm compare koota@main koota@fresh-perf battle
 ```

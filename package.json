@@ -11,6 +11,7 @@
     "bench": "tsx runner/src/bench.ts",
     "compare": "tsx runner/src/compare.ts",
     "diff": "tsx runner/src/diff.ts",
+    "check:caps": "tsx runner/src/check-capabilities.ts",
     "verify:all": "tsx runner/src/verify-all.ts"
   },
   "devDependencies": {

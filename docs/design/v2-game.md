@@ -46,3 +46,24 @@ About 6 new traits or relations and 2 new phases (`morale`, `objectives`). The h
 
 - Peak entity counts must reach about 1k, 10k and 50k. `pnpm profile` measures them.
 - Rout thresholds must not let one side rout forever. A test checks that both teams hold a shrine at some point in `battle`.
+
+## v3 backlog
+
+Facets that v2 does not load yet.
+
+Higher value:
+
+- **Render extraction phase.** A phase that copies the state a renderer needs into a flat buffer. It tests how well a library reads many components in one pass.
+- **Archetype fragmentation.** Item and buff tags that give each unit a different set of tags. Archetype-based libraries then split the units into many small tables.
+- **Lookup by external key.** Scripted commander orders name a unit by `gameId`. A library must find an entity from an external key. The key may name a dead target, and the rule must define the result.
+- **Rollback save and load.** An optional capability. The implementation saves the world, runs on, then loads the save. The hash trace must continue as if nothing happened.
+
+Lower value:
+
+- World reset.
+- Disabled entities that stay in the world but leave queries.
+- Sorted queries.
+- Prefabs.
+- Events as entities.
+- Workers.
+
