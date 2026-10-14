@@ -28,6 +28,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       stats: statsSystem(ctx),
     },
     snapshot: () => snapshot(ctx),
+    dispose: () => ctx.world.destroy(),
   }
 }
 

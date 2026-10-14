@@ -25,6 +25,8 @@ export interface Sim {
   phases: Record<PhaseName, () => void>
   tick?: () => void
   snapshot(): CanonicalState
+  /** Frees library resources a process can run out of (a world limit). `pnpm verify` calls it after each trace. */
+  dispose?(): void
 }
 
 export type CreateSim = (scenario: Scenario, kernel: typeof import('./kernel.ts')) => Sim
