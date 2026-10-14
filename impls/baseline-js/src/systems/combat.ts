@@ -8,10 +8,8 @@ export const combatSystem = (ctx: Context) => {
   const { BUFF, KIND, UNIT_STATS } = k
 
   const applyBuff = (u: Unit, b: number) => {
-    if (ctx.counters) {
-      if (u.buffs[b] > 0) add(`buff.refresh.${BUFF_NAME[b]}`)
-      else { add(`buff.add.${BUFF_NAME[b]}`); dirty?.add(u.gameId) }
-    }
+    if (u.buffs[b] > 0) add(`buff.refresh.${BUFF_NAME[b]}`)
+    else { add(`buff.add.${BUFF_NAME[b]}`); dirty.add(u) }
     u.buffs[b] = k.BUFF_DURATION[b]
   }
 

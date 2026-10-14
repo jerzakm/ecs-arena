@@ -60,7 +60,7 @@ export const cleanupSystem = (ctx: Context) => {
         const killer = unitById.get(u.lastHitBy)
         if (killer) {
           killer.killCount++
-          dirty?.add(killer.gameId)
+          dirty.add(killer)
           if (killer.veteran) {
             killer.chronicle.push(u.kind)
             if (killer.chronicle.length > k.CHRONICLE_MAX) killer.chronicle.shift()
@@ -103,7 +103,7 @@ export const cleanupSystem = (ctx: Context) => {
         const h = ctx.grid.nearest(g.x, g.y, k.PICKUP_RANGE, hasRoom, 'pickup')
         if (h === -1) return true
         const taker = ctx.slots[h]
-        add('item.pickup'); add('rel.Equips.add'); dirty?.add(taker.gameId)
+        add('item.pickup'); add('rel.Equips.add'); dirty.add(taker)
         taker.items.push({ gameId: g.gameId, kind: g.kind, quality: g.quality })
         taker.items.sort(byGameId)
         return false

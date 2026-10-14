@@ -23,7 +23,7 @@ export interface Context {
   nextId: number
   tick: number // advances in the last phase (stats system)
   world: { tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[] }
-  dirty: Set<number> | null // units whose derived-stat inputs changed this tick, only filled when counting
+  dirty: Set<Unit> // units whose items, buffs, kills or Veteran changed since the last stats phase
   // Helpers
   add(name: string, n?: number): void
   kindName(kind: number): string
@@ -50,7 +50,7 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     nextId: 1,
     tick: 0,
     world: { tick: -1, alive: [0, 0], kills: [0, 0], damage: [0, 0], winner: -1, score: [0, 0] },
-    dirty: counters ? new Set<number>() : null,
+    dirty: new Set<Unit>(),
     grid: new SpatialGrid(counters),
     add: (name, n = 1) => counters?.add(name, n),
     kindName: (kind) => (kind === KIND.MINION ? 'minion' : kind === KIND.WARLORD ? 'warlord' : 'unit'),

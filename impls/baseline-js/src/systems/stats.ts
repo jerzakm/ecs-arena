@@ -3,23 +3,23 @@ import { recomputeStats } from '../derived-stats.ts'
 import { sampleEntities } from '../profiling.ts'
 
 export const statsSystem = (ctx: Context) => {
-  const { k, add, dirty, unitById, world, parentOf, depthOf } = ctx
+  const { k, add, dirty, world, parentOf, depthOf } = ctx
 
   return () => {
     const { units, counters } = ctx
-    for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
+    // New units are not dirty: spawn already computed them and only items, buffs and kills change them later.
+    for (const u of dirty) {
+      if (u.destroyed) continue
       if (u.killCount >= k.VETERAN_KILLS && !u.veteran) {
         u.veteran = true
         u.chronicle = [k.PROMOTION_MARK]
-        dirty?.add(u.gameId)
         add('tag.add.veteran')
       }
       recomputeStats(ctx, u)
     }
-    if (counters && dirty) {
+    if (counters) {
       let needed = 0
-      for (const id of dirty) if (unitById.has(id)) needed++
-      dirty.clear()
+      for (const u of dirty) if (!u.destroyed) needed++
       add('stats.needed', needed)
       add('stats.full', units.length)
       sampleEntities(ctx)
@@ -33,6 +33,7 @@ export const statsSystem = (ctx: Context) => {
       counters.set('hier.depth', maxDepth)
       counters.set('hier.maxChildren', Math.max(0, ...children.values()))
     }
+    dirty.clear()
     world.alive = [0, 0]
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) world.alive[u.team]++
     if (ctx.tick > 0 && world.winner === -1) {

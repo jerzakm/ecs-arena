@@ -11,7 +11,7 @@ export const effectsSystem = (ctx: Context) => {
       for (let b = 0; b < 3; b++) {
         if (u.buffs[b] === 0) continue
         u.buffs[b]--
-        if (u.buffs[b] === 0) { add(`buff.remove.${BUFF_NAME[b]}`); dirty?.add(u.gameId) }
+        if (u.buffs[b] === 0) { add(`buff.remove.${BUFF_NAME[b]}`); dirty.add(u) }
         if (b === BUFF.BURN && u.buffs[b] % k.BURN_INTERVAL === 0) u.hp -= k.BURN_DAMAGE
       }
       if (u.hp <= 0) u.dead = true
