@@ -16,7 +16,7 @@ const resolveAlias = (name, sub) => {
   return pathToFileURL(join(root, file)).href
 }
 
-export async function resolve(specifier, context, next) {
+export function resolve(specifier, context, next) {
   const name = Object.keys(map).find((n) => specifier === n || specifier.startsWith(n + '/'))
   if (name) return { url: resolveAlias(name, '.' + specifier.slice(name.length)), shortCircuit: true }
   return next(specifier, context)

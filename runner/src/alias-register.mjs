@@ -1,2 +1,4 @@
-import { register } from 'node:module'
-register('./alias-hook.mjs', import.meta.url)
+import { registerHooks } from 'node:module'
+import { resolve } from './alias-hook.mjs'
+
+registerHooks({ resolve })
