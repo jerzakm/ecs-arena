@@ -24,7 +24,7 @@ export const readCsv = (path: string): Record<string, string>[] => {
   return rows.map((r) => Object.fromEntries(r.split(',').map((v, i) => [cols[i], v])))
 }
 
-const commit = () => {
+export const commit = () => {
   try {
     return execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim()
   } catch {

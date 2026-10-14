@@ -26,6 +26,9 @@ pnpm bench koota battle --runs 5            # timed runs, one child process for 
 pnpm compare koota@main koota@fresh-perf battle
 pnpm bench koota battle --record            # also save the data in bench-data/ and rebuild docs/results.md
 pnpm bench koota battle --protocol          # benchbox native protocol: JSON lines on stdout, samples = tick ns
+pnpm bench koota battle --runs 10 --out a.json   # result file with the machine info and the raw value of each run
+pnpm compare a.json b.json                  # compare two result files, for example from two machines or commits
+BENCH_WRAP="taskset -c 3" pnpm bench ...    # start each child with a prefix command (core pinning, priority)
 pnpm results                                # rebuild docs/results.md from bench-data/
 ```
 

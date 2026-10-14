@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregate, deltaPct, isNoise, median, p95, spread } from './stats.ts'
+import { aggregate, deltaPct, hlRatio, mannWhitney, median, noise, p95 } from './stats.ts'
 
 describe('stats', () => {
   it('median and p95', () => {
@@ -21,11 +21,12 @@ describe('stats', () => {
     expect(deltaPct(100, 110)).toBeCloseTo(10)
     expect(deltaPct(100, 80)).toBeCloseTo(-20)
   })
-  it('flags deltas smaller than the combined spread as noise', () => {
-    const a = { median: 100, p95: 110 }
-    expect(spread(a)).toBe(10)
-    expect(isNoise(a, { median: 115, p95: 125 })).toBe(true) // delta 15 < 20
-    expect(isNoise(a, { median: 130, p95: 140 })).toBe(false) // delta 30 > 20
-    expect(isNoise(a, { median: 80, p95: 85 })).toBe(false) // delta 20 > 15
+  it('rank test, shift and noise', () => {
+    const a = [100, 101, 99, 102, 98, 100, 101, 99]
+    expect(mannWhitney(a, a.map((x) => x * 1.1))).toBeLessThan(0.01)
+    expect(mannWhitney(a, [...a].reverse())).toBeCloseTo(1)
+    expect(hlRatio(a, a.map((x) => x * 1.1))).toBeCloseTo(1.1, 2)
+    expect(noise([10, 10, 10])).toBe(0)
+    expect(noise([9, 10, 11])).toBeCloseTo(0.14826)
   })
 })
