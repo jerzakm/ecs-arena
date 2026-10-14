@@ -1,8 +1,11 @@
-// Load budget check (D17). Runs baseline-js with timed regions, then once more for each region with its naive code.
-// Usage: pnpm budget [scenario...] [--seeds] [--report-only]
+// Load budget check (D17). Times baseline-js regions normally and once per region with its naive code.
+// Every run is a fresh child process that warms up with a full run of the same variant first. Runs are
+// interleaved across variants, and the verdicts use medians over --runs runs.
+// Usage: pnpm budget [scenario...] [--seeds] [--report-only] [--runs N]
+import { spawnSync } from 'node:child_process'
 import { SCENARIOS, SEEDS, PHASES, hashState, kernel, withSeed, type Scenario } from '@ecs-arena/spec'
 import createSim from '../../impls/baseline-js/src/index.ts'
-import { CAP, FLOOR, MIN_NAIVE_RATIO, exitCode, judge, type Verdict } from './budget-check.ts'
+import { CAP, FLOOR, MIN_NAIVE_RATIO, exitCode, judge, summarize, type Verdict } from './budget-check.ts'
 
 export const REGIONS = [
   'move.step', 'churn', 'effects.buffs', 'cleanup.unlink', 'move.depthOrder', 'cleanup.cascade', 'links',
@@ -13,7 +16,7 @@ const HASH_EVERY = 25
 interface Run { total: number; self: Map<string, number>; hashes: string[] }
 
 /** One run. A region's time excludes the regions nested in it. Hashing happens outside the timed part of a tick. */
-const timeRun = (scenario: Scenario, naive: string | null, ticks = scenario.ticks): Run => {
+const timeRun = (scenario: Scenario, naive: string | null): Run => {
   const self = new Map<string, number>()
   const stack: { name: string; t0: number; child: number }[] = []
   const regions = {
@@ -29,49 +32,80 @@ const timeRun = (scenario: Scenario, naive: string | null, ticks = scenario.tick
   const sim = createSim(scenario, kernel, undefined, regions)
   let total = 0
   const hashes: string[] = []
-  for (let t = 0; t < ticks; t++) {
+  for (let t = 0; t < scenario.ticks; t++) {
     const t0 = performance.now()
     for (const p of PHASES) sim.phases[p]()
     total += performance.now() - t0
-    if (t % HASH_EVERY === 0 || t === ticks - 1) hashes.push(hashState(sim.snapshot()))
+    if (t % HASH_EVERY === 0 || t === scenario.ticks - 1) hashes.push(hashState(sim.snapshot()))
   }
   return { total, self, hashes }
 }
 
+/** Child mode: warm up with a full run of the variant, then print the timed run as JSON. */
+const child = (name: string, seed: number, naive: string) => {
+  const sc = withSeed(SCENARIOS[name], seed)
+  const v = naive === '-' ? null : naive
+  timeRun(sc, v)
+  const r = timeRun(sc, v)
+  console.log(JSON.stringify({ total: r.total, self: [...r.self], hashes: r.hashes }))
+}
+
+const spawnRun = (name: string, seed: number, naive: string): Run => {
+  const out = spawnSync(process.execPath, ['--import', 'tsx', import.meta.filename, '--child', name, String(seed), naive], { encoding: 'utf8', maxBuffer: 1 << 26 })
+  if (out.status !== 0) throw new Error(`child ${name} ${naive} failed: ${out.stderr}`)
+  const r = JSON.parse(out.stdout)
+  return { total: r.total, self: new Map(r.self), hashes: r.hashes }
+}
+
 const mark = (ok: boolean) => (ok ? 'PASS' : 'FAIL')
+const pct = (x: number) => (x * 100).toFixed(2)
+const range = (xs: number[], f: (x: number) => string) => { const s = summarize(xs); return `${f(s.min)}-${f(s.max)}` }
 
 const main = (): number => {
   const args = process.argv.slice(2)
   const reportOnly = args.includes('--report-only')
+  const ri = args.indexOf('--runs')
+  const runs = ri >= 0 ? Number(args[ri + 1]) : 5
+  if (!(runs >= 1)) { console.error('--runs needs a positive number'); return 2 }
   const seeds = args.includes('--seeds') ? SEEDS.map((_, i) => i) : [0]
-  const names = args.filter((a) => !a.startsWith('--'))
+  const names = args.filter((a, i) => !a.startsWith('--') && (ri < 0 || i !== ri + 1))
   if (names.length === 0) names.push('skirmish', 'battle', 'war')
   const verdicts: Verdict[] = []
   for (const name of names) {
     if (!SCENARIOS[name]) { console.error(`unknown scenario ${name}`); return 2 }
     for (const i of seeds) {
-      const sc = withSeed(SCENARIOS[name], i)
-      timeRun(sc, null, Math.min(300, sc.ticks)) // warm the JIT
-      const base = timeRun(sc, null)
-      console.log(`\n== ${name} seed ${i + 1} (${sc.ticks} ticks, ${(base.total / 1000).toFixed(1)} s)`)
-      console.log(`${'region'.padEnd(20)}${'share'.padStart(8)}  floor cap   ${'naive/normal'.padStart(12)}  ratio  hash`)
+      const normal: Run[] = []
+      const naive = new Map<string, Run[]>(REGIONS.map((r) => [r, []]))
+      for (let k = 0; k < runs; k++) {
+        normal.push(spawnRun(name, i, '-'))
+        for (const r of REGIONS) naive.get(r)!.push(spawnRun(name, i, r))
+      }
+      const med = (xs: number[]) => summarize(xs).median
+      const tick = med(normal.map((n) => n.total))
+      console.log(`\n== ${name} seed ${i + 1} (${SCENARIOS[name].ticks} ticks, tick total ${(tick / 1000).toFixed(2)} s, median of ${runs} runs, spread min-max)`)
+      console.log(`${'region'.padEnd(18)}${'share %'.padStart(7)} ${'spread'.padStart(11)}  cap   ${'naive share %'.padStart(13)}  floor  ${'naive/normal'.padStart(12)} ${'spread'.padStart(11)}  ratio  ${'tick ratio'.padStart(10)}  hash`)
       let attributed = 0
       for (const r of REGIONS) {
-        const normal = base.self.get(r) ?? 0
-        attributed += normal
-        const naive = timeRun(sc, r)
-        const sameHash = naive.hashes.every((h, j) => h === base.hashes[j])
-        const share = normal / base.total
-        const ratio = normal === 0 ? Infinity : (naive.self.get(r) ?? 0) / normal
-        const v = judge(share, ratio)
+        const nv = naive.get(r)!
+        const sh = normal.map((n) => (n.self.get(r) ?? 0) / n.total)
+        const ra = nv.map((x, k) => ((normal[k].self.get(r) ?? 0) === 0 ? Infinity : (x.self.get(r) ?? 0) / normal[k].self.get(r)!))
+        const nsh = nv.map((x, k) => (x.self.get(r) ?? 0) / normal[k].total)
+        const tr = med(nv.map((x, k) => x.total / normal[k].total))
+        const sameHash = nv.every((x) => x.hashes.every((h, j) => h === normal[0].hashes[j]))
+        const share = med(sh)
+        const ratio = med(ra)
+        attributed += share
+        const nshare = med(nsh)
+        const v = judge(share, nshare, ratio)
         verdicts.push(v, { floor: true, cap: true, ratio: sameHash })
-        console.log(`${r.padEnd(20)}${(share * 100).toFixed(2).padStart(7)}%  ${mark(v.floor)} ${mark(v.cap)} ${(ratio.toFixed(2) + 'x').padStart(12)}  ${mark(v.ratio)}   ${sameHash ? 'same' : 'DIFFERENT'}`)
+        console.log(`${r.padEnd(18)}${pct(share).padStart(7)} ${range(sh, pct).padStart(11)}  ${mark(v.cap)}  ${pct(nshare).padStart(13)}  ${mark(v.floor)}  ${(ratio.toFixed(2) + 'x').padStart(12)} ${range(ra, (x) => x.toFixed(2)).padStart(11)}  ${mark(v.ratio)}   ${(tr.toFixed(2) + 'x').padStart(10)}  ${sameHash ? 'same' : 'DIFFERENT'}`)
       }
-      console.log(`${'unattributed'.padEnd(20)}${(((base.total - attributed) / base.total) * 100).toFixed(2).padStart(7)}%`)
+      console.log(`${'unattributed'.padEnd(18)}${pct(1 - attributed).padStart(7)}`)
     }
   }
-  console.log(`\nfloor ${FLOOR * 100}%, cap ${CAP * 100}%, naive at least ${MIN_NAIVE_RATIO}x`)
+  console.log(`\nfloor ${FLOOR * 100}% of the tick on the naive share, cap ${CAP * 100}% on the normal share (D20), naive region time at least ${MIN_NAIVE_RATIO}x normal region time`)
   return exitCode(verdicts, reportOnly)
 }
 
-process.exit(main())
+if (process.argv[2] === '--child') child(process.argv[3], Number(process.argv[4]), process.argv[5])
+else process.exit(main())
