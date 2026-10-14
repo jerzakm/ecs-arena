@@ -12,7 +12,9 @@ const scenario = SCENARIOS[name]
 const createSim = (await import(pathToFileURL(resolve(ROOT, 'impls', impl, 'src/index.ts')).href)).default as CreateSim
 
 const implEntry = pathToFileURL(resolve(ROOT, 'impls', impl, 'src/index.ts')).href
-console.log(`koota -> ${process.env.ECS_ALIAS?.includes('"koota"') ? import.meta.resolve('koota') : findPackageJSON('koota', implEntry)}`)
+// Print which koota build the run uses, so a variant run is easy to confirm.
+const usesKoota = 'koota' in (JSON.parse(readFileSync(resolve(ROOT, 'impls', impl, 'package.json'), 'utf8')).dependencies ?? {})
+if (usesKoota) console.log(`koota -> ${process.env.ECS_ALIAS?.includes('"koota"') ? import.meta.resolve('koota') : findPackageJSON('koota', implEntry)}`)
 
 // Warm the JIT on a throwaway sim, then time a fresh one.
 const warm = createSim(scenario, kernel)
