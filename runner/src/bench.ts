@@ -27,8 +27,8 @@ export type BenchReport = Record<string, Record<string, Aggregate>>
 export const bench = async (targets: string[], scenarios: string[], runs: number, warmup = 200): Promise<BenchReport> => {
   const prepared = targets.map((target) => {
     const { impl, variant } = parseTarget(target)
-    const alias: Record<string, string> = {}
-    return { target, impl, alias: variant ? { koota: ensureVariant(variant) } : alias }
+    const alias: Record<string, string> = variant ? { koota: ensureVariant(variant) } : {}
+    return { target, impl, alias }
   })
   const report: BenchReport = Object.fromEntries(targets.map((t) => [t, {}]))
   for (const sc of scenarios) {
