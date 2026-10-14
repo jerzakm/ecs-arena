@@ -285,10 +285,11 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
         if (!best && isThinkTick(g.id, tick)) {
           let bestCell: Cell | undefined
           let bestD = 0
-          forNear(grid, p.x, p.y, stats.sight, (v) => {
-            if (v.team === teamT.value || v.fleeing) return
-            const d = distSq(p.x, p.y, v.x, v.y)
-            if (d > stats.sight * stats.sight) return
+          const team = teamT.value, x = p.x, y = p.y, sightSq = stats.sight * stats.sight
+          forNear(grid, x, y, stats.sight, (v) => {
+            if (v.team === team || v.fleeing) return
+            const d = distSq(x, y, v.x, v.y)
+            if (d > sightSq) return
             if (!bestCell || d < bestD || (d === bestD && v.id < bestCell.id)) { bestCell = v; bestD = d }
           })
           best = bestCell?.e
