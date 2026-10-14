@@ -2,7 +2,7 @@
 
 This page counts ECS-relevant operations in `impls/baseline-js` per tick for the v2 game. It counts work, not time.
 Run `pnpm run profile skirmish battle war` to reproduce. (`pnpm profile` is a built-in pnpm command, so the script needs `run`.)
-The hooks are in `impls/baseline-js/src/index.ts` behind an optional `counters` argument. They do not change any hash.
+The hooks are in `impls/baseline-js/src/`, in the systems and in `profiling.ts`, behind an optional `counters` argument that `index.ts` passes to the context. They do not change any hash.
 
 ## How to read the tables
 

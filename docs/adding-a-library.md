@@ -44,7 +44,7 @@ Expected `pnpm verify` times, measured on one laptop with Node 24. Your times di
 
 A run much slower than these numbers means a hot loop that scans too much.
 
-1. Copy `impls/koota` to `impls/<lib>`. Change the package name to `@ecs-arena/impl-<lib>`.
+1. Copy `impls/koota` to `impls/<lib>`. Change the package name to `@ecs-arena/impl-<lib>`. Keep the layout. `src/index.ts` is the entry the runner loads. `components.ts`, `relations.ts`, `queries.ts`, `spawning.ts`, `snapshot.ts` and `systems/<phase>.ts` hold the rest, one system for each phase.
 2. Replace the koota dependency with your library, then run `pnpm install`.
 3. Learn your library's relation semantics. Answer the four questions below in your notes before you write code.
    - Exclusive swap. What happens when you add a second target to an exclusive relation? Does the old pair go away?

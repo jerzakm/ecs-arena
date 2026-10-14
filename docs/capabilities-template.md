@@ -2,7 +2,7 @@
 
 Library version: <version>
 
-Each row names a need of the game. Say how your library meets it. Give a link in the form `[L9](src/index.ts#L9)` for each row. Run `pnpm run check:caps` to check that every link points to an existing line.
+Each row names a need of the game. Say how your library meets it. Give a link in the form `[spawning.ts L9](src/spawning.ts#L9)` for each row. Link the file that holds the code. Run `pnpm run check:caps` to check that every link points to an existing line.
 
 The `Support` column has three values.
 
