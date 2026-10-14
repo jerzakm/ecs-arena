@@ -27,9 +27,15 @@ interface Projectile {
 }
 interface GroundItem { gameId: number; kind: number; quality: number; x: number; y: number; age: number }
 
+/** Optional work-count hooks (runner/src/profile.ts). `add` accumulates, `set` records a per-tick gauge. Never read back. */
+export interface Counters {
+  add(name: string, n?: number): void
+  set(name: string, v: number): void
+}
+
 const CELL = 16 * 1024 // grid cell size, an implementation detail
 
-const createSim: CreateSim = (scenario: Scenario, k) => {
+const createSim = (scenario: Scenario, k: Parameters<CreateSim>[1], counters?: Counters): ReturnType<CreateSim> => {
   const { fx, distSq, stepToward, clampToArena, randInt, teamGameId, PURPOSE, KIND, BUFF, UNIT_STATS, ITEMS } = k
   const { seed } = scenario
 
@@ -38,6 +44,20 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   let groundItems: GroundItem[] = []
   const unitById = new Map<number, Unit>()
   let nextId = 1
+  const dirty: Set<number> | null = counters ? new Set<number>() : null // units whose stats inputs changed this tick, only filled when counting
+  const add = (name: string, n = 1) => counters?.add(name, n)
+  const kindName = (kind: number) => (kind === KIND.MINION ? 'minion' : 'unit')
+  const sampleEntities = () => {
+    if (!counters) return
+    let equipped = 0, minions = 0
+    for (const u of units) { equipped += u.items.length; if (u.kind === KIND.MINION) minions++ }
+    counters.set('alive.unit', units.length - minions)
+    counters.set('alive.minion', minions)
+    counters.set('alive.projectile', projectiles.length)
+    counters.set('alive.groundItem', groundItems.length)
+    counters.set('alive.equippedItem', equipped)
+    counters.set('alive.total', units.length + projectiles.length + groundItems.length + equipped)
+  }
   let tick = 0
   const world = { tick: -1, alive: [0, 0], kills: [0, 0], damage: [0, 0], winner: -1 }
 
@@ -65,6 +85,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     if (kind !== KIND.MINION) {
       const count = randInt(4, seed, tick, gameId, PURPOSE.ITEM_COUNT)
       for (let i = 0; i < count; i++) {
+        add('create.equippedItem'); add('rel.Equips.add')
         items.push({
           gameId: nextId++,
           kind: randInt(8, seed, tick, gameId, PURPOSE.ITEM_KIND, i),
@@ -79,6 +100,8 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       lastSummon: tick, age: 0, sx: 0, sy: 0, dmgIn: 0, healIn: 0, stunIn: false, burnIn: false, hasteIn: false, destroyed: false,
     }
     recomputeStats(u)
+    add(`create.${kindName(kind)}`)
+    dirty?.add(gameId)
     units.push(u)
     unitById.set(gameId, u)
     return u
@@ -89,15 +112,18 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   const GRID_N = Math.ceil(k.ARENA / CELL)
   const cellOf = (v: number) => Math.min(GRID_N - 1, Math.max(0, Math.floor(v / CELL)))
   const buildGrid = (): Grid => {
+    add('grid.build'); add('grid.inserted', units.length)
     const grid: Grid = Array.from({ length: GRID_N * GRID_N }, () => [])
     for (const u of units) grid[cellOf(u.y) * GRID_N + cellOf(u.x)].push(u)
     return grid
   }
   // Calls fn for every unit in the cells that overlap the square of half-size r around (x, y).
-  const forNear = (grid: Grid, x: number, y: number, r: number, fn: (u: Unit) => void) => {
+  const forNear = (grid: Grid, x: number, y: number, r: number, fn: (u: Unit) => void, q: string) => {
+    let scanned = 0
     for (let cy = cellOf(y - r); cy <= cellOf(y + r); cy++)
       for (let cx = cellOf(x - r); cx <= cellOf(x + r); cx++)
-        for (const u of grid[cy * GRID_N + cx]) fn(u)
+        for (const u of grid[cy * GRID_N + cx]) { scanned++; fn(u) }
+    if (counters) { add(`query.${q}`); add(`query.${q}.scanned`, scanned) }
   }
 
   // ---- 6.1 spawn ----
@@ -115,6 +141,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       const offY = col * k.FORMATION_SPACING
       const m = spawnUnit(team, kind, lx + offX, ly + offY)
       m.leader = leader.gameId; m.offX = offX; m.offY = offY
+      add('rel.MemberOf.add')
     })
   }
 
@@ -139,21 +166,32 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     // 5.4 step 3 Summons, in gameId order
     const minionCount = new Map<number, number>()
     for (const u of units) if (u.parent !== -1) minionCount.set(u.parent, (minionCount.get(u.parent) ?? 0) + 1)
-    for (const s of units.filter((u) => u.kind === KIND.SUMMONER)) {
+    const summoners = units.filter((u) => u.kind === KIND.SUMMONER)
+    add('q.spawn.summoners', summoners.length)
+    for (const s of summoners) {
       if (tick - s.lastSummon < k.SUMMON_PERIOD || (minionCount.get(s.gameId) ?? 0) >= k.MAX_MINIONS) continue
       const m = spawnUnit(s.team, KIND.MINION, s.x, s.y)
       m.parent = s.gameId
+      add('rel.ChildOf.add')
       s.lastSummon = tick
       minionCount.set(s.gameId, (minionCount.get(s.gameId) ?? 0) + 1)
     }
+    sampleEntities()
   }
 
   // ---- 6.2 ai/target ----
 
   const aiTarget = () => {
     const grid = buildGrid()
+    const setTarget = (u: Unit, t: number) => {
+      if (u.target !== t) {
+        add(u.target === -1 ? 'rel.Targets.add' : t === -1 ? 'rel.Targets.remove' : 'rel.Targets.retarget')
+        u.target = t
+      }
+    }
     for (const u of units) {
       if (isStunned(u) || u.kind === KIND.SUMMONER) continue
+      add('q.ai.evaluated')
       const stats = UNIT_STATS[u.kind]
 
       if (u.kind === KIND.HEALER) {
@@ -165,14 +203,14 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
           if (!best) { best = v; return }
           const a = v.hp * best.maxHp, b = best.hp * v.maxHp
           if (a < b || (a === b && v.gameId < best.gameId)) best = v
-        })
-        u.target = best ? (best as Unit).gameId : -1
+        }, 'heal')
+        setTarget(u, best ? (best as Unit).gameId : -1)
         continue
       }
 
       // Keep the current target while it is in sight.
       const cur = u.target === -1 ? undefined : unitById.get(u.target)
-      if (cur && distSq(u.x, u.y, cur.x, cur.y) <= stats.sight * stats.sight) continue
+      if (cur && distSq(u.x, u.y, cur.x, cur.y) <= stats.sight * stats.sight) { add('q.ai.kept'); continue }
 
       // Otherwise the nearest enemy in sight. Ties go to the lowest gameId.
       let best: Unit | null = null
@@ -182,8 +220,8 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
         const d = distSq(u.x, u.y, v.x, v.y)
         if (d > stats.sight * stats.sight) return
         if (!best || d < bestD || (d === bestD && v.gameId < best.gameId)) { best = v; bestD = d }
-      })
-      u.target = best ? (best as Unit).gameId : -1
+      }, 'target')
+      setTarget(u, best ? (best as Unit).gameId : -1)
     }
   }
 
@@ -201,6 +239,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     // Hierarchy order, pass 1: leaders and units with no squad. They read start-of-phase positions.
     for (const u of units) {
       if (u.leader !== -1 || isStunned(u) || targetInRange(u)) continue
+      add('q.move.leaders')
       const t = u.target === -1 ? undefined : unitById.get(u.target)
       let tx: number, ty: number
       if (t) { tx = t.sx; ty = t.sy }
@@ -212,11 +251,13 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     // Pass 2: members read the new leader position.
     for (const u of units) {
       if (u.leader === -1 || isStunned(u) || targetInRange(u)) continue
+      add('q.move.members')
       const l = unitById.get(u.leader)!
       ;[u.x, u.y] = stepToward(u.x, u.y, l.x + u.offX, l.y + u.offY, u.speed)
     }
 
     // Pass 3: projectiles read the final position of their target.
+    add('q.move.projectiles', projectiles.length)
     for (const p of projectiles) {
       const t = unitById.get(p.target)
       if (t) [p.x, p.y] = stepToward(p.x, p.y, t.x, t.y, k.PROJECTILE_SPEED)
@@ -224,6 +265,15 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   }
 
   // ---- 6.4 combat ----
+
+  const BUFF_NAME = ['stun', 'burn', 'haste']
+  const applyBuff = (u: Unit, b: number) => {
+    if (counters) {
+      if (u.buffs[b] > 0) add(`buff.refresh.${BUFF_NAME[b]}`)
+      else { add(`buff.add.${BUFF_NAME[b]}`); if (b === BUFF.HASTE) dirty?.add(u.gameId) }
+    }
+    u.buffs[b] = k.BUFF_DURATION[b]
+  }
 
   const combat = () => {
     const grid = buildGrid()
@@ -236,16 +286,18 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     }
 
     // 1. Hits
+    add('q.combat.projectiles', projectiles.length)
     for (const p of projectiles) {
       const t = unitById.get(p.target)
       if (!t || p.x !== t.x || p.y !== t.y) continue
       p.spent = true
+      add('q.combat.hits')
       if (p.ownerKind === KIND.MAGE) {
         forNear(grid, p.x, p.y, k.SPLASH_RADIUS, (v) => {
           if (v.team === p.ownerTeam || distSq(p.x, p.y, v.x, v.y) > k.SPLASH_RADIUS * k.SPLASH_RADIUS) return
           addDamage(v, p.attack, p.crit, p.ownerTeam)
           v.burnIn = true
-        })
+        }, 'splash')
       } else addDamage(t, p.attack, p.crit, p.ownerTeam)
     }
 
@@ -267,8 +319,10 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
         t.hasteIn = true
       }
       u.cooldown = UNIT_STATS[u.kind].cooldown
+      add('q.combat.attackers')
     }
     for (const u of shots) {
+      add('create.projectile')
       projectiles.push({
         gameId: nextId++, owner: u.gameId, target: u.target, x: u.x, y: u.y, age: 0,
         ownerTeam: u.team, ownerKind: u.kind, attack: u.attack, crit: k.isCrit(seed, tick, u.gameId), spent: false,
@@ -281,19 +335,22 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     // 4. Resolve. Buffs from this phase start now, a repeat resets ticksLeft.
     for (const u of units) {
       u.hp = Math.min(u.maxHp, u.hp - u.dmgIn + u.healIn)
-      if (u.stunIn) u.buffs[BUFF.STUN] = k.BUFF_DURATION[BUFF.STUN]
-      if (u.burnIn) u.buffs[BUFF.BURN] = k.BUFF_DURATION[BUFF.BURN]
-      if (u.hasteIn) u.buffs[BUFF.HASTE] = k.BUFF_DURATION[BUFF.HASTE]
-    } // Dead means hp <= 0. cleanup reads that.
+      if (u.stunIn) applyBuff(u, BUFF.STUN)
+      if (u.burnIn) applyBuff(u, BUFF.BURN)
+      if (u.hasteIn) applyBuff(u, BUFF.HASTE)
+    }
+    sampleEntities() // Dead means hp <= 0. cleanup reads that.
   }
 
   // ---- 6.5 effects ----
 
   const effects = () => {
     for (const u of units) {
+      if (counters && (u.buffs[0] > 0 || u.buffs[1] > 0 || u.buffs[2] > 0)) add('q.effects.buffed')
       for (let b = 0; b < 3; b++) {
         if (u.buffs[b] === 0) continue
         u.buffs[b]--
+        if (u.buffs[b] === 0) { add(`buff.remove.${BUFF_NAME[b]}`); if (b === BUFF.HASTE) dirty?.add(u.gameId) }
         if (b === BUFF.BURN && u.buffs[b] % k.BURN_INTERVAL === 0) u.hp -= k.BURN_DAMAGE
       }
     }
@@ -302,10 +359,24 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   // ---- 6.6 cleanup ----
 
   const cleanup = () => {
-    const destroy = (u: Unit) => { u.destroyed = true; unitById.delete(u.gameId) }
+    const destroy = (u: Unit) => {
+      if (counters) {
+        add(`destroy.${kindName(u.kind)}`)
+        // relations the entity itself owned, dropped with it (the dropped first item is counted as Equips.remove)
+        if (u.target !== -1) add('rel.Targets.destroyDrop')
+        if (u.leader !== -1) add('rel.MemberOf.destroyDrop')
+        if (u.parent !== -1) add('rel.ChildOf.destroyDrop')
+        const rest = u.hp <= 0 ? Math.max(0, u.items.length - 1) : u.items.length
+        if (rest > 0) { add('destroy.equippedItem', rest); add('rel.Equips.destroyDrop', rest) }
+      }
+      u.destroyed = true
+      unitById.delete(u.gameId)
+    }
 
     // Dead units in gameId order. A minion that a cascade already destroyed is skipped.
-    for (const u of units.filter((v) => v.hp <= 0)) {
+    const dead = units.filter((v) => v.hp <= 0)
+    add('q.cleanup.dead', dead.length)
+    for (const u of dead) {
       if (u.destroyed) continue
       // 1. Kill credit
       if (u.kind !== KIND.MINION) world.kills[1 - u.team]++
@@ -313,6 +384,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       if (u.items.length > 0) {
         const it = u.items[0]
         groundItems.push({ gameId: it.gameId, kind: it.kind, quality: it.quality, x: u.x, y: u.y, age: 0 })
+        add('item.drop'); add('rel.Equips.remove')
       }
       // 3. Minions die with the summoner
       for (const m of units) if (m.parent === u.gameId && !m.destroyed) destroy(m)
@@ -324,6 +396,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
           const { offX, offY } = p
           for (const m of members) { m.offX -= offX; m.offY -= offY; m.leader = p.gameId }
           p.leader = -1 // its own offset is now 0 - 0
+          add('promote'); add('rel.MemberOf.remove'); add('rel.MemberOf.retarget', members.length - 1)
         }
       }
       // 5. Destroy
@@ -334,14 +407,22 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     for (const u of units) if (u.kind === KIND.MINION && u.age >= k.MINION_LIFETIME && !u.destroyed) destroy(u)
 
     // Remove every Targets relation to a destroyed unit.
-    for (const u of units) if (u.target !== -1 && !unitById.has(u.target)) u.target = -1
+    for (const u of units) {
+      if (u.target !== -1 && !unitById.has(u.target)) {
+        u.target = -1
+        if (!u.destroyed) add('rel.Targets.remove')
+      }
+    }
     units = units.filter((u) => !u.destroyed)
 
     // 7. Projectiles that are Spent, have no target, or are 60 ticks old
+    const projBefore = projectiles.length
     projectiles = projectiles.filter((p) => !p.spent && unitById.has(p.target) && p.age < k.PROJECTILE_LIFETIME)
+    add('destroy.projectile', projBefore - projectiles.length)
 
     // 8. Pickup, in gameId order. Items taken here count toward the cap of later items.
     groundItems.sort((a, b) => a.gameId - b.gameId)
+    add('q.cleanup.groundItems', groundItems.length)
     const grid = buildGrid()
     groundItems = groundItems.filter((g) => {
       let best: Unit | null = null
@@ -351,16 +432,19 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
         const d = distSq(g.x, g.y, v.x, v.y)
         if (d > k.PICKUP_RANGE * k.PICKUP_RANGE) return
         if (!best || d < bestD || (d === bestD && v.gameId < best.gameId)) { best = v; bestD = d }
-      })
+      }, 'pickup')
       if (!best) return true
       const taker = best as Unit
+      add('item.pickup'); add('rel.Equips.add'); dirty?.add(taker.gameId)
       taker.items.push({ gameId: g.gameId, kind: g.kind, quality: g.quality })
       taker.items.sort((a, b) => a.gameId - b.gameId)
       return false
     })
 
     // 9. Ground items that are 300 ticks old
+    const gBefore = groundItems.length
     groundItems = groundItems.filter((g) => g.age < k.GROUND_ITEM_LIFETIME)
+    add('destroy.groundItem', gBefore - groundItems.length)
   }
 
   // ---- 6.7 stats ----
@@ -368,6 +452,27 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   const stats = () => {
     // Recomputing every unit gives the same result as recomputing only changed ones.
     for (const u of units) recomputeStats(u)
+    if (counters && dirty) {
+      let needed = 0
+      for (const id of dirty) if (unitById.has(id)) needed++
+      dirty.clear()
+      add('stats.needed', needed)
+      add('stats.full', units.length)
+      sampleEntities()
+      let maxDepth = 0
+      const children = new Map<number, number>()
+      for (const u of units) {
+        let d = 0
+        for (let c = u; c.leader !== -1 || c.parent !== -1; d++) {
+          const pid = c.leader !== -1 ? c.leader : c.parent
+          children.set(pid, (children.get(pid) ?? 0) + (d === 0 ? 1 : 0))
+          c = unitById.get(pid)!
+        }
+        if (d > maxDepth) maxDepth = d
+      }
+      counters.set('hier.depth', maxDepth)
+      counters.set('hier.maxChildren', Math.max(0, ...children.values()))
+    }
     world.alive = [0, 0]
     for (const u of units) world.alive[u.team]++
     if (tick > 0 && world.winner === -1) {
