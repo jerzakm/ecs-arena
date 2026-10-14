@@ -1,11 +1,13 @@
 import type { Context } from '../context.ts'
 import { recomputeStats, scanItemMask } from '../derived-stats.ts'
 import { sampleEntities } from '../profiling.ts'
+import { flagsOf } from '../snapshot.ts'
 import type { Unit } from '../types.ts'
 
 export const statsSystem = (ctx: Context) => {
   const { k, add, begin, end, dirty, world, parentOf, depthOf } = ctx
-  const naive = ctx.isNaive('stats.recompute'), naiveSet = ctx.isNaive('stats.setBonus'), naiveBanner = ctx.isNaive('stats.banner')
+  const naive = ctx.isNaive('stats.recompute'), naiveSet = ctx.isNaive('stats.setBonus'), naiveBanner = ctx.isNaive('stats.banner'), naiveRender = ctx.isNaive('stats.render')
+  let buf = new Int32Array(0)
 
   const refresh = (u: Unit) => {
     if (u.killCount >= k.VETERAN_KILLS && !u.veteran) {
@@ -64,6 +66,22 @@ export const statsSystem = (ctx: Context) => {
       if (world.alive[0] === 0 && world.alive[1] > 0) world.winner = 1
       else if (world.alive[1] === 0 && world.alive[0] > 0) world.winner = 0
     }
+    // SPEC §6.15: the render buffer is one flat int32 array. Folding it into renderChain is what keeps the extraction in the hash.
+    begin('stats.render')
+    const size = 1 + k.RENDER_STRIDE * units.length
+    if (buf.length < size) buf = new Int32Array(Math.max(size, 2 * buf.length))
+    buf[0] = units.length
+    let at = 1
+    if (naiveRender) {
+      const rows = units.map((u) => ({ gameId: u.gameId, kind: u.kind, team: u.team, x: u.x, y: u.y, hp: k.fx.div(u.hp * 255, u.maxHp), flags: flagsOf(u) }))
+      for (let r_i = 0, r = rows[0]; r_i < rows.length; r = rows[++r_i]) { buf[at++] = r.gameId; buf[at++] = r.kind; buf[at++] = r.team; buf[at++] = r.x; buf[at++] = r.y; buf[at++] = r.hp; buf[at++] = r.flags }
+    } else {
+      for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
+        buf[at++] = u.gameId; buf[at++] = u.kind; buf[at++] = u.team; buf[at++] = u.x; buf[at++] = u.y; buf[at++] = k.fx.div(u.hp * 255, u.maxHp); buf[at++] = flagsOf(u)
+      }
+    }
+    world.renderChain = k.foldRender(world.renderChain, buf, size)
+    end('stats.render')
     world.tick = ctx.tick
     ctx.tick++
   }

@@ -3,9 +3,12 @@ import type { Context } from '../context.ts'
 import { Bannered, Chronicle, Kind, Metrics, Unit, Veteran } from '../components.ts'
 import { recomputeStats } from '../derived-stats.ts'
 import { ChildOf, MemberOf } from '../relations.ts'
+import { flagsOf } from '../snapshot.ts'
 
 export const statsSystem = (ctx: Context) => {
   const { k, world, q, dirty } = ctx
+  const rows: number[] = [] // gameId, kind, team, x, y, hp byte, flags for each unit, in query order
+  let buf = new Int32Array(0)
 
   return () => {
     const candidates: Entity[] = []
@@ -46,5 +49,18 @@ export const statsSystem = (ctx: Context) => {
       }
       return { alive0: alive[0], alive1: alive[1], winner }
     })
+
+    // SPEC 6.15: one pass reads the traits of every unit. The tags come from `has`, and the rows go out in gameId order.
+    rows.length = 0
+    world.query(q.renderables).readEach(([g, kind, team, p, h], e) => {
+      rows.push(g.id, kind.value, team.value, p.x, p.y, k.fx.div(h.hp * 255, h.maxHp), flagsOf(e))
+    })
+    const n = rows.length / k.RENDER_STRIDE
+    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => rows[a * k.RENDER_STRIDE] - rows[b * k.RENDER_STRIDE])
+    const size = 1 + rows.length
+    if (buf.length < size) buf = new Int32Array(Math.max(size, 2 * buf.length))
+    buf[0] = n
+    order.forEach((r, i) => { for (let j = 0; j < k.RENDER_STRIDE; j++) buf[1 + i * k.RENDER_STRIDE + j] = rows[r * k.RENDER_STRIDE + j] })
+    world.set(Metrics, (m) => ({ renderChain: k.foldRender(m.renderChain, buf, size) }))
   }
 }

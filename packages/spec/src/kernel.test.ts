@@ -129,4 +129,24 @@ describe('orderKeys', () => {
     expect(seen.size).toBeGreaterThan(30)
   })
 })
+
+describe('foldRender', () => {
+  const independent = (chain: number, ints: number[]) => {
+    const view = new DataView(new ArrayBuffer(4 * ints.length))
+    ints.forEach((v, i) => view.setInt32(4 * i, v, true))
+    let h = chain >>> 0
+    for (let i = 0; i < 4 * ints.length; i++) h = Math.imul(h ^ view.getUint8(i), 0x01000193) >>> 0
+    return h | 0
+  }
+  it('is FNV-1a over little-endian bytes and returns an int32', () => {
+    const ints = [3, -1, 0x01020304, -(2 ** 31), 2 ** 31 - 1, 262143]
+    expect(kernel.foldRender(kernel.RENDER_SEED, ints, ints.length)).toBe(independent(kernel.RENDER_SEED, ints))
+    expect(kernel.foldRender(-5, ints, 2)).toBe(independent(-5, ints.slice(0, 2)))
+    expect(kernel.RENDER_SEED).toBe(0x811c9dc5 | 0)
+  })
+  it('folds only the first n values and chains across calls', () => {
+    const a = [7, 8, 9, 10]
+    expect(kernel.foldRender(kernel.foldRender(kernel.RENDER_SEED, a, 2), a.slice(2), 2)).toBe(kernel.foldRender(kernel.RENDER_SEED, a, 4))
+  })
+})
 })

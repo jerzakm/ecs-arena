@@ -6,7 +6,7 @@ import { parseSnapshot } from './snapshot.ts'
 describe('parseSnapshot', () => {
   it('parses a hand-built snapshot and skips variable-length sections', () => {
     const s = [
-      7, 1, 1, 0, 0, 0, 0, -1, 0, 0, 3, 4,
+      7, 1, 1, 0, 0, 0, 0, -1, 0, 0, 3, 4, 77,
       1, 5, 1, 300, 0,
       2,
       // unit 1: two buffs, one item, flags=2, one threat, chronicle of two

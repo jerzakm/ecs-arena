@@ -202,3 +202,21 @@ export const orderKeys = (n: number, seed: number, tick: number, team: number, k
   1 + randInt(n - 1, seed, tick, teamGameId(team), PURPOSE.ORDER_SUBJECT, k),
   1 + randInt(n - 1, seed, tick, teamGameId(team), PURPOSE.ORDER_OBJECT, k),
 ]
+
+/** SPEC §6.15: `renderChain` before tick 0. */
+export const RENDER_SEED = 0x811c9dc5 | 0
+/** Ints that each unit takes in the render buffer: gameId, kind, team, x, y, hp byte, flags. */
+export const RENDER_STRIDE = 7
+
+/** SPEC §6.15: folds the first `n` int32 of `buf` into `chain` (FNV-1a over little-endian bytes) and returns the new chain. */
+export const foldRender = (chain: number, buf: ArrayLike<number>, n: number): number => {
+  let h = chain >>> 0
+  for (let i = 0; i < n; i++) {
+    const v = buf[i]
+    h = Math.imul(h ^ (v & 255), 0x01000193)
+    h = Math.imul(h ^ ((v >> 8) & 255), 0x01000193)
+    h = Math.imul(h ^ ((v >> 16) & 255), 0x01000193)
+    h = Math.imul(h ^ ((v >>> 24) & 255), 0x01000193)
+  }
+  return h | 0
+}

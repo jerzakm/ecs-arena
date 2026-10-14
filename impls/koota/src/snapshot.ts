@@ -1,3 +1,4 @@
+import type { Entity } from 'koota'
 import type { CanonicalState } from '@ecs-arena/spec'
 import { byGameId, type Context } from './context.ts'
 import {
@@ -6,11 +7,15 @@ import {
 } from './components.ts'
 import { ChildOf, Equips, GarrisonOf, LastHitBy, MemberOf, Targets, Threat } from './relations.ts'
 
+/** SPEC §8 flags: Fleeing, Veteran, Routed, Overwhelmed, Bannered and Garrisoned, in bits 0 to 5. */
+export const flagsOf = (e: Entity): number =>
+  (e.has(Fleeing) ? 1 : 0) | (e.has(Veteran) ? 2 : 0) | (e.has(Routed) ? 4 : 0) | (e.has(Overwhelmed) ? 8 : 0) | (e.has(Bannered) ? 16 : 0) | (e.has(Garrisoned) ? 32 : 0)
+
 export const snapshot = (ctx: Context): CanonicalState => {
   const { world, gid, sortedByGameId } = ctx
   const { BUFF } = ctx.k
   const m = world.get(Metrics)!, score = world.get(Score)!
-  const s: number[] = [ctx.tickNow(), m.alive0, m.alive1, m.kills0, m.kills1, m.damage0, m.damage1, m.winner, score.shrines0, score.shrines1, m.orders0, m.orders1]
+  const s: number[] = [ctx.tickNow(), m.alive0, m.alive1, m.kills0, m.kills1, m.damage0, m.damage1, m.winner, score.shrines0, score.shrines1, m.orders0, m.orders1, m.renderChain]
 
   const shrines = sortedByGameId(Shrine)
   s.push(shrines.length)
@@ -39,7 +44,7 @@ export const snapshot = (ctx: Context): CanonicalState => {
     s.push(items.length)
     for (const it of items) s.push(it.id, it.e.get(ItemKind)!.value, e.get(Equips(it.e))!.quality)
     const hitBy = e.targetFor(LastHitBy)
-    s.push((e.has(Fleeing) ? 1 : 0) | (e.has(Veteran) ? 2 : 0) | (e.has(Routed) ? 4 : 0) | (e.has(Overwhelmed) ? 8 : 0) | (e.has(Bannered) ? 16 : 0) | (e.has(Garrisoned) ? 32 : 0), e.get(KillCount)!.value, hitBy ? gid(hitBy) : -1)
+    s.push(flagsOf(e), e.get(KillCount)!.value, hitBy ? gid(hitBy) : -1)
     const morale = e.get(Morale)
     s.push(morale ? morale.size0 : -1, morale ? morale.lost : -1)
     const edges = e.targetsFor(Threat).map((a) => ({ id: gid(a), amount: e.get(Threat(a))!.amount })).sort(byGameId)

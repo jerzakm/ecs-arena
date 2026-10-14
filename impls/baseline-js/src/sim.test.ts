@@ -1308,6 +1308,43 @@ describe('Commander orders', () => {
   })
 })
 
+describe('Render extraction', () => {
+  /** SPEC §6.15 written out separately from the kernel: FNV-1a over the little-endian bytes of the buffer. */
+  const fold = (chain: number, ints: number[]) => {
+    const bytes = new DataView(new ArrayBuffer(4 * ints.length))
+    ints.forEach((v, i) => bytes.setInt32(4 * i, v, true))
+    let h = chain >>> 0
+    for (let i = 0; i < 4 * ints.length; i++) h = Math.imul(h ^ bytes.getUint8(i), 0x01000193) >>> 0
+    return h | 0
+  }
+  const bufferOf = (s: Parsed) => [s.units.length, ...s.units.flatMap((u) => [u.gameId, u.kind, u.team, u.x, u.y, Math.trunc((u.hp * 255) / u.maxHp), u.flags])]
+
+  it('starts renderChain at 0x811c9dc5 and folds the buffer of every tick into it, flags included', () => {
+    const sim = createSim(scenario(), kernel)
+    expect(parse(sim.snapshot()).renderChain).toBe(0x811c9dc5 | 0)
+    let chain = 0x811c9dc5 | 0
+    let flagged = 0
+    for (const s of fights()[0].h) {
+      chain = fold(chain, bufferOf(s))
+      expect(s.renderChain).toBe(chain)
+      if (s.units.some((u) => u.flags !== 0)) flagged++
+    }
+    expect(flagged).toBeGreaterThan(0)
+  })
+
+  it('folds the garrison fights too: units that hold garrison and order flags are in the buffer', () => {
+    const h = run({ ...SCENARIOS.skirmish, ticks: 600 })
+    let chain = 0x811c9dc5 | 0
+    for (const s of h) { chain = fold(chain, bufferOf(s)); expect(s.renderChain).toBe(chain) }
+    expect(h.some((s) => s.units.some((u) => (u.flags & GARRISONED) !== 0))).toBe(true)
+  })
+
+  it('changes renderChain on every tick, so a run that skips one buffer ends with another value', () => {
+    const chains = fights()[0].h.map((s) => s.renderChain)
+    expect(new Set(chains).size).toBe(chains.length)
+  })
+})
+
 describe('determinism', () => {
   it('replays the same snapshots for the same scenario', () => {
     const sc = scenario({ targetPop: 30, maxSquadsPerWave: 5, wavePeriod: 50, ticks: 60 })

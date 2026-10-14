@@ -9,7 +9,7 @@ import { CAP, FLOOR, MIN_NAIVE_RATIO, exitCode, judge, summarize, type Verdict }
 
 export const REGIONS = [
   'move.step', 'churn', 'effects.buffs', 'cleanup.unlink', 'move.depthOrder', 'cleanup.cascade', 'links',
-  'objectives.capture', 'morale.rout', 'morale.onFlee', 'stats.recompute', 'stats.setBonus', 'stats.banner', 'combat.fanIn', 'threat', 'cleanup.credit', 'grid.update', 'garrison', 'orders.lookup',
+  'objectives.capture', 'morale.rout', 'morale.onFlee', 'stats.recompute', 'stats.setBonus', 'stats.banner', 'combat.fanIn', 'threat', 'cleanup.credit', 'grid.update', 'garrison', 'orders.lookup', 'stats.render',
 ]
 const HASH_EVERY = 25
 

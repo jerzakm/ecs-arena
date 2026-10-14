@@ -19,7 +19,7 @@ Each facet that the game claims to test must use a known share of the tick.
 - **Naive way.** A flag switches each region to naive code. The naive code must be at least 1.5 times slower than the normal region. If it is not, the game does not reward the library feature, and the facet is not a real test.
 - **Where.** The check must pass in every scenario and with each of the K = 3 seeds.
 
-`pnpm budget [scenario...] [--seeds] [--report-only] [--runs N]` measures the table. Each variant runs N times (default 5) in fresh child processes after a full warmup run, and the verdicts use medians. The `Regions` argument of the `baseline-js` `createSim` times each region (nested regions count their own time only) and names the regions that run naive code. Only `runner/src/budget.ts` sets it. The thresholds are constants in `runner/src/budget-check.ts`. The tool also checks that each naive run keeps the hash of the normal run. The `baseline-js` rows for facets A to G and for save and load do not exist yet.
+`pnpm budget [scenario...] [--seeds] [--report-only] [--runs N]` measures the table. Each variant runs N times (default 5) in fresh child processes after a full warmup run, and the verdicts use medians. The `Regions` argument of the `baseline-js` `createSim` times each region (nested regions count their own time only) and names the regions that run naive code. Only `runner/src/budget.ts` sets it. The thresholds are constants in `runner/src/budget-check.ts`. The tool also checks that each naive run keeps the hash of the normal run. The `baseline-js` rows for save and load do not exist yet.
 
 A facet that fails the floor gets more load from a tuned number. A facet that passes the cap gets less. Tuning changes the goldens.
 
@@ -48,7 +48,7 @@ Region names are proposals. The unit that adds the regions (U4) can change them 
 | D. Ancestor read | Banner: units below a living warlord get armor | `stats` | Walk the full chain of each unit, every tick (normal code reads the parent in one pass in gameId order, since a parent has a lower gameId) | `stats.banner` |
 | E. Disabled entities | Garrison: units in a held shrine leave move and target queries | `objectives`, `ai/target`, `move` | Keep garrisoned units in the grid and test a flag in every search, and find the `Targets` to an entering unit by a scan of all units (normal code takes the unit out of the grid and reads the inverse index of `Targets`) | `garrison` |
 | F. Lookup by key | Commander orders by `gameId`, with dead keys | `ai/target` | Scan all units for each key (normal code reads the `gameId` map) | `orders.lookup` |
-| G. Render extraction | A flat int32 buffer of all units, folded into `renderChain` | `stats` | Build one object for each unit, then copy it into the buffer | added in U5 (`stats.render`) |
+| G. Render extraction | A flat int32 buffer of all units, folded into `renderChain` | `stats` | Build one object for each unit, then copy it into the buffer | `stats.render` |
 | Snapshot and restore | Save each 100 ticks, load one save, replay | between ticks | Serialize the world to JSON and parse it back | added in U5 (`save`, `load`) |
 
 ### Why each new facet has a hash effect

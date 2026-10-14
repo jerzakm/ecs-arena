@@ -36,7 +36,7 @@ const diffList = <T extends object>(section: string, a: T[], b: T[], keyOf: (r: 
 
 /** Every differing record, in section order: world, shrine, unit, projectile, ground. */
 export const diffParsed = (a: Parsed, b: Parsed): RecordDiff[] => {
-  const world = (p: Parsed) => ({ tick: p.tick, alive0: p.alive[0], alive1: p.alive[1], kills0: p.kills[0], kills1: p.kills[1], damage0: p.damage[0], damage1: p.damage[1], winner: p.winner, shrines0: p.score[0], shrines1: p.score[1], orders0: p.orders[0], orders1: p.orders[1] })
+  const world = (p: Parsed) => ({ tick: p.tick, alive0: p.alive[0], alive1: p.alive[1], kills0: p.kills[0], kills1: p.kills[1], damage0: p.damage[0], damage1: p.damage[1], winner: p.winner, shrines0: p.score[0], shrines1: p.score[1], orders0: p.orders[0], orders1: p.orders[1], renderChain: p.renderChain })
   return [
     ...diffRecord('world', 'world', world(a), world(b)),
     ...diffList('shrine', a.shrines, b.shrines, (r) => r.gameId),
