@@ -17,7 +17,7 @@ describe('runTrace / firstDivergence', () => {
   const sc = SCENARIOS['skirmish-smoke']
   it('has one hash per tick and is deterministic', () => {
     const a = runTrace(fake(Infinity), sc)
-    expect(a).toHaveLength(100)
+    expect(a).toHaveLength(sc.ticks)
     expect(runTrace(fake(Infinity), sc)).toEqual(a)
     expect(runTrace(fake(Infinity), sc, 7)).toEqual(a.slice(0, 7))
   })

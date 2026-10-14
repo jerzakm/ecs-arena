@@ -1,4 +1,4 @@
-export const PHASES = ['spawn', 'ai/target', 'move', 'combat', 'effects', 'cleanup', 'stats'] as const
+export const PHASES = ['spawn', 'ai/target', 'move', 'combat', 'effects', 'morale', 'cleanup', 'objectives', 'stats'] as const
 export type PhaseName = (typeof PHASES)[number]
 
 export interface Scenario {
@@ -8,9 +8,12 @@ export interface Scenario {
   targetPop: number
   wavePeriod: number
   maxSquadsPerWave: number
+  surgePeriod: number
+  surgeBase: number
+  surgeCap: number
 }
 
-/** SPEC.md §8: one flat array of int32 values. */
+/** SPEC §8: one flat array of int32 values. */
 export type CanonicalState = number[]
 
 /**

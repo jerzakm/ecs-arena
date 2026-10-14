@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { FX, MAX_COORD, clampToArena, damage, distSq, fmix32, fx, isqrt, rand, randInt, stepToward, teamGameId, PURPOSE, kernel, hashState, SCENARIOS } from './index.ts'
+import { FX, MAX_COORD, clampToArena, damage, distSq, fmix32, fx, isqrt, rand, randInt, stepToward, teamGameId, PURPOSE, volleyDamage } from './kernel.ts'
+import { kernel, hashState, SCENARIOS } from './index.ts'
 
 const S = 0xec5a7e7a
 
@@ -79,6 +80,12 @@ describe('damage', () => {
     expect(damage(5, 9, false)).toBe(1)
     expect(damage(0, 2, true)).toBe(2)
   })
+  it('halves a volley hit, truncating, and floors at 1', () => {
+    expect(volleyDamage(14, 4, false)).toBe(5)
+    expect(volleyDamage(15, 4, false)).toBe(5)
+    expect(volleyDamage(10, 4, true)).toBe(6)
+    expect(volleyDamage(1, 9, false)).toBe(1)
+  })
 })
 
 describe('hash', () => {
@@ -95,7 +102,12 @@ describe('tables', () => {
     expect(kernel.FX).toBe(FX)
     expect(kernel.UNIT_STATS[0].range).toBe(1536)
     expect(SCENARIOS['battle'].ticks).toBe(2000)
-    expect(SCENARIOS['war-smoke']).toMatchObject({ ticks: 100, targetPop: 12500, seed: S })
+    expect(SCENARIOS['war-smoke']).toMatchObject({ ticks: 400, targetPop: SCENARIOS['war'].targetPop, seed: S })
+    expect(kernel.UNIT_STATS[kernel.KIND.WARLORD]).toMatchObject({ maxHp: 400, attack: 20, armor: 6, range: 1536, sight: 10 * FX, cooldown: 25, speed: 416 })
+    expect(kernel.SQUADS[3].members).toEqual([0, 0, 4, 3])
+    expect([0, 1, 2, 3, 4, 5, 6].map(kernel.shrineY)).toEqual([16, 48, 80, 112, 144, 176, 208].map((t) => t * FX))
+    expect(PURPOSE.SURGE_KIND).toBe(7)
+    expect(PURPOSE.SURGE_Y).toBe(8)
     expect(Object.keys(SCENARIOS)).toHaveLength(6)
   })
 })

@@ -90,7 +90,7 @@ When a unit is destroyed, every `Targets` and `Threat` relation to it or from it
 
 | Name | On | Data | Section |
 |---|---|---|---|
-| `Shrine` | shrine | `owner` (-1, 0, 1), `progress` (-300..300) | §6.8 |
+| `Shrine` | shrine | `owner` (-1, 0, 1), `progress` (-200..200) | §6.8 |
 | `Score` | world | `shrines0`, `shrines1` | §6.8 |
 | `Morale` | squad leader | `size0`, `lost` | §6.6 |
 | `Routed` | squad leader | tag | §6.6 |
@@ -111,13 +111,13 @@ Speeds are in fixed point units per tick. Ranges and sight are in tiles.
 
 | Kind | maxHp | attack | armor | range | sight | cooldown | speed |
 |---|---|---|---|---|---|---|---|
-| Warrior | 200 | 14 | 4 | 1.5 | 8 | 20 | 384 |
-| Archer | 80 | 10 | 1 | 8 | 10 | 30 | 320 |
-| Mage | 70 | 9 | 0 | 7 | 10 | 45 | 320 |
-| Healer | 90 | 15 (heal) | 1 | 6 | 8 | 40 | 320 |
-| Summoner | 100 | 0 | 2 | — | 8 | 120 | 288 |
-| Minion | 30 | 5 | 0 | 1.5 | 8 | 20 | 448 |
-| Warlord | 400 | 20 | 6 | 1.5 | 10 | 25 | 320 |
+| Warrior | 200 | 14 | 4 | 1.5 | 8 | 20 | 448 |
+| Archer | 80 | 10 | 1 | 8 | 10 | 30 | 416 |
+| Mage | 70 | 9 | 0 | 7 | 10 | 45 | 416 |
+| Healer | 90 | 15 (heal) | 1 | 6 | 8 | 40 | 416 |
+| Summoner | 100 | 0 | 2 | — | 8 | 120 | 352 |
+| Minion | 30 | 5 | 0 | 1.5 | 8 | 20 | 512 |
+| Warlord | 400 | 20 | 6 | 1.5 | 10 | 25 | 416 |
 
 - The heal range of a healer is its range. A summoner has range 0 and never attacks.
 - Crit chance is 10%. Pickup range is 1.5 tiles. Use 1.5 tiles = 1536 units.
@@ -248,7 +248,7 @@ A think tick for a unit is a tick where `(gameId + tick) % 4 == 0` _(tune)_.
 
 `stepToward(x, y, tx, ty, speed)`: if `distSq <= speed²`, go to `(tx, ty)`. Otherwise `d = isqrt(distSq)`, and go to `(x + fx.div(dx * speed, d), y + fx.div(dy * speed, d))`. Clamp to the arena.
 
-**Hierarchy order:** move all units of depth 0, then depth 1, then depth 2, then depth 3. Then move all projectiles. Depth is the depth at the start of the phase.
+**Hierarchy order:** move all units of depth 0, then all units of depth 1, and so on up to the greatest depth. Then move all projectiles. Depth is the depth at the start of the phase. A normal warband has depths 0 to 3. A promotion can raise the greatest depth (§6.7 step 4).
 
 - A unit that is stunned does not move.
 - A **fleeing** unit moves toward its **home edge** at its own `y`. The home edge is `x = 0` for team 0 and `x = 262143` for team 1. It ignores its target and its parent.
@@ -313,7 +313,7 @@ A fleeing unit never recovers. `Fleeing` is never removed. The unit leaves the b
 
 ### 6.7 `cleanup`
 
-A **leaving** unit is a unit that is `Fleeing`, is not `Dead`, and is on its home edge at the start of `cleanup`.
+A **leaving** unit is a unit that is `Fleeing`, is not `Dead`, and has `x` equal to the home edge `x` (§6.3) at the start of `cleanup`. A stunned unit can leave. A unit that got `Fleeing` in this tick's `morale` phase can leave.
 
 Handle the dead units and the leaving units together, in gameId order:
 
@@ -323,9 +323,9 @@ Handle the dead units and the leaving units together, in gameId order:
    - If the credited unit has `Veteran` at the start of `cleanup`, append the victim kind to its `chronicle`. If the chronicle then has more than 4 entries, remove the oldest. Victims are handled in gameId order, so the chronicle order is fixed.
 2. **Drop** (dead units only). The equipped item with the lowest gameId becomes a ground item at the unit position, with age 0. It keeps its gameId and quality. Destroy the other items. A leaving unit drops nothing, and all its items are destroyed.
 3. Destroy all minions with `ChildOf` this unit. Minions destroyed this way give no kill.
-4. **Promotion.** If units have `MemberOf` this unit, the one with the lowest gameId that is not destroyed yet becomes the new head. A dead or leaving unit that waits in the list can be promoted. It is then handled in its turn, and the same rule applies again.
+4. **Promotion.** If units have `MemberOf` this unit, the one with the lowest gameId that is not destroyed yet becomes the new head. A dead or leaving unit that waits in the list can be promoted. It is then handled in its turn, and the same rule applies again. A unit that lost its `MemberOf` in `morale` (§6.6 step 4) is not a member here.
    - The new head loses its `MemberOf` to this unit.
-   - If this unit has a `MemberOf` parent, the new head gets the same parent and the same offset.
+   - If this unit has a `MemberOf` parent and the new head is not `Fleeing`, the new head gets the same parent and the same offset. A `Fleeing` head gets no parent. A `Fleeing` unit that has `Morale` never has a `MemberOf` parent.
    - If the new head has no `Morale` and this unit has `Morale`, the new head takes the `Morale` values and the `Routed` tag of this unit.
    - Each other member of this unit gets `MemberOf(new head)`, and its offset becomes `old offset - new head old offset`.
 5. Destroy the unit.
@@ -345,8 +345,8 @@ Then remove all `Targets` and `Threat` relations to or from every unit destroyed
 For each shrine in gameId order:
 
 1. Count `c0` and `c1`: the units of each team within 4 tiles _(tune)_ of the shrine that are not `Fleeing`. All unit kinds count. This is one spatial search for each shrine, not one for each unit.
-2. `progress = clamp(progress + clamp(c0 - c1, -5, 5), -300, 300)` _(tune)_.
-3. If `progress == 300`, `owner = 0`. If `progress == -300`, `owner = 1`. Otherwise `owner` does not change.
+2. `progress = clamp(progress + clamp(c0 - c1, -5, 5), -200, 200)` _(tune)_.
+3. If `progress == 200`, `owner = 0`. If `progress == -200`, `owner = 1`. Otherwise `owner` does not change.
 
 Then set `Score.shrines0` and `Score.shrines1` to the number of shrines that each team owns.
 
@@ -413,9 +413,9 @@ FNV-1a 32-bit over the snapshot. Feed each int32 as 4 bytes, little-endian.
 
 | Scenario | targetPop each team | wavePeriod | maxSquadsPerWave | surgePeriod | surgeBase | surgeCap each team | Ticks | Smoke ticks |
 |---|---|---|---|---|---|---|---|---|
-| `skirmish` | 300 | 200 | 25 | 300 | 4 | 450 | 2,000 | 400 |
-| `battle` | 2,800 | 200 | 160 | 300 | 30 | 4,200 | 2,000 | 400 |
-| `war` | 13,000 | 200 | 650 | 300 | 150 | 20,000 | 1,000 | 400 |
+| `skirmish` | 170 | 200 | 15 | 120 | 3 | 260 | 2,000 | 400 |
+| `battle` | 1,600 | 200 | 100 | 120 | 20 | 2,400 | 2,000 | 400 |
+| `war` | 8,000 | 200 | 420 | 120 | 100 | 12,000 | 1,000 | 400 |
 
 The seed for all scenarios is `0xEC5A7E7A`.
 
