@@ -14,6 +14,7 @@
     "diff": "tsx runner/src/diff.ts",
     "check:caps": "tsx runner/src/check-capabilities.ts",
     "verify:all": "tsx runner/src/verify-all.ts",
+    "budget": "tsx runner/src/budget.ts",
     "results": "tsx runner/src/results.ts"
   },
   "devDependencies": {

@@ -11,7 +11,7 @@ The hooks are in `impls/baseline-js/src/`, in the systems and in `profiling.ts`,
 - Population rows are gauges. The value for a tick is the highest count seen inside that tick. "mean" and "peak" are over ticks.
 - Entities include units, warlords, minions, projectiles, ground items, equipped items and shrines. Items are counted as entities because the spec gives them a `gameId`.
 - Spatial queries are the baseline's `forNear` grid lookups. "Scanned" is the number of candidate units the grid returned before the range test.
-- "Stats needed" is the number of live units whose items, buffs, kill count or Veteran tag changed, plus new units. The baseline recomputes every unit each tick ("stats full").
+- "Stats needed" is the number of live units whose items, buffs, kill count or Veteran tag changed, plus new units. The baseline used to recompute every unit each tick ("stats full"). It now recomputes only the needed ones, and the full recompute is the naive variant of `stats.recompute`.
 - Creates are bursty. Waves spawn every 200 ticks and surges every 120, so max/tick for creates is a spawn tick, and the mean hides it.
 - Smoke runs (400 ticks) cover the first contact, the first shrine capture and the first surge, but not the first rout.
 
