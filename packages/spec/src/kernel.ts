@@ -63,7 +63,7 @@ export const PURPOSE = { SQUAD_KIND: 1, SPAWN_Y: 2, ITEM_COUNT: 3, ITEM_KIND: 4,
 // SPEC §3
 export const KIND = { WARRIOR: 0, ARCHER: 1, MAGE: 2, HEALER: 3, SUMMONER: 4, MINION: 5, PROJECTILE: 6, ITEM: 7 } as const
 
-/** Buff kind ids follow the order of the §6.5 table. The spec does not number them (see report). */
+/** Buff kind ids, SPEC.md §6.5. */
 export const BUFF = { STUN: 0, BURN: 1, HASTE: 2 } as const
 export const BUFF_DURATION = [20, 60, 40] as const
 export const BURN_DAMAGE = 2
