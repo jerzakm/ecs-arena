@@ -1,7 +1,7 @@
 import { Not, type Entity } from 'koota'
 import { byGameId, type Context } from '../context.ts'
 import {
-  Age, Chronicle, Dead, Fleeing, GameId, Ground, KillCount, Kind, Metrics, Minion, Morale, Position, Projectile, Routed, Spent, Team, Veteran,
+  Age, Chronicle, Dead, Fleeing, GameId, Ground, ItemKind, ItemTags, KillCount, Kind, Metrics, Minion, Morale, Position, Projectile, Routed, Spent, Team, Veteran,
 } from '../components.ts'
 import { Equips, LastHitBy, MemberOf, Targets } from '../relations.ts'
 
@@ -80,7 +80,10 @@ export const cleanupSystem = (ctx: Context) => {
         const h = ctx.grid.nearest(gp.x, gp.y, k.PICKUP_RANGE, hasRoom)
         if (h === -1) continue
         const quality = g.e.get(Ground)!.quality
-        ctx.unitAt[h].add(Equips(g.e, { quality }))
+        const taker = ctx.unitAt[h]
+        taker.add(Equips(g.e, { quality }))
+        const tag = ItemTags[g.e.get(ItemKind)!.value]
+        if (!taker.has(tag)) taker.add(tag)
         g.e.remove(Ground, Position, Age)
       }
     }

@@ -42,10 +42,10 @@ Region names are proposals. The unit that adds the regions (U4) can change them 
 | Change-driven recompute | Stats on a change of items, buffs, kills, `Veteran`, `bannered` | `stats` | Recompute every unit | `stats.recompute` |
 | Many-to-many with data | `Threat` with write, evict, decay | `combat`, `effects` | Scan all units for decay and for dead attackers, instead of the set of threatened units (covers add, evict, decay and purge) | `threat` |
 | Array data | Veteran chronicle | `cleanup` | Copy the full array on each append | `cleanup.credit` |
-| A. Fragmentation | Item tags and buff tags, set bonuses | `stats`, `effects`, `cleanup` | Find set bonuses by a scan of the item list of each unit, every tick | added in U5 (`stats.setBonus`) |
+| A. Fragmentation | Item tags and buff tags, set bonuses | `stats`, `effects`, `cleanup` | Rebuild the item tags of every unit by a scan of its item list each tick (normal code keeps the tags and reads a bonus table) | `stats.setBonus` |
 | B. Dense change | The library reports moved units to the kernel grid | after `spawn`, `move`, `cleanup` | Send every unit again before each search | `grid.update` |
-| C. High fan-in | Overwhelmed: 6 or more attackers give more damage | `combat` | For each victim, scan all units for `Targets` to it | added in U5 (`combat.fanIn`) |
-| D. Ancestor read | Banner: units below a living warlord get armor | `stats` | Walk the full chain of each unit, every tick | added in U5 (`stats.banner`) |
+| C. High fan-in | Overwhelmed: 6 or more attackers give more damage | `combat` | Count the enemy `Targets` of every victim in one pass over all units each tick (normal code reads the inverse index of `Targets` and counts only the victims with 6 or more) | `combat.fanIn` |
+| D. Ancestor read | Banner: units below a living warlord get armor | `stats` | Walk the full chain of each unit, every tick (normal code reads the parent in one pass in gameId order, since a parent has a lower gameId) | `stats.banner` |
 | E. Disabled entities | Garrison: units in a held shrine leave move and target queries | `objectives`, `ai/target`, `move` | Keep garrisoned units in every query and test a flag | added in U5 (`garrison`) |
 | F. Lookup by key | Commander orders by `gameId`, with dead keys | `ai/target` | Scan all entities for each key | added in U5 (`orders.lookup`) |
 | G. Render extraction | A flat int32 buffer of all units, folded into `renderChain` | `stats` | Build one object for each unit, then copy it into the buffer | added in U5 (`stats.render`) |

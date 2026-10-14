@@ -4,7 +4,7 @@
 import { describe, it } from 'vitest'
 import { PHASES, SCENARIOS, kernel, type Scenario } from '@ecs-arena/spec'
 import { expect } from './fast-expect.ts'
-import { FLEEING, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
+import { BANNERED, FLEEING, OVERWHELMED, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
 import createSim from './index.ts'
 
 /** Runs `sc.ticks` ticks and returns the parsed snapshot after each one. */
@@ -44,6 +44,8 @@ const fleeing = (u: PUnit) => (u.flags & FLEEING) !== 0
 const homeX = (team: number) => (team === 0 ? 0 : kernel.MAX_COORD)
 const inRange = (a: { x: number; y: number }, b: { x: number; y: number }, r: number) => distSq(a.x, a.y, b.x, b.y) <= r * r
 const vanished = (s: Step) => s.p.units.filter((u) => !s.cm.has(u.gameId))
+/** SPEC 6.4 step 4: at least 6 enemy units target the victim. Targets after ai/target are the targets at the start of combat. */
+const overwhelmedAt = (s: Step, v: PUnit) => s.c.units.filter((a) => a.target === v.gameId && a.team !== v.team).length >= kernel.OVERWHELM_ATTACKERS
 /** A fleeing unit that starts its move on its home edge, or one step from it, leaves in that tick. */
 const leaves = (u: PUnit) => fleeing(u) && Math.abs(u.x - homeX(u.team)) <= (stunned(u) ? 0 : u.speed)
 /** A unit that was not fleeing and vanished beside its home edge may have died or have fled and left in the same tick. */
@@ -52,6 +54,11 @@ const ambiguous = (s: Step) => vanished(s).some((u) => !leaves(u) && Math.abs(u.
 const spawned = (s: Step) => s.c.units.some((u) => !s.pm.has(u.gameId))
 const attacked = (p: PUnit, c: PUnit) => p.cooldown === 0 && c.cooldown === UNIT_STATS[c.kind].cooldown - 1
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+/** SPEC §4 set bonus of a unit, from its items only. */
+const setBonus = (u: PUnit, f: 'attack' | 'armor' | 'speed') => {
+  const has = (k: number) => u.items.some((it) => it.kind === k)
+  return sum(kernel.SETS.map((st) => (has(st.items[0]) && has(st.items[1]) ? st[f] : 0)))
+}
 const MELEE = new Set<number>([KIND.WARRIOR, KIND.MINION, KIND.WARLORD])
 const STUNNERS = new Set<number>([KIND.WARRIOR, KIND.WARLORD])
 
@@ -272,21 +279,28 @@ describe('spawn order and warbands', () => {
     for (const u of s.units) {
       expect(u.hp).toBe(UNIT_STATS[u.kind].maxHp)
       expect(u.cooldown).toBe(0)
-      expect(u.attack).toBe(UNIT_STATS[u.kind].attack + sum(u.items.map((it) => ITEMS[it.kind].attack * it.quality)))
+      expect(u.attack).toBe(UNIT_STATS[u.kind].attack + sum(u.items.map((it) => ITEMS[it.kind].attack * it.quality)) + setBonus(u, 'attack'))
     }
   })
 })
 
+/** SPEC 6.13 from the snapshot: the root of the MemberOf and ChildOf chain is a warlord and the unit is not the root. */
+const bannerOf = (byId: Map<number, PUnit>, u: PUnit): boolean => {
+  let root = u
+  for (let p = byId.get(root.leader !== -1 ? root.leader : root.parent); p; p = byId.get(root.leader !== -1 ? root.leader : root.parent)) root = p
+  return root !== u && root.kind === KIND.WARLORD
+}
+
 describe('stats recompute', () => {
-  const base = (u: PUnit, f: 'attack' | 'armor' | 'speed') => UNIT_STATS[u.kind][f] + sum(u.items.map((it) => ITEMS[it.kind][f] * it.quality))
+  const base = (u: PUnit, f: 'attack' | 'armor' | 'speed') => UNIT_STATS[u.kind][f] + sum(u.items.map((it) => ITEMS[it.kind][f] * it.quality)) + setBonus(u, f)
 
   it('derives attack, armor and speed from base, items, Veteran and Haste on every tick', () => {
     let hasted = 0, veterans = 0
-    for (const { c } of steps()) for (const u of c.units) {
+    for (const { c, cm } of steps()) for (const u of c.units) {
       const haste = u.buffs.some((b) => b.kind === BUFF.HASTE)
       const vet = (u.flags & VETERAN) ? 2 * Math.min(3, Math.trunc(u.killCount / 3)) : 0
       expect(u.attack).toBe(base(u, 'attack') + vet)
-      expect(u.armor).toBe(base(u, 'armor'))
+      expect(u.armor).toBe(base(u, 'armor') + (bannerOf(cm, u) ? kernel.BANNER_ARMOR : 0))
       expect(u.speed).toBe(haste ? Math.trunc((base(u, 'speed') * 3) / 2) : base(u, 'speed'))
       if (haste) hasted++
       if (u.flags & VETERAN) veterans++
@@ -297,11 +311,11 @@ describe('stats recompute', () => {
 
   it('shows a pickup in the stats of the same tick', () => {
     let pickups = 0
-    for (const { p, c } of steps()) {
+    for (const { p, c, cm } of steps()) {
       const ground = new Set(p.ground.map((g) => g.gameId))
       for (const u of c.units) for (const it of u.items) if (ground.has(it.gameId)) {
         pickups++
-        expect(u.armor).toBe(base(u, 'armor'))
+        expect(u.armor).toBe(base(u, 'armor') + (bannerOf(cm, u) ? kernel.BANNER_ARMOR : 0))
       }
     }
     expect(pickups).toBeGreaterThan(0)
@@ -474,14 +488,19 @@ describe('projectiles', () => {
     expect(hits).toBeGreaterThan(0)
   })
 
+  // A projectile that spawns on top of its target is rare, so more seeds run until one shows it.
   it('keeps a projectile that is created on its target position until the next tick', () => {
     let onTarget = 0
-    for (const s of [...steps(), ...veteranFight()]) for (const pr of s.c.projectiles) {
-      if (pr.age !== 0) continue
-      const t = s.cm.get(pr.target)
-      if (t && t.x === pr.x && t.y === pr.y) onTarget++
-      expect(s.c.projectiles.filter((x) => x.gameId === pr.gameId)).toHaveLength(1)
+    const check = (list: Step[]) => {
+      for (const s of list) for (const pr of s.c.projectiles) {
+        if (pr.age !== 0) continue
+        const t = s.cm.get(pr.target)
+        if (t && t.x === pr.x && t.y === pr.y) onTarget++
+        expect(s.c.projectiles.filter((x) => x.gameId === pr.gameId)).toHaveLength(1)
+      }
     }
+    check([...steps(), ...veteranFight()])
+    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, seed })))
     expect(onTarget).toBeGreaterThan(0)
   })
 
@@ -492,21 +511,26 @@ describe('projectiles', () => {
     for (const s of steps()) {
       if (spawned(s) || vanished(s).length > 0 || s.c.units.some((u) => fleeing(u) && !fleeing(s.pm.get(u.gameId) ?? u))) continue
       const expected = [0, 0]
+      let unknownOwner = false
+      const scaled = (victim: PUnit, v: number) => (overwhelmedAt(s, victim) ? kernel.overwhelmDamage(v) : v)
       for (const pr of s.p.projectiles) {
         const t = s.cm.get(pr.target)!
         const at = stepToward(pr.x, pr.y, t.x, t.y, pr.speed)
         if (at[0] !== t.x || at[1] !== t.y) continue
         const fired = fireTick(s, pr)
-        const o = (s.h[fired - 1].units.find((u) => u.gameId === pr.owner) ?? s.h[fired].units.find((u) => u.gameId === pr.owner))!
+        // An owner that spawned in the firing tick has no start-of-tick record, and its end-of-tick attack can differ (a pickup).
+        const o = s.h[fired - 1].units.find((u) => u.gameId === pr.owner)
+        if (!o) { unknownOwner = true; break }
         const crit = isCrit(s.seed, fired, pr.owner)
         if (o.kind === KIND.MAGE) {
-          for (const v of s.c.units) if (v.team !== o.team && inRange(v, t, 2 * FX)) { expected[o.team] += kernel.damage(o.attack, s.pm.get(v.gameId)?.armor ?? v.armor, crit); splash++ }
-        } else { expected[o.team] += kernel.volleyDamage(o.attack, s.pm.get(t.gameId)!.armor, crit); volley++ }
+          for (const v of s.c.units) if (v.team !== o.team && inRange(v, t, 2 * FX)) { expected[o.team] += scaled(v, kernel.damage(o.attack, s.pm.get(v.gameId)?.armor ?? v.armor, crit)); splash++ }
+        } else { expected[o.team] += scaled(t, kernel.volleyDamage(o.attack, s.pm.get(t.gameId)!.armor, crit)); volley++ }
       }
+      if (unknownOwner) continue
       for (const u of s.p.units) {
         const now = s.cm.get(u.gameId)!
         if (!MELEE.has(u.kind) || !attacked(u, now)) continue
-        expected[u.team] += kernel.damage(u.attack, s.pm.get(now.target)!.armor, isCrit(s.seed, s.t, u.gameId))
+        expected[u.team] += scaled(s.cm.get(now.target)!, kernel.damage(u.attack, s.pm.get(now.target)!.armor, isCrit(s.seed, s.t, u.gameId)))
         melee++
       }
       expect([s.c.damage[0] - s.p.damage[0], s.c.damage[1] - s.p.damage[1]]).toEqual(expected)
@@ -516,6 +540,45 @@ describe('projectiles', () => {
     expect(splash).toBeGreaterThan(0)
     expect(volley).toBeGreaterThan(0)
     expect(melee).toBeGreaterThan(0)
+  })
+})
+
+describe('Banner', () => {
+  // A banner falls only when a warlord dies or a leader flees from its warlord, which is rare, so more seeds run until one shows it.
+  it('flags a unit exactly while the root of its chain is a warlord and it is not the root, every tick', () => {
+    let on = 0, lost = 0
+    const check = (list: Step[]) => {
+      for (const s of list) for (const u of s.c.units) {
+        const banner = bannerOf(s.cm, u)
+        expect(!!(u.flags & BANNERED)).toBe(banner)
+        if (banner) on++
+        const was = s.pm.get(u.gameId)
+        if (was && !banner && (was.flags & BANNERED)) lost++
+      }
+    }
+    check([...steps(), ...veteranFight()])
+    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, seed })))
+    expect(on).toBeGreaterThan(0)
+    expect(lost).toBeGreaterThan(0)
+  })
+})
+
+describe('Overwhelmed', () => {
+  it('tags a unit exactly while 6 or more enemy units target it, and removes the tag when the count drops', () => {
+    let tagged = 0, untaggedTargeted = 0, cleared = 0
+    for (const s of [...steps(), ...veteranFight()]) {
+      if (vanished(s).length > 0 || s.c.units.some((u) => fleeing(u) && !fleeing(s.pm.get(u.gameId) ?? u))) continue
+      for (const v of s.c.units) {
+        const on = !!(v.flags & OVERWHELMED)
+        expect(on).toBe(overwhelmedAt(s, v))
+        if (on) tagged++
+        else if (s.c.units.some((a) => a.target === v.gameId && a.team !== v.team)) untaggedTargeted++
+        if (!on && (s.pm.get(v.gameId)?.flags ?? 0) & OVERWHELMED) cleared++
+      }
+    }
+    expect(tagged).toBeGreaterThan(0)
+    expect(untaggedTargeted).toBeGreaterThan(0)
+    expect(cleared).toBeGreaterThan(0)
   })
 })
 
@@ -687,7 +750,7 @@ describe('morale, rout and fleeing', () => {
   it('never recovers: Fleeing, Routed and Veteran stay on a surviving unit', () => {
     for (const s of steps()) for (const u of s.p.units) {
       const now = s.cm.get(u.gameId)
-      if (now) expect(now.flags & u.flags).toBe(u.flags)
+      if (now) expect(now.flags & u.flags & (FLEEING | VETERAN | ROUTED)).toBe(u.flags & (FLEEING | VETERAN | ROUTED))
     }
   })
 
@@ -895,6 +958,7 @@ describe('Veteran and chronicle', () => {
 
   it('credits killCount only for units that were destroyed in that tick', () => {
     for (const s of steps()) {
+      if (spawned(s)) continue // a unit that spawns and dies in one tick can give a kill and is in no snapshot
       const gained = sum(s.p.units.flatMap((u) => { const now = s.cm.get(u.gameId); return now ? [now.killCount - u.killCount] : [] }))
       expect(gained).toBeLessThanOrEqual(vanished(s).filter((v) => !leaves(v)).length)
     }

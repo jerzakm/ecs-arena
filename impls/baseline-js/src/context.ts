@@ -27,6 +27,7 @@ export interface Context {
   threatened: Set<Unit> // units that may hold Threat edges, emptied lazily
   targeters: Map<number, Set<Unit>> // gameId -> units that target it (inverse of Targets)
   minionsOf: Map<number, Unit[]> // summoner gameId -> minions in gameId order (inverse of ChildOf)
+  overwhelmed: Set<Unit> // units with the Overwhelmed tag, kept by the normal combat.fanIn
   prevFleeing: Set<Unit> // only kept by the naive morale.onFlee
   dirty: Set<Unit> // units whose items, buffs, kills or Veteran changed since the last stats phase
   // Helpers
@@ -65,6 +66,7 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     threatened: new Set<Unit>(),
     targeters,
     minionsOf: new Map(),
+    overwhelmed: new Set<Unit>(),
     prevFleeing: new Set(),
     dirty: new Set<Unit>(),
     grid: new SpatialGrid(counters),

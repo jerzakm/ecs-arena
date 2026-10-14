@@ -155,6 +155,38 @@ export const ITEMS: readonly { attack: number; armor: number; speed: number }[] 
   { attack: 0, armor: 1, speed: 32 },
 ]
 
+export const ITEM_KIND = { SWORD: 0, AXE: 1, SHIELD: 2, HELM: 3, BOOTS: 4, BOW: 5, RING: 6, CLOAK: 7 } as const
+export const ITEM_KINDS = 8
+
+/** SPEC §4 set bonuses. A unit gets one when it has both item tags of the set. */
+export const SETS: readonly { items: readonly [number, number]; attack: number; armor: number; speed: number }[] = [
+  { items: [ITEM_KIND.SWORD, ITEM_KIND.SHIELD], attack: 0, armor: 2, speed: 0 },
+  { items: [ITEM_KIND.AXE, ITEM_KIND.BOOTS], attack: 3, armor: 0, speed: 0 },
+  { items: [ITEM_KIND.BOW, ITEM_KIND.CLOAK], attack: 0, armor: 0, speed: 32 },
+  { items: [ITEM_KIND.HELM, ITEM_KIND.RING], attack: 1, armor: 1, speed: 0 },
+]
+
+export interface SetBonus { attack: number; armor: number; speed: number }
+
+/** Set bonus by item tag mask (bit k = item kind k). Each set counts once. */
+export const SET_BONUS: readonly SetBonus[] = Array.from({ length: 1 << ITEM_KINDS }, (_, mask) => {
+  const b = { attack: 0, armor: 0, speed: 0 }
+  for (const s of SETS) {
+    if (!(mask & (1 << s.items[0])) || !(mask & (1 << s.items[1]))) continue
+    b.attack += s.attack; b.armor += s.armor; b.speed += s.speed
+  }
+  return b
+})
+
+/** SPEC §4 and §6.13: armor of a unit below a living warlord. */
+export const BANNER_ARMOR = 2
+
+export const OVERWHELM_ATTACKERS = 6
+export const OVERWHELM_MULT = 1280
+
+/** SPEC §6.4 step 4: each damage intent to an Overwhelmed unit is multiplied by 1.25. */
+export const overwhelmDamage = (value: number): number => fx.mul(value, OVERWHELM_MULT)
+
 /** SPEC §6.4 step 1: a volley projectile deals half damage, at least 1. */
 export const volleyDamage = (attack: number, armor: number, crit: boolean): number =>
   Math.max(1, fx.div(damage(attack, armor, crit), 2))

@@ -1,8 +1,8 @@
 import type { Entity } from 'koota'
 import type { Context } from './context.ts'
-import { Age, Cooldown, GameId, Health, Item, ItemKind, KillCount, Kind, Minion, Morale, Position, Start, Stats, Summoner, Team, Unit } from './components.ts'
+import { Age, Cooldown, GameId, Health, Item, ItemKind, ItemTags, KillCount, Kind, Minion, Morale, Position, Start, Stats, Summoner, Team, Unit } from './components.ts'
 import { Equips, MemberOf } from './relations.ts'
-import { recomputeStats } from './derived-stats.ts'
+import { bannerAtSpawn, recomputeStats } from './derived-stats.ts'
 
 export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y: number): Entity => {
   const { k, world, scenario } = ctx
@@ -22,10 +22,14 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
   if (kind === k.KIND.MINION) e.add(Minion, Age)
   else {
     const count = k.randInt(4, seed, tick, id, k.PURPOSE.ITEM_COUNT)
+    const tags = new Set<(typeof ItemTags)[number]>()
     for (let i = 0; i < count; i++) {
-      const item = world.spawn(Item, GameId({ id: ctx.nextId() }), ItemKind({ value: k.randInt(8, seed, tick, id, k.PURPOSE.ITEM_KIND, i) }))
+      const kindOfItem = k.randInt(8, seed, tick, id, k.PURPOSE.ITEM_KIND, i)
+      const item = world.spawn(Item, GameId({ id: ctx.nextId() }), ItemKind({ value: kindOfItem }))
       e.add(Equips(item, { quality: 1 + k.randInt(3, seed, tick, id, k.PURPOSE.ITEM_QUALITY, i) }))
+      tags.add(ItemTags[kindOfItem])
     }
+    if (tags.size > 0) e.add(...tags)
   }
   recomputeStats(ctx, e)
   return e
@@ -51,11 +55,14 @@ const spawnSquad = (ctx: Context, team: number, squadIndex: number, place: numbe
   const leaderOffsetY = (2 * place - 3) * k.LEADER_SLOT_SPACING
   const leader = spawnUnit(ctx, team, squad.leader, wp.x + leaderOffsetX, wp.y + leaderOffsetY)
   leader.add(MemberOf(warlord, { offsetX: leaderOffsetX, offsetY: leaderOffsetY }), Morale({ size0: 1 + squad.members.length, lost: 0 }))
+  bannerAtSpawn(ctx, leader, warlord)
   const lp = leader.get(Position)!
   squad.members.forEach((kind, i) => {
     const offsetX = -facing * (1 + k.fx.div(i, 3)) * k.FORMATION_SPACING
     const offsetY = ((i % 3) - 1) * k.FORMATION_SPACING
-    spawnUnit(ctx, team, kind, lp.x + offsetX, lp.y + offsetY).add(MemberOf(leader, { offsetX, offsetY }))
+    const m = spawnUnit(ctx, team, kind, lp.x + offsetX, lp.y + offsetY)
+    m.add(MemberOf(leader, { offsetX, offsetY }))
+    bannerAtSpawn(ctx, m, leader)
   })
   return 1 + squad.members.length
 }

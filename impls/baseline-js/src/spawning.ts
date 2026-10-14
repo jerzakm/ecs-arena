@@ -2,7 +2,8 @@ import type { Context } from './context.ts'
 import { recomputeStats } from './derived-stats.ts'
 import type { Item, Unit } from './types.ts'
 
-export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y: number): Unit => {
+/** `parent` is the unit that the new unit will get as MemberOf or ChildOf. The banner passes down from a warlord or a bannered unit. */
+export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y: number, parent?: Unit): Unit => {
   const { k, scenario, add } = ctx
   const { clampToArena, randInt, PURPOSE, KIND, UNIT_STATS } = k
   const { seed } = scenario
@@ -19,11 +20,13 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
       })
     }
   }
+  let itemMask = 0
+  for (const it of items) itemMask |= 1 << it.kind
   const u: Unit = {
     gameId, team, kind, x: clampToArena(x), y: clampToArena(y), h: ctx.freeSlots.pop() ?? ctx.slots.length,
     hp: UNIT_STATS[kind].maxHp, maxHp: UNIT_STATS[kind].maxHp, attack: 0, armor: 0, speed: 0, cooldown: 0,
-    target: -1, memberOf: -1, offX: 0, offY: 0, childOf: -1, items, buffs: [0, 0, 0], threat: [],
-    morale: null, fleeing: false, routed: false, veteran: false, killCount: 0, lastHitBy: -1, chronicle: [],
+    target: -1, memberOf: -1, offX: 0, offY: 0, childOf: -1, items, itemMask, buffs: [0, 0, 0], threat: [],
+    morale: null, fleeing: false, routed: false, veteran: false, overwhelmed: false, bannered: !!parent && (parent.kind === KIND.WARLORD || parent.bannered), killCount: 0, lastHitBy: -1, chronicle: [],
     lastSummon: ctx.tick, age: 0, sx: 0, sy: 0, dmgIn: 0, healIn: 0, stunIn: false, burnIn: false, hasteIn: false,
     dead: false, destroyed: false,
   }
@@ -50,14 +53,14 @@ const spawnSquad = (ctx: Context, team: number, squadIndex: number, place: numbe
   const facing = team === 0 ? 1 : -1
   const lOffX = -facing * k.LEADER_SLOT_SPACING
   const lOffY = (2 * place - 3) * k.LEADER_SLOT_SPACING
-  const leader = spawnUnit(ctx, team, squad.leader, warlord.x + lOffX, warlord.y + lOffY)
+  const leader = spawnUnit(ctx, team, squad.leader, warlord.x + lOffX, warlord.y + lOffY, warlord)
   leader.memberOf = warlord.gameId; leader.offX = lOffX; leader.offY = lOffY
   leader.morale = { size0: 1 + squad.members.length, lost: 0 }
   add('rel.MemberOf.add')
   squad.members.forEach((kind, i) => {
     const offX = -facing * (1 + fx.div(i, 3)) * k.FORMATION_SPACING
     const offY = ((i % 3) - 1) * k.FORMATION_SPACING
-    const m = spawnUnit(ctx, team, kind, leader.x + offX, leader.y + offY)
+    const m = spawnUnit(ctx, team, kind, leader.x + offX, leader.y + offY, leader)
     m.memberOf = leader.gameId; m.offX = offX; m.offY = offY
     add('rel.MemberOf.add')
   })

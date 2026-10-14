@@ -1,6 +1,6 @@
 import type { Entity } from 'koota'
 import type { Context } from '../context.ts'
-import { Age, Burn, Dead, Fleeing, GameId, Haste, Health, Metrics, Position, Projectile, Spent, Stats, Stun } from '../components.ts'
+import { Age, Burn, Dead, Fleeing, GameId, Haste, Health, Metrics, Overwhelmed, Position, Projectile, Spent, Stats, Stun, Team, Unit } from '../components.ts'
 import { FiredBy, LastHitBy, Targets, Threat } from '../relations.ts'
 
 interface Damage { victim: Entity; victimId: number; attacker: Entity | undefined; attackerId: number; team: number; value: number }
@@ -26,7 +26,19 @@ export const combatSystem = (ctx: Context) => {
       if (!i) incoming.set(e, i = { damage: 0, heal: 0, stun: false, burn: false, haste: false })
       return i
     }
+    // Overwhelmed: 6 or more enemy units target the victim at the start of combat.
+    const fanIn = new Map<Entity, number>()
+    for (const a of world.query(Unit, Targets('*'))) {
+      const v = a.targetFor(Targets)!
+      if (a.get(Team)!.value !== v.get(Team)!.value) fanIn.set(v, (fanIn.get(v) ?? 0) + 1)
+    }
+    const over = new Set<Entity>()
+    for (const [v, n] of fanIn) if (n >= k.OVERWHELM_ATTACKERS) over.add(v)
+    for (const e of world.query(Overwhelmed)) if (!over.has(e)) e.remove(Overwhelmed)
+    for (const e of over) if (!e.has(Overwhelmed)) e.add(Overwhelmed)
+
     const hurt = (victim: Entity, attacker: Entity | undefined, attackerId: number, team: number, value: number) => {
+      if (over.has(victim)) value = k.overwhelmDamage(value)
       incomingOf(victim).damage += value
       damages.push({ victim, victimId: gid(victim), attacker, attackerId, team, value })
     }
