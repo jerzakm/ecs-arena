@@ -8,6 +8,8 @@ The primary goal is a regression harness for [koota](https://github.com/pmndrs/k
 
 ## Commands
 
+Use Node 24.2 or later (`.nvmrc`). The koota build needs it.
+
 ```sh
 pnpm install
 pnpm test                                   # unit and behaviour tests
