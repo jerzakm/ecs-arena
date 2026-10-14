@@ -16,6 +16,7 @@ export interface Unit {
   threat: Edge[] // victim side of Threat, ascending attacker gameId
   morale: Morale | null
   fleeing: boolean; routed: boolean; veteran: boolean
+  overwhelmed: boolean // set at the start of combat
   killCount: number
   lastHitBy: number
   chronicle: number[]

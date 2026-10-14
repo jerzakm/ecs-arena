@@ -4,6 +4,8 @@ import { SCENARIOS, type CanonicalState, type Scenario } from '@ecs-arena/spec'
 export const FLEEING = 1
 export const VETERAN = 2
 export const ROUTED = 4
+export const OVERWHELMED = 8
+export const BANNERED = 16
 
 export interface PUnit {
   gameId: number; team: number; kind: number; x: number; y: number

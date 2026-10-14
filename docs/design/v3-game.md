@@ -44,7 +44,7 @@ Region names are proposals. The unit that adds the regions (U4) can change them 
 | Array data | Veteran chronicle | `cleanup` | Copy the full array on each append | `cleanup.credit` |
 | A. Fragmentation | Item tags and buff tags, set bonuses | `stats`, `effects`, `cleanup` | Rebuild the item tags of every unit by a scan of its item list each tick (normal code keeps the tags and reads a bonus table) | `stats.setBonus` |
 | B. Dense change | The library reports moved units to the kernel grid | after `spawn`, `move`, `cleanup` | Send every unit again before each search | `grid.update` |
-| C. High fan-in | Overwhelmed: 6 or more attackers give more damage | `combat` | For each victim, scan all units for `Targets` to it | added in U5 (`combat.fanIn`) |
+| C. High fan-in | Overwhelmed: 6 or more attackers give more damage | `combat` | Count the enemy `Targets` of every victim in one pass over all units each tick (normal code reads the inverse index of `Targets` and counts only the victims with 6 or more) | `combat.fanIn` |
 | D. Ancestor read | Banner: units below a living warlord get armor | `stats` | Walk the full chain of each unit, every tick | added in U5 (`stats.banner`) |
 | E. Disabled entities | Garrison: units in a held shrine leave move and target queries | `objectives`, `ai/target`, `move` | Keep garrisoned units in every query and test a flag | added in U5 (`garrison`) |
 | F. Lookup by key | Commander orders by `gameId`, with dead keys | `ai/target` | Scan all entities for each key | added in U5 (`orders.lookup`) |

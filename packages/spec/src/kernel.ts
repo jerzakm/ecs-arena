@@ -178,6 +178,12 @@ export const SET_BONUS: readonly SetBonus[] = Array.from({ length: 1 << ITEM_KIN
   return b
 })
 
+export const OVERWHELM_ATTACKERS = 6
+export const OVERWHELM_MULT = 1280
+
+/** SPEC §6.4 step 4: each damage intent to an Overwhelmed unit is multiplied by 1.25. */
+export const overwhelmDamage = (value: number): number => fx.mul(value, OVERWHELM_MULT)
+
 /** SPEC §6.4 step 1: a volley projectile deals half damage, at least 1. */
 export const volleyDamage = (attack: number, armor: number, crit: boolean): number =>
   Math.max(1, fx.div(damage(attack, armor, crit), 2))

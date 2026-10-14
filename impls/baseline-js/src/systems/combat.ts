@@ -3,7 +3,8 @@ import { sampleEntities } from '../profiling.ts'
 import type { DamageIntent, Edge, Unit } from '../types.ts'
 
 export const combatSystem = (ctx: Context) => {
-  const { k, scenario, add, begin, end, dirty, buffed, threatened, unitById, world, isStunned, inRange, targetOf } = ctx
+  const { k, scenario, add, begin, end, dirty, buffed, threatened, unitById, world, isStunned, inRange, targetOf, overwhelmed } = ctx
+  const naiveFanIn = ctx.isNaive('combat.fanIn')
   const { seed } = scenario
   const { BUFF, KIND, UNIT_STATS } = k
 
@@ -42,7 +43,32 @@ export const combatSystem = (ctx: Context) => {
     const intents: DamageIntent[] = []
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) { u.dmgIn = 0; u.healIn = 0; u.stunIn = false; u.burnIn = false; u.hasteIn = false }
 
+    // Overwhelmed: 6 or more enemy units target the victim at the start of combat.
+    begin('combat.fanIn')
+    if (naiveFanIn) {
+      const counts = new Map<Unit, number>()
+      for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) u.overwhelmed = false
+      for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
+        const v = u.target === -1 ? undefined : unitById.get(u.target)
+        if (v && v.team !== u.team) counts.set(v, (counts.get(v) ?? 0) + 1)
+      }
+      for (const [v, n] of counts) if (n >= k.OVERWHELM_ATTACKERS) v.overwhelmed = true
+    } else {
+      for (const u of overwhelmed) u.overwhelmed = false
+      overwhelmed.clear()
+      for (const [id, set] of ctx.targeters) {
+        if (set.size < k.OVERWHELM_ATTACKERS) continue
+        const v = unitById.get(id)
+        if (!v) continue
+        let n = 0
+        for (const a of set) if (a.team !== v.team) n++
+        if (n >= k.OVERWHELM_ATTACKERS) { v.overwhelmed = true; overwhelmed.add(v) }
+      }
+    }
+    end('combat.fanIn')
+
     const addDamage = (victim: Unit, attacker: number, team: number, value: number) => {
+      if (victim.overwhelmed) value = k.overwhelmDamage(value)
       victim.dmgIn += value
       intents.push({ victim, attacker, team, value })
     }

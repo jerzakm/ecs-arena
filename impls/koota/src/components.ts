@@ -26,6 +26,7 @@ export const Spent = trait()
 export const Fleeing = trait()
 export const Routed = trait()
 export const Veteran = trait()
+export const Overwhelmed = trait()
 
 // One tag per item kind (SPEC 3.1), indexed by item kind. A unit carries the tag while it holds an item of that kind.
 export const Sword = trait()

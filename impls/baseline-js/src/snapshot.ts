@@ -16,7 +16,7 @@ export const snapshot = (ctx: Context): CanonicalState => {
     for (let b_i = 0, b = active[0]; b_i < active.length; b = active[++b_i]) s.push(b, u.buffs[b])
     s.push(u.items.length)
     for (let it_i = 0, it = u.items[0]; it_i < u.items.length; it = u.items[++it_i]) s.push(it.gameId, it.kind, it.quality)
-    s.push((u.fleeing ? 1 : 0) | (u.veteran ? 2 : 0) | (u.routed ? 4 : 0), u.killCount, unitById.has(u.lastHitBy) ? u.lastHitBy : -1)
+    s.push((u.fleeing ? 1 : 0) | (u.veteran ? 2 : 0) | (u.routed ? 4 : 0) | (u.overwhelmed ? 8 : 0), u.killCount, unitById.has(u.lastHitBy) ? u.lastHitBy : -1)
     s.push(u.morale ? u.morale.size0 : -1, u.morale ? u.morale.lost : -1)
     s.push(u.threat.length)
     for (let e_i = 0, e = u.threat[0]; e_i < u.threat.length; e = u.threat[++e_i]) s.push(e.attacker, e.amount)

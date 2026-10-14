@@ -4,7 +4,7 @@
 import { describe, it } from 'vitest'
 import { PHASES, SCENARIOS, kernel, type Scenario } from '@ecs-arena/spec'
 import { expect } from './fast-expect.ts'
-import { FLEEING, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
+import { FLEEING, OVERWHELMED, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
 import createSim from './index.ts'
 
 /** Runs `sc.ticks` ticks and returns the parsed snapshot after each one. */
@@ -26,9 +26,6 @@ const fights = memo(() => SEEDS.map((seed) => {
   return { sc, h: run(sc) }
 }))
 
-/** A fight where a projectile spawns on top of its target. Rare, so the seed is picked. */
-const closeFight = memo(() => stepsOf(37, run({ ...SCENARIOS.skirmish, seed: 37 })))
-
 interface Step { seed: number; t: number; h: Parsed[]; p: Parsed; c: Parsed; pm: Map<number, PUnit>; cm: Map<number, PUnit> }
 const index = (s: Parsed) => new Map(s.units.map((u) => [u.gameId, u]))
 const stepsOf = (seed: number, h: Parsed[]): Step[] => {
@@ -47,6 +44,8 @@ const fleeing = (u: PUnit) => (u.flags & FLEEING) !== 0
 const homeX = (team: number) => (team === 0 ? 0 : kernel.MAX_COORD)
 const inRange = (a: { x: number; y: number }, b: { x: number; y: number }, r: number) => distSq(a.x, a.y, b.x, b.y) <= r * r
 const vanished = (s: Step) => s.p.units.filter((u) => !s.cm.has(u.gameId))
+/** SPEC 6.4 step 4: at least 6 enemy units target the victim. Targets after ai/target are the targets at the start of combat. */
+const overwhelmedAt = (s: Step, v: PUnit) => s.c.units.filter((a) => a.target === v.gameId && a.team !== v.team).length >= kernel.OVERWHELM_ATTACKERS
 /** A fleeing unit that starts its move on its home edge, or one step from it, leaves in that tick. */
 const leaves = (u: PUnit) => fleeing(u) && Math.abs(u.x - homeX(u.team)) <= (stunned(u) ? 0 : u.speed)
 /** A unit that was not fleeing and vanished beside its home edge may have died or have fled and left in the same tick. */
@@ -482,14 +481,19 @@ describe('projectiles', () => {
     expect(hits).toBeGreaterThan(0)
   })
 
+  // A projectile that spawns on top of its target is rare, so more seeds run until one shows it.
   it('keeps a projectile that is created on its target position until the next tick', () => {
     let onTarget = 0
-    for (const s of [...steps(), ...veteranFight(), ...closeFight()]) for (const pr of s.c.projectiles) {
-      if (pr.age !== 0) continue
-      const t = s.cm.get(pr.target)
-      if (t && t.x === pr.x && t.y === pr.y) onTarget++
-      expect(s.c.projectiles.filter((x) => x.gameId === pr.gameId)).toHaveLength(1)
+    const check = (list: Step[]) => {
+      for (const s of list) for (const pr of s.c.projectiles) {
+        if (pr.age !== 0) continue
+        const t = s.cm.get(pr.target)
+        if (t && t.x === pr.x && t.y === pr.y) onTarget++
+        expect(s.c.projectiles.filter((x) => x.gameId === pr.gameId)).toHaveLength(1)
+      }
     }
+    check([...steps(), ...veteranFight()])
+    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, seed })))
     expect(onTarget).toBeGreaterThan(0)
   })
 
@@ -500,6 +504,7 @@ describe('projectiles', () => {
     for (const s of steps()) {
       if (spawned(s) || vanished(s).length > 0 || s.c.units.some((u) => fleeing(u) && !fleeing(s.pm.get(u.gameId) ?? u))) continue
       const expected = [0, 0]
+      const scaled = (victim: PUnit, v: number) => (overwhelmedAt(s, victim) ? kernel.overwhelmDamage(v) : v)
       for (const pr of s.p.projectiles) {
         const t = s.cm.get(pr.target)!
         const at = stepToward(pr.x, pr.y, t.x, t.y, pr.speed)
@@ -508,13 +513,13 @@ describe('projectiles', () => {
         const o = (s.h[fired - 1].units.find((u) => u.gameId === pr.owner) ?? s.h[fired].units.find((u) => u.gameId === pr.owner))!
         const crit = isCrit(s.seed, fired, pr.owner)
         if (o.kind === KIND.MAGE) {
-          for (const v of s.c.units) if (v.team !== o.team && inRange(v, t, 2 * FX)) { expected[o.team] += kernel.damage(o.attack, s.pm.get(v.gameId)?.armor ?? v.armor, crit); splash++ }
-        } else { expected[o.team] += kernel.volleyDamage(o.attack, s.pm.get(t.gameId)!.armor, crit); volley++ }
+          for (const v of s.c.units) if (v.team !== o.team && inRange(v, t, 2 * FX)) { expected[o.team] += scaled(v, kernel.damage(o.attack, s.pm.get(v.gameId)?.armor ?? v.armor, crit)); splash++ }
+        } else { expected[o.team] += scaled(t, kernel.volleyDamage(o.attack, s.pm.get(t.gameId)!.armor, crit)); volley++ }
       }
       for (const u of s.p.units) {
         const now = s.cm.get(u.gameId)!
         if (!MELEE.has(u.kind) || !attacked(u, now)) continue
-        expected[u.team] += kernel.damage(u.attack, s.pm.get(now.target)!.armor, isCrit(s.seed, s.t, u.gameId))
+        expected[u.team] += scaled(s.cm.get(now.target)!, kernel.damage(u.attack, s.pm.get(now.target)!.armor, isCrit(s.seed, s.t, u.gameId)))
         melee++
       }
       expect([s.c.damage[0] - s.p.damage[0], s.c.damage[1] - s.p.damage[1]]).toEqual(expected)
@@ -524,6 +529,25 @@ describe('projectiles', () => {
     expect(splash).toBeGreaterThan(0)
     expect(volley).toBeGreaterThan(0)
     expect(melee).toBeGreaterThan(0)
+  })
+})
+
+describe('Overwhelmed', () => {
+  it('tags a unit exactly while 6 or more enemy units target it, and removes the tag when the count drops', () => {
+    let tagged = 0, untaggedTargeted = 0, cleared = 0
+    for (const s of [...steps(), ...veteranFight()]) {
+      if (vanished(s).length > 0 || s.c.units.some((u) => fleeing(u) && !fleeing(s.pm.get(u.gameId) ?? u))) continue
+      for (const v of s.c.units) {
+        const on = !!(v.flags & OVERWHELMED)
+        expect(on).toBe(overwhelmedAt(s, v))
+        if (on) tagged++
+        else if (s.c.units.some((a) => a.target === v.gameId && a.team !== v.team)) untaggedTargeted++
+        if (!on && (s.pm.get(v.gameId)?.flags ?? 0) & OVERWHELMED) cleared++
+      }
+    }
+    expect(tagged).toBeGreaterThan(0)
+    expect(untaggedTargeted).toBeGreaterThan(0)
+    expect(cleared).toBeGreaterThan(0)
   })
 })
 
@@ -695,7 +719,7 @@ describe('morale, rout and fleeing', () => {
   it('never recovers: Fleeing, Routed and Veteran stay on a surviving unit', () => {
     for (const s of steps()) for (const u of s.p.units) {
       const now = s.cm.get(u.gameId)
-      if (now) expect(now.flags & u.flags).toBe(u.flags)
+      if (now) expect(now.flags & u.flags & (FLEEING | VETERAN | ROUTED)).toBe(u.flags & (FLEEING | VETERAN | ROUTED))
     }
   })
 
