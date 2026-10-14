@@ -24,7 +24,13 @@ pnpm run profile skirmish battle war        # count ECS operations per tick (bas
 pnpm run check:caps                         # check the links in every CAPABILITIES.md
 pnpm bench koota battle --runs 5            # timed runs, one child process for each run
 pnpm compare koota@main koota@fresh-perf battle
+pnpm bench koota battle --record            # also save the data in bench-data/ and rebuild docs/results.md
+pnpm results                                # rebuild docs/results.md from bench-data/
 ```
+
+## Results
+
+[docs/results.md](docs/results.md) shows the latest recorded run for each target and scenario. It gives the totals, the mean for each tick, and charts for each tick: tick time, GC time, allocation and each phase. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the git history is the trend.
 
 ## How it works
 

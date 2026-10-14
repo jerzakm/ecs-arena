@@ -9,7 +9,7 @@ describe('stats', () => {
     expect(p95([7])).toBe(7)
   })
   it('aggregates per metric', () => {
-    const r = (t: number) => ({ totalMs: t, phasesMs: { move: t / 2 }, peakHeap: t * 10 })
+    const r = (t: number) => ({ totalMs: t, phasesMs: { move: t / 2 }, peakHeap: t * 10 , gcMs: 0, allocBytes: 0, ticks: [] })
     const a = aggregate([r(10), r(30), r(20)])
     expect(a.runs).toBe(3)
     expect(a.totalMs.median).toBe(20)

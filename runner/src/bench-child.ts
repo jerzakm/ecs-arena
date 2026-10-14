@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { findPackageJSON } from 'node:module'
+import v8, { GCProfiler } from 'node:v8'
 import { pathToFileURL } from 'node:url'
 import { SCENARIOS, hashState, kernel, PHASES, type CreateSim } from '@ecs-arena/spec'
 import type { RunResult } from './stats.ts'
@@ -21,19 +22,42 @@ const warm = createSim(scenario, kernel)
 for (let t = 0; t < warmup; t++) for (const p of PHASES) warm.phases[p]()
 globalThis.gc?.()
 
-const mu = process.memoryUsage as typeof process.memoryUsage & { heapUsed?: () => number }
-const heap = () => mu.heapUsed?.() ?? process.memoryUsage().heapUsed
 const phasesMs = Object.fromEntries(PHASES.map((p) => [p, 0])) as Record<string, number>
+// One row per tick: each phase ms, then tick ms, GC ms, allocated bytes.
+const ticks: number[][] = []
 let peakHeap = 0
+let gcMs = 0
+let allocBytes = 0
 const sim = createSim(scenario, kernel)
+const gcp = new GCProfiler()
 const t0 = performance.now()
 for (let t = 0; t < scenario.ticks; t++) {
+  gcp.start()
+  const before = v8.getHeapStatistics().used_heap_size
+  const row: number[] = []
+  const ts = performance.now()
   for (const p of PHASES) {
     const s = performance.now()
     sim.phases[p]()
-    phasesMs[p] += performance.now() - s
+    const d = performance.now() - s
+    phasesMs[p] += d
+    row.push(d)
   }
-  peakHeap = Math.max(peakHeap, heap()) // once per tick, outside the phase timers (still inside totalMs; compare sum(phases) to see it)
+  const tickMs = performance.now() - ts
+  const after = v8.getHeapStatistics().used_heap_size
+  // GCs run on this thread inside the tick. Allocation = heap growth + bytes the GCs freed.
+  let gc = 0
+  let freed = 0
+  for (const e of gcp.stop().statistics) {
+    gc += e.cost / 1000
+    freed += e.beforeGC.heapStatistics.usedHeapSize - e.afterGC.heapStatistics.usedHeapSize
+  }
+  const alloc = Math.max(0, after - before + freed)
+  row.push(tickMs, gc, alloc)
+  ticks.push(row)
+  gcMs += gc
+  allocBytes += alloc
+  peakHeap = Math.max(peakHeap, after)
 }
 const totalMs = performance.now() - t0
 
@@ -48,4 +72,4 @@ if (existsSync(golden)) {
     process.exit(3)
   }
 }
-process.send!({ totalMs, phasesMs, peakHeap } satisfies RunResult, () => process.exit(0))
+process.send!({ totalMs, phasesMs, peakHeap, gcMs, allocBytes, ticks } satisfies RunResult, () => process.exit(0))

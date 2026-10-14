@@ -13,7 +13,8 @@
     "compare": "tsx runner/src/compare.ts",
     "diff": "tsx runner/src/diff.ts",
     "check:caps": "tsx runner/src/check-capabilities.ts",
-    "verify:all": "tsx runner/src/verify-all.ts"
+    "verify:all": "tsx runner/src/verify-all.ts",
+    "results": "tsx runner/src/results.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
