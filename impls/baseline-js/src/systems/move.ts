@@ -32,6 +32,7 @@ export const moveSystem = (ctx: Context) => {
       if (!goal) continue
       add('q.move.units')
       ;[u.x, u.y] = stepToward(u.x, u.y, goal[0], goal[1], u.speed)
+      ctx.grid.update(u.h, u.x, u.y)
     }
     add('q.move.projectiles', projectiles.length)
     for (let p_i = 0, p = projectiles[0]; p_i < projectiles.length; p = projectiles[++p_i]) {

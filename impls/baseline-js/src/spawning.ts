@@ -20,7 +20,7 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
     }
   }
   const u: Unit = {
-    gameId, team, kind, x: clampToArena(x), y: clampToArena(y),
+    gameId, team, kind, x: clampToArena(x), y: clampToArena(y), h: ctx.freeSlots.pop() ?? ctx.slots.length,
     hp: UNIT_STATS[kind].maxHp, maxHp: UNIT_STATS[kind].maxHp, attack: 0, armor: 0, speed: 0, cooldown: 0,
     target: -1, memberOf: -1, offX: 0, offY: 0, childOf: -1, items, buffs: [0, 0, 0], threat: [],
     morale: null, fleeing: false, routed: false, veteran: false, killCount: 0, lastHitBy: -1, chronicle: [],
@@ -31,6 +31,8 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
   add(`create.${ctx.kindName(kind)}`)
   dirty?.add(gameId)
   ctx.units.push(u)
+  ctx.slots[u.h] = u
+  ctx.grid.add(u.h, gameId, u.x, u.y)
   ctx.unitById.set(gameId, u)
   return u
 }

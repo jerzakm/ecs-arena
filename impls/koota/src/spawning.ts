@@ -15,6 +15,9 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
     Unit, GameId({ id }), Team({ value: team }), Kind({ value: kind }),
     Position({ x: px, y: py }), Start({ x: px, y: py }), Health({ hp: maxHp, maxHp }), Stats, Cooldown, KillCount
   )
+  ctx.unitAt[e.id()] = e
+  ctx.teamAt[e.id()] = team
+  ctx.grid.add(e.id(), id, px, py)
   if (kind === k.KIND.SUMMONER) e.add(Summoner({ lastSummon: tick }))
   if (kind === k.KIND.MINION) e.add(Minion, Age)
   else {

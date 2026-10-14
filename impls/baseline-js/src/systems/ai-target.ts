@@ -1,15 +1,15 @@
 import type { Context } from '../context.ts'
-import { buildGrid, forNear } from '../spatial.ts'
 import type { Unit } from '../types.ts'
 
 export const aiTargetSystem = (ctx: Context) => {
   const { k, add, unitById, isStunned, inRange, targetOf } = ctx
-  const { distSq, KIND, UNIT_STATS } = k
+  const { KIND, UNIT_STATS } = k
+  let seeker!: Unit
+  const isEnemy = (h: number) => { const v = ctx.slots[h]; return v.team !== seeker.team && !v.fleeing }
   const isThinkTick = (u: Unit) => (u.gameId + ctx.tick) % k.THINK_INTERVAL === 0
 
   return () => {
     const units = ctx.units
-    const grid = buildGrid(ctx)
     const setTarget = (u: Unit, t: number) => {
       if (u.target !== t) {
         add(u.target === -1 ? 'rel.Targets.add' : t === -1 ? 'rel.Targets.remove' : 'rel.Targets.retarget')
@@ -25,8 +25,9 @@ export const aiTargetSystem = (ctx: Context) => {
       if (cur && cur.hp < cur.maxHp && inRange(u.x, u.y, cur.x, cur.y, range)) return cur.gameId
       if (!isThinkTick(u)) return -1
       let best: Unit | null = null
-      forNear(ctx, grid, u.x, u.y, range, (v) => {
-        if (v.team !== u.team || v === u || v.hp >= v.maxHp || !inRange(u.x, u.y, v.x, v.y, range)) return
+      ctx.grid.forNear(u.x, u.y, range, (h) => {
+        const v = ctx.slots[h]
+        if (v.team !== u.team || v === u || v.hp >= v.maxHp) return
         if (!best) { best = v; return }
         const a = v.hp * best.maxHp, b = best.hp * v.maxHp
         if (a < b || (a === b && v.gameId < best.gameId)) best = v
@@ -51,14 +52,9 @@ export const aiTargetSystem = (ctx: Context) => {
       const cur = targetOf(u)
       if (cur && validTarget(u, cur)) { add('q.ai.kept'); return cur.gameId }
       if (!isThinkTick(u)) { add('q.ai.thinkSkipped'); return -1 }
-      let best: Unit | null = null
-      let bestD = 0
-      forNear(ctx, grid, u.x, u.y, UNIT_STATS[u.kind].sight, (v) => {
-        if (!validTarget(u, v)) return
-        const d = distSq(u.x, u.y, v.x, v.y)
-        if (!best || d < bestD || (d === bestD && v.gameId < best.gameId)) { best = v; bestD = d }
-      }, 'target')
-      return best ? (best as Unit).gameId : -1
+      seeker = u
+      const h = ctx.grid.nearest(u.x, u.y, UNIT_STATS[u.kind].sight, isEnemy, 'target')
+      return h === -1 ? -1 : ctx.slots[h].gameId
     }
 
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {

@@ -47,6 +47,7 @@ export const moveSystem = (ctx: Context) => {
         }
         const [x, y] = stepToward(p.x, p.y, tx, ty, speed)
         e.set(Position, { x, y })
+        ctx.grid.update(e.id(), x, y)
       }
     }
 

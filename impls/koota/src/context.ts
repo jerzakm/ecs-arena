@@ -1,7 +1,6 @@
 import { createWorld, type Entity, type QueryParameter, type World } from 'koota'
-import type { CreateSim, Scenario } from '@ecs-arena/spec'
-import { CELL } from './spatial.ts'
-import { Clock, GameId, Metrics, NextId, Score } from './components.ts'
+import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { Clock, GameId, Metrics, NextId, Score, Unit } from './components.ts'
 import { observeDirty } from './derived-stats.ts'
 import { createQueries, type Queries } from './queries.ts'
 
@@ -11,7 +10,9 @@ export interface Context {
   // Config
   k: Kernel
   scenario: Scenario
-  gridN: number
+  grid: SpatialGrid // handle: entity id
+  unitAt: Entity[] // grid handle -> unit
+  teamAt: number[] // grid handle -> team
   // State
   world: World
   q: Queries
@@ -35,6 +36,8 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
   const q = createQueries()
   const dirty = new Set<Entity>()
   observeDirty(world, dirty)
+  const grid = new SpatialGrid()
+  world.onRemove(Unit, (e) => grid.remove(e.id()))
 
   return {
     k,
@@ -42,7 +45,9 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
     world,
     q,
     dirty,
-    gridN: Math.ceil(k.ARENA / CELL),
+    grid,
+    unitAt: [],
+    teamAt: [],
     tickNow: () => world.get(Clock)!.tick,
     nextId: () => {
       const id = world.get(NextId)!.value

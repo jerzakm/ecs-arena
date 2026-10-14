@@ -4,6 +4,7 @@ export interface Morale { size0: number; lost: number }
 export interface Unit {
   gameId: number; team: number; kind: number
   x: number; y: number
+  h: number // grid handle
   hp: number; maxHp: number; attack: number; armor: number; speed: number; cooldown: number
   target: number
   memberOf: number

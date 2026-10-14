@@ -1,5 +1,4 @@
 import { BUFF_NAME, type Context } from '../context.ts'
-import { buildGrid, forNear } from '../spatial.ts'
 import { sampleEntities } from '../profiling.ts'
 import type { DamageIntent, Edge, Unit } from '../types.ts'
 
@@ -41,7 +40,6 @@ export const combatSystem = (ctx: Context) => {
 
   return () => {
     const { units, projectiles, tick } = ctx
-    const grid = buildGrid(ctx)
     const intents: DamageIntent[] = []
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) { u.dmgIn = 0; u.healIn = 0; u.stunIn = false; u.burnIn = false; u.hasteIn = false }
 
@@ -57,8 +55,9 @@ export const combatSystem = (ctx: Context) => {
       p.spent = true
       add('q.combat.hits')
       if (p.ownerKind === KIND.MAGE) {
-        forNear(ctx, grid, p.x, p.y, k.SPLASH_RADIUS, (v) => {
-          if (v.team === p.ownerTeam || !inRange(p.x, p.y, v.x, v.y, k.SPLASH_RADIUS)) return
+        ctx.grid.forNear(p.x, p.y, k.SPLASH_RADIUS, (h) => {
+          const v = ctx.slots[h]
+          if (v.team === p.ownerTeam) return
           addDamage(v, p.owner, p.ownerTeam, k.damage(p.attack, v.armor, p.crit))
           v.burnIn = true
         }, 'splash')
