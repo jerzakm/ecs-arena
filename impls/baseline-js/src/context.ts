@@ -1,5 +1,5 @@
 import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
-import type { Counters, GroundItem, Projectile, Shrine, Unit } from './types.ts'
+import type { Counters, GroundItem, Projectile, Regions, Shrine, Unit } from './types.ts'
 
 export type Kernel = Parameters<CreateSim>[1]
 
@@ -23,9 +23,18 @@ export interface Context {
   nextId: number
   tick: number // advances in the last phase (stats system)
   world: { tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[] }
+  buffed: Set<Unit> // units with a buff running
+  threatened: Set<Unit> // units that may hold Threat edges, emptied lazily
+  targeters: Map<number, Set<Unit>> // gameId -> units that target it (inverse of Targets)
+  minionsOf: Map<number, Unit[]> // summoner gameId -> minions in gameId order (inverse of ChildOf)
+  prevFleeing: Set<Unit> // only kept by the naive morale.onFlee
   dirty: Set<Unit> // units whose items, buffs, kills or Veteran changed since the last stats phase
   // Helpers
   add(name: string, n?: number): void
+  begin(region: string): void
+  end(region: string): void
+  isNaive(region: string): boolean
+  retarget(u: Unit, t: number): void
   kindName(kind: number): string
   isStunned(u: Unit): boolean
   homeX(team: number): number
@@ -35,9 +44,11 @@ export interface Context {
   depthOf(u: Unit): number
 }
 
-export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters): Context => {
+export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters, regions?: Regions): Context => {
   const { distSq, KIND, BUFF } = k
   const unitById = new Map<number, Unit>()
+  const targeters = new Map<number, Set<Unit>>()
+  const noop = () => {}
   const ctx: Context = {
     k, scenario, counters,
     units: [],
@@ -50,9 +61,28 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     nextId: 1,
     tick: 0,
     world: { tick: -1, alive: [0, 0], kills: [0, 0], damage: [0, 0], winner: -1, score: [0, 0] },
+    buffed: new Set<Unit>(),
+    threatened: new Set<Unit>(),
+    targeters,
+    minionsOf: new Map(),
+    prevFleeing: new Set(),
     dirty: new Set<Unit>(),
     grid: new SpatialGrid(counters),
     add: (name, n = 1) => counters?.add(name, n),
+    begin: regions ? regions.begin : noop,
+    end: regions ? regions.end : noop,
+    isNaive: (region) => regions?.naive.has(region) ?? false,
+    retarget: (u, t) => {
+      if (u.target !== -1) {
+        const s = targeters.get(u.target)
+        if (s) { s.delete(u); if (s.size === 0) targeters.delete(u.target) }
+      }
+      u.target = t
+      if (t === -1) return
+      const s = targeters.get(t)
+      if (s) s.add(u)
+      else targeters.set(t, new Set([u]))
+    },
     kindName: (kind) => (kind === KIND.MINION ? 'minion' : kind === KIND.WARLORD ? 'warlord' : 'unit'),
     isStunned: (u) => u.buffs[BUFF.STUN] > 0,
     homeX: (team) => (team === 0 ? 0 : k.MAX_COORD),

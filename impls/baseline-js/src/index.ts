@@ -15,12 +15,12 @@ import { moveSystem } from './systems/move.ts'
 import { objectivesSystem } from './systems/objectives.ts'
 import { spawnSystem } from './systems/spawn.ts'
 import { statsSystem } from './systems/stats.ts'
-import type { Counters } from './types.ts'
+import type { Counters, Regions } from './types.ts'
 
-export type { Counters }
+export type { Counters, Regions }
 
-const createSim = (scenario: Scenario, k: Kernel, counters?: Counters): ReturnType<CreateSim> => {
-  const ctx = createContext(scenario, k, counters)
+const createSim = (scenario: Scenario, k: Kernel, counters?: Counters, regions?: Regions): ReturnType<CreateSim> => {
+  const ctx = createContext(scenario, k, counters, regions)
   return {
     phases: {
       spawn: spawnSystem(ctx), 'ai/target': aiTargetSystem(ctx), move: moveSystem(ctx), combat: combatSystem(ctx),
