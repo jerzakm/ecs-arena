@@ -178,6 +178,9 @@ export const SET_BONUS: readonly SetBonus[] = Array.from({ length: 1 << ITEM_KIN
   return b
 })
 
+/** SPEC §4 and §6.13: armor of a unit below a living warlord. */
+export const BANNER_ARMOR = 2
+
 export const OVERWHELM_ATTACKERS = 6
 export const OVERWHELM_MULT = 1280
 

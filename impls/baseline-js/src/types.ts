@@ -17,6 +17,7 @@ export interface Unit {
   morale: Morale | null
   fleeing: boolean; routed: boolean; veteran: boolean
   overwhelmed: boolean // set at the start of combat
+  bannered: boolean // the root of its MemberOf and ChildOf chain is a warlord and it is not the root
   killCount: number
   lastHitBy: number
   chronicle: number[]

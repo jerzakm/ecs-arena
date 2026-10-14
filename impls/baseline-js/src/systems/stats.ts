@@ -5,7 +5,7 @@ import type { Unit } from '../types.ts'
 
 export const statsSystem = (ctx: Context) => {
   const { k, add, begin, end, dirty, world, parentOf, depthOf } = ctx
-  const naive = ctx.isNaive('stats.recompute'), naiveSet = ctx.isNaive('stats.setBonus')
+  const naive = ctx.isNaive('stats.recompute'), naiveSet = ctx.isNaive('stats.setBonus'), naiveBanner = ctx.isNaive('stats.banner')
 
   const refresh = (u: Unit) => {
     if (u.killCount >= k.VETERAN_KILLS && !u.veteran) {
@@ -18,6 +18,21 @@ export const statsSystem = (ctx: Context) => {
 
   return () => {
     const { units, counters } = ctx
+    // Banner: a parent has a lower gameId than its children, so one pass in array order sees the parent's new value.
+    begin('stats.banner')
+    for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
+      let banner: boolean
+      if (naiveBanner) {
+        let root = u
+        for (let p = parentOf(root); p; p = parentOf(root)) root = p
+        banner = root !== u && root.kind === k.KIND.WARLORD
+      } else {
+        const p = parentOf(u)
+        banner = !!p && (p.kind === k.KIND.WARLORD || p.bannered)
+      }
+      if (banner !== u.bannered) { u.bannered = banner; dirty.add(u); add('tag.change.bannered') }
+    }
+    end('stats.banner')
     begin('stats.setBonus')
     if (naiveSet) for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) u.itemMask = scanItemMask(u)
     end('stats.setBonus')
