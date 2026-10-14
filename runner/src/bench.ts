@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { PHASES, SCENARIOS } from '@ecs-arena/spec'
-import { aggregate, type Aggregate, type RunResult } from './stats.ts'
+import { aggregate, scoreTargets, type Aggregate, type RunResult } from './stats.ts'
 import { commit, recordReport, writeResultsPage } from './results.ts'
 import { cpus, platform, release } from 'node:os'
 import { ensureVariant, parseTarget } from './variants.ts'
@@ -14,7 +14,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const WRAP = (process.env.BENCH_WRAP ?? '').split(' ').filter(Boolean)
 
 /** Where and how a report was made, so a result file from any machine stays comparable. */
-export const machine = (runs: number, warmup: number) => ({
+export const machine = (runs: number) => ({
   date: new Date().toISOString(),
   commit: commit(),
   cpu: cpus()[0]?.model,
@@ -24,18 +24,17 @@ export const machine = (runs: number, warmup: number) => ({
   node: process.version,
   wrap: WRAP.join(' '),
   runs,
-  warmup,
 })
 
 // Protocol mode keeps stdout for benchbox JSON lines, so child output goes to stderr.
 let quiet = false
 
-const runOnce = (impl: string, scenario: string, alias: Record<string, string>, warmup: number): Promise<RunResult> =>
+const runOnce = (impl: string, scenario: string, alias: Record<string, string>, kind: 'headline' | 'deep'): Promise<RunResult> =>
   new Promise((res, rej) => {
     // Fresh process per run so JIT/heap state never leaks. tsx loads the TS; alias hook resolves variant imports.
     // BENCH_WRAP prefixes the child command, for example "taskset -c 3" or "chrt -f 99" on a tuned box.
     const [wrap, ...wrapArgs] = WRAP
-    const child = fork(resolve(HERE, 'bench-child.ts'), [impl, scenario, String(warmup)], {
+    const child = fork(resolve(HERE, 'bench-child.ts'), [impl, scenario, kind], {
       ...(wrap && { execPath: wrap }),
       execArgv: [...wrapArgs, ...(wrap ? [process.execPath] : []), '--import', 'tsx', '--import', pathToFileURL(resolve(HERE, 'alias-register.mjs')).href, '--expose-gc'],
       env: { ...process.env, ECS_ALIAS: JSON.stringify(alias) },
@@ -50,8 +49,8 @@ const runOnce = (impl: string, scenario: string, alias: Record<string, string>, 
 
 export type BenchReport = Record<string, Record<string, Aggregate>>
 
-/** Runs are interleaved target-by-target (ABAB...) so machine drift hits every target alike. */
-export const bench = async (targets: string[], scenarios: string[], runs: number, warmup = 200): Promise<BenchReport> => {
+/** Runs are interleaved target-by-target (ABAB...) so machine drift hits every target alike. `deep` adds deep-dive runs after the headline runs. */
+export const bench = async (targets: string[], scenarios: string[], runs: number, deep = false): Promise<BenchReport> => {
   const prepared = targets.map((target) => {
     const { impl, variant } = parseTarget(target)
     const alias: Record<string, string> = variant ? { koota: ensureVariant(variant) } : {}
@@ -60,10 +59,15 @@ export const bench = async (targets: string[], scenarios: string[], runs: number
   const report: BenchReport = Object.fromEntries(targets.map((t) => [t, {}]))
   for (const sc of scenarios) {
     if (!SCENARIOS[sc]) throw new Error(`unknown scenario ${sc}`)
-    const rs: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
-    for (let i = 0; i < runs; i++)
-      for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, warmup))
-    for (const t of targets) report[t][sc] = aggregate(rs[t])
+    const collect = async (kind: 'headline' | 'deep') => {
+      const rs: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
+      for (let i = 0; i < runs; i++)
+        for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, kind))
+      return rs
+    }
+    const head = await collect('headline')
+    const dp = deep ? await collect('deep') : undefined
+    for (const t of targets) report[t][sc] = aggregate(head[t], dp?.[t])
   }
   return report
 }
@@ -76,28 +80,43 @@ export const printTable = (report: BenchReport) => {
         median: +(s.median / div).toFixed(1),
         p95: +(s.p95 / div).toFixed(1),
       })
+      const d = a.deep
       console.table({
-        'total ms': row(a.totalMs),
-        'sum(phases) ms': row(a.phasesSumMs),
-        ...Object.fromEntries(Object.entries(a.phasesMs).map(([p, s]) => [p, row(s)])),
-        'heap MB': row(a.peakHeap, 1048576),
-        'gc ms': row(a.gcMs),
-        'alloc MB': row(a.allocBytes, 1048576),
+        'total ms': { ...row(a.totalMs), 'ci95 lo': +a.totalMs.lo.toFixed(1), 'ci95 hi': +a.totalMs.hi.toFixed(1) },
+        'p99 tick ms': row(a.p99Ms),
+        'max tick ms': row(a.maxMs),
+        'ticks > 16.6 ms': row(a.over),
+        ...(d && {
+          'sum(phases) ms': row(d.phasesSumMs),
+          ...Object.fromEntries(Object.entries(d.phasesMs).map(([p, s]) => [p, row(s)])),
+          'heap MB': row(d.peakHeap, 1048576),
+          'gc ms': row(d.gcMs),
+          'alloc MB': row(d.allocBytes, 1048576),
+        }),
       })
+      if (d) console.log(`deep-dive instrumentation overhead: ${(d.overhead * 100).toFixed(1)}% (deep total ${d.totalMs.median.toFixed(1)} ms vs headline ${a.totalMs.median.toFixed(1)} ms)`)
     }
   }
+}
+
+export const printScores = (report: BenchReport) => {
+  const totals = Object.fromEntries(Object.entries(report).map(([t, bySc]) => [t, Object.fromEntries(Object.entries(bySc).map(([sc, a]) => [sc, a.samples.total]))]))
+  const scores = scoreTargets(totals)
+  if (!scores.length) return
+  console.log('\nheadline score: geomean over scenarios of target total / baseline-js total, 95% bootstrap interval, equal rank when intervals overlap')
+  console.table(Object.fromEntries(scores.map((s) => [s.target, { rank: s.rank, score: +s.point.toFixed(3), 'ci95 lo': +s.lo.toFixed(3), 'ci95 hi': +s.hi.toFixed(3) }])))
 }
 
 const COLS = [...PHASES, 'tick']
 
 /** benchbox native protocol v1: one bench per scenario and column, samples = per-tick median in ns. */
-export const writeProtocol = async (target: string, scenarios: string[], runs: number, warmup: number) => {
+export const writeProtocol = async (target: string, scenarios: string[], runs: number) => {
   quiet = true
   const out = (r: object) => process.stdout.write(JSON.stringify(r) + '\n')
-  out({ type: 'meta', language: 'js', toolchain: process.version, target: `${process.arch}-${process.platform}`, machine: machine(runs, warmup) })
+  out({ type: 'meta', language: 'js', toolchain: process.version, target: `${process.arch}-${process.platform}`, machine: machine(runs) })
   for (const sc of scenarios) {
     try {
-      const a = (await bench([target], [sc], runs, warmup))[target][sc]
+      const a = (await bench([target], [sc], runs, true))[target][sc].deep!
       COLS.forEach((c, i) => out({ type: 'bench', group: `${sc}/${target}`, name: c, samples: a.ticks.map((r) => Math.round(r[i] * 1e6)) }))
     } catch (e) {
       // A golden hash mismatch exits the child with code 3, so a wrong result never gives samples.
@@ -110,26 +129,31 @@ export const parseCli = (argv: string[]) => {
   const { positionals, values } = parseArgs({
     args: argv,
     allowPositionals: true,
-    options: { runs: { type: 'string', default: '5' }, warmup: { type: 'string', default: '200' }, out: { type: 'string' }, record: { type: 'boolean', default: false }, protocol: { type: 'boolean', default: !!process.env.BENCHBOX_PROTOCOL } },
+    options: { runs: { type: 'string' }, out: { type: 'string' }, record: { type: 'boolean', default: false }, deep: { type: 'boolean', default: false }, protocol: { type: 'boolean', default: !!process.env.BENCHBOX_PROTOCOL } },
   })
-  return { pos: positionals, runs: Number(values.runs), warmup: Number(values.warmup), out: values.out, record: values.record, protocol: values.protocol }
+  // 10 runs for recorded results, 5 for a quick look.
+  const runs = Number(values.runs ?? (values.record ? 10 : 5))
+  return { pos: positionals, runs, out: values.out, record: values.record, deep: values.deep, protocol: values.protocol }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { pos: [target, ...scenarios], runs, warmup, out, record, protocol } = parseCli(process.argv.slice(2))
-  if (!target || scenarios.length === 0) {
-    console.error('usage: pnpm bench <impl[@variant]> <scenario...> [--runs N] [--warmup N] [--out results/x.json] [--record] [--protocol]')
+  const { pos, runs, out, record, deep, protocol } = parseCli(process.argv.slice(2))
+  const scenarios = pos.filter((p) => SCENARIOS[p])
+  const targets = pos.filter((p) => !SCENARIOS[p])
+  if (targets.length === 0 || scenarios.length === 0 || (protocol && targets.length > 1)) {
+    console.error('usage: pnpm bench <impl[@variant]...> <scenario...> [--runs N] [--deep] [--out results/x.json] [--record] [--protocol]')
     process.exit(2)
   }
   if (protocol) {
-    await writeProtocol(target, scenarios, runs, warmup)
+    await writeProtocol(targets[0], scenarios, runs)
     process.exit(0)
   }
-  const report = await bench([target], scenarios, runs, warmup)
+  const report = await bench(targets, scenarios, runs, deep || record)
   printTable(report)
+  printScores(report)
   if (out) {
     mkdirSync(dirname(resolve(out)), { recursive: true })
-    writeFileSync(out, JSON.stringify({ machine: machine(runs, warmup), report }, (k, v) => (k === 'ticks' ? undefined : v), 2))
+    writeFileSync(out, JSON.stringify({ machine: machine(runs), report }, (k, v) => (k === 'ticks' ? undefined : v), 2))
   }
   if (record) {
     recordReport(report)

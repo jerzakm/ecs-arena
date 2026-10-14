@@ -17,11 +17,13 @@ export interface Scenario {
 export type CanonicalState = number[]
 
 /**
- * The one seam an ECS library implements. The runner calls `phases` in PHASES
- * order once per tick and hashes `snapshot()` itself.
+ * The one seam an ECS library implements. The runner hashes `snapshot()` itself.
+ * `tick`, when present, runs the 9 phases in PHASES order exactly once. Headline runs call it,
+ * and without it they call `phases` in PHASES order. Deep-dive runs always call `phases` one by one.
  */
 export interface Sim {
   phases: Record<PhaseName, () => void>
+  tick?: () => void
   snapshot(): CanonicalState
 }
 
