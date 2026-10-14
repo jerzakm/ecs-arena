@@ -9,6 +9,6 @@
     "allowImportingTsExtensions": true,
     "types": ["node"]
   },
-  "include": ["packages/*/src", "impls/*/src", "runner/src", "**/*.test.ts"],
+  "include": ["packages/*/src", "impls/*/src", "runner/src", "apps/*/src", "apps/*/vite.config.ts", "**/*.test.ts"],
   "exclude": ["node_modules", "**/node_modules"]
 }
