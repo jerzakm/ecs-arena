@@ -25,6 +25,7 @@ pnpm run check:caps                         # check the links in every CAPABILIT
 pnpm bench koota battle --runs 5            # timed runs, one child process for each run
 pnpm compare koota@main koota@fresh-perf battle
 pnpm bench koota battle --record            # also save the data in bench-data/ and rebuild docs/results.md
+pnpm bench koota battle --protocol          # benchbox native protocol: JSON lines on stdout, samples = tick ns
 pnpm results                                # rebuild docs/results.md from bench-data/
 ```
 
