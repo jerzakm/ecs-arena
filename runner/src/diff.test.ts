@@ -33,4 +33,9 @@ describe('diffParsed', () => {
     const [r] = diffParsed(a, b)
     expect([r.section, r.key, r.baseline]).toEqual(['projectile', '999', undefined])
   })
+  it('reports a different record order when every record is equal', () => {
+    const a = snapshot(), b = snapshot()
+    b.units.reverse()
+    expect(diffParsed(a, b).map((r) => [r.section, r.key, r.differing])).toEqual([['unit', 'order', ['keys']]])
+  })
 })

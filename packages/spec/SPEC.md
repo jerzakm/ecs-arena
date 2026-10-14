@@ -399,8 +399,8 @@ The **snapshot** is one flat int32 array in this order:
    - `moraleSize0` and `moraleLost` are `-1` for a unit without `Morale`.
    - `Threat` edges are in attacker gameId order.
    - The chronicle is oldest first. `chronicleCount` is 0 for a unit without `Veteran`.
-4. `projectileCount`, then each: `gameId, ownerGameId, targetGameId, x, y, age, speed, volley` (`volley` is 1 for an archer projectile, else 0).
-5. `groundItemCount`, then each: `gameId, itemKind, quality, x, y, age`.
+4. `projectileCount`, then each in gameId order: `gameId, ownerGameId, targetGameId, x, y, age, speed, volley` (`volley` is 1 for an archer projectile, else 0).
+5. `groundItemCount`, then each in gameId order: `gameId, itemKind, quality, x, y, age`.
 
 ## 9. Hash
 

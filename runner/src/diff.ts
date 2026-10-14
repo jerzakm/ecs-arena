@@ -27,7 +27,11 @@ const diffRecord = (section: string, key: string, a?: object, b?: object): Recor
 const diffList = <T extends object>(section: string, a: T[], b: T[], keyOf: (r: T, i: number) => number): RecordDiff[] => {
   const ia = new Map(a.map((r, i) => [keyOf(r, i), r])), ib = new Map(b.map((r, i) => [keyOf(r, i), r]))
   const keys = [...new Set([...ia.keys(), ...ib.keys()])].sort((x, y) => x - y)
-  return keys.flatMap((k) => diffRecord(section, String(k), ia.get(k), ib.get(k)))
+  const order = (rs: T[]) => ({ keys: rs.map(keyOf) })
+  return [
+    ...keys.flatMap((k) => diffRecord(section, String(k), ia.get(k), ib.get(k))),
+    ...diffRecord(section, 'order', order(a), order(b)),
+  ]
 }
 
 /** Every differing record, in section order: world, shrine, unit, projectile, ground. */

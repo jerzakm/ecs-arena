@@ -141,6 +141,17 @@ describe('snapshot layout', () => {
     expect(s.ground).toEqual([])
   })
 
+  it('lists projectiles and ground items in gameId order, and sees both kinds of record', () => {
+    let seen = 0
+    for (const { c } of steps()) {
+      for (const list of [c.projectiles, c.ground]) {
+        expect(list.map((r) => r.gameId)).toEqual(list.map((r) => r.gameId).sort((a, b) => a - b))
+        seen += list.length
+      }
+    }
+    expect(seen).toBeGreaterThan(0)
+  })
+
   it('rejects a value that is not an int32 integer', () => {
     const sim = createSim(scenario(), kernel)
     for (const p of PHASES) sim.phases[p]()

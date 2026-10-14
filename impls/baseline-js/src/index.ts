@@ -704,7 +704,7 @@ const createSim = (scenario: Scenario, k: Parameters<CreateSim>[1], counters?: C
     s.push(projectiles.length)
     for (const p of projectiles) s.push(p.gameId, p.owner, p.target, p.x, p.y, p.age, p.speed, p.volley ? 1 : 0)
     s.push(groundItems.length)
-    for (const g of groundItems) s.push(g.gameId, g.kind, g.quality, g.x, g.y, g.age)
+    for (const g of [...groundItems].sort(byGameId)) s.push(g.gameId, g.kind, g.quality, g.x, g.y, g.age)
     return s
   }
 
