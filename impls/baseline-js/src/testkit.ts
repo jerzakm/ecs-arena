@@ -23,7 +23,7 @@ export interface PShrine { gameId: number; owner: number; progress: number; garr
 export interface PProjectile { gameId: number; owner: number; target: number; x: number; y: number; age: number; speed: number; volley: number }
 export interface PGround { gameId: number; kind: number; quality: number; x: number; y: number; age: number }
 export interface Parsed {
-  tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[]
+  tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[]; orders: number[]
   shrines: PShrine[]; units: PUnit[]; projectiles: PProjectile[]; ground: PGround[]
 }
 
@@ -38,6 +38,7 @@ export const parse = (s: CanonicalState): Parsed => {
   const damage = [next(), next()]
   const winner = next()
   const score = [next(), next()]
+  const orders = [next(), next()]
   const shrines: PShrine[] = []
   for (let n = next(); n > 0; n--) {
     const sh: PShrine = { gameId: next(), owner: next(), progress: next(), garrison: [] }
@@ -64,11 +65,11 @@ export const parse = (s: CanonicalState): Parsed => {
   const ground: PGround[] = []
   for (let n = next(); n > 0; n--) ground.push({ gameId: next(), kind: next(), quality: next(), x: next(), y: next(), age: next() })
   if (i !== s.length) throw new Error(`snapshot has ${s.length} values, parser read ${i}`)
-  return { tick, alive, kills, damage, winner, score, shrines, units, projectiles, ground }
+  return { tick, alive, kills, damage, winner, score, orders, shrines, units, projectiles, ground }
 }
 
 /** One squad of one warband per team, no repeat waves, no surge. Override what a test needs. */
 export const scenario = (o: Partial<Scenario> = {}): Scenario => ({
   ...SCENARIOS.skirmish, name: 'test', targetPop: 1, wavePeriod: 1_000_000, maxSquadsPerWave: 1,
-  surgePeriod: 1_000_000, surgeBase: 1, surgeCap: 1, garrisonCap: 0, ticks: 1, ...o,
+  surgePeriod: 1_000_000, surgeBase: 1, surgeCap: 1, garrisonCap: 0, ordersPerTeam: 0, ticks: 1, ...o,
 })

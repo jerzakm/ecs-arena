@@ -47,7 +47,7 @@ Region names are proposals. The unit that adds the regions (U4) can change them 
 | C. High fan-in | Overwhelmed: 6 or more attackers give more damage | `combat` | Count the enemy `Targets` of every victim in one pass over all units each tick (normal code reads the inverse index of `Targets` and counts only the victims with 6 or more) | `combat.fanIn` |
 | D. Ancestor read | Banner: units below a living warlord get armor | `stats` | Walk the full chain of each unit, every tick (normal code reads the parent in one pass in gameId order, since a parent has a lower gameId) | `stats.banner` |
 | E. Disabled entities | Garrison: units in a held shrine leave move and target queries | `objectives`, `ai/target`, `move` | Keep garrisoned units in the grid and test a flag in every search, and find the `Targets` to an entering unit by a scan of all units (normal code takes the unit out of the grid and reads the inverse index of `Targets`) | `garrison` |
-| F. Lookup by key | Commander orders by `gameId`, with dead keys | `ai/target` | Scan all entities for each key | added in U5 (`orders.lookup`) |
+| F. Lookup by key | Commander orders by `gameId`, with dead keys | `ai/target` | Scan all units for each key (normal code reads the `gameId` map) | `orders.lookup` |
 | G. Render extraction | A flat int32 buffer of all units, folded into `renderChain` | `stats` | Build one object for each unit, then copy it into the buffer | added in U5 (`stats.render`) |
 | Snapshot and restore | Save each 100 ticks, load one save, replay | between ticks | Serialize the world to JSON and parse it back | added in U5 (`save`, `load`) |
 

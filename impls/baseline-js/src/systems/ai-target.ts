@@ -2,10 +2,18 @@ import type { Context } from '../context.ts'
 import type { Unit } from '../types.ts'
 
 export const aiTargetSystem = (ctx: Context) => {
-  const { k, add, unitById, isStunned, inRange, targetOf } = ctx
+  const { k, add, begin, end, unitById, isStunned, inRange, targetOf } = ctx
   const { KIND, UNIT_STATS } = k
   let seeker!: Unit
   const isEnemy = (h: number) => { const v = ctx.slots[h]; return v.team !== seeker.team && !v.fleeing && !v.garrison }
+  const naiveLookup = ctx.isNaive('orders.lookup')
+  const ordered = new Set<Unit>() // units that took an order in this tick
+  const find = (id: number): Unit | undefined => {
+    if (!naiveLookup) return unitById.get(id)
+    const units = ctx.units
+    for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) if (u.gameId === id) return u
+    return undefined
+  }
   const isThinkTick = (u: Unit) => (u.gameId + ctx.tick) % k.THINK_INTERVAL === 0
 
   return () => {
@@ -57,8 +65,25 @@ export const aiTargetSystem = (ctx: Context) => {
       return h === -1 ? -1 : ctx.slots[h].gameId
     }
 
+    // SPEC §6.12. A key can name anything that ever had a gameId, so most orders find no unit or no valid target.
+    ordered.clear()
+    const n = ctx.nextId
+    if (ctx.tick % k.ORDER_PERIOD === 0 && n > 1) {
+      begin('orders.lookup')
+      for (let team = 0; team < 2; team++) for (let o = 0; o < ctx.scenario.ordersPerTeam; o++) {
+        const [sk, ok] = k.orderKeys(n, ctx.scenario.seed, ctx.tick, team, o)
+        const s = find(sk), t = find(ok)
+        if (!s || !t || s.team !== team || isStunned(s) || s.fleeing || s.garrison || s.kind === KIND.HEALER || s.kind === KIND.SUMMONER || !validTarget(s, t)) { add('q.ai.orderIgnored'); continue }
+        setTarget(s, t.gameId)
+        ordered.add(s)
+        ctx.world.orders[team] = (ctx.world.orders[team] + 1) | 0
+        add('q.ai.ordered')
+      }
+      end('orders.lookup')
+    }
+
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
-      if (isStunned(u) || u.garrison) continue
+      if (isStunned(u) || u.garrison || ordered.has(u)) continue
       add('q.ai.evaluated')
       if (u.fleeing || u.kind === KIND.SUMMONER) setTarget(u, -1)
       else if (u.kind === KIND.HEALER) setTarget(u, healTarget(u))

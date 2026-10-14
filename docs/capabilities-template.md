@@ -31,6 +31,7 @@ The reviewer judges each `Support` value. `pnpm verify` checks the result of the
 | Overwhelmed (6 or more attackers) | Fan-in count over a link, flag add and remove each tick | | |
 | Banner (armor below a living warlord) | Read through a chain of links, flag sync from a derived value | | |
 | Garrison (units in a held shrine leave the move and target queries) | Exclude entities from some queries without destroying them | | |
+| Commander orders by `gameId`, with dead keys | Lookup of an entity by a key that is not the native id, where a key can be dead | | |
 | `Threat`, many to many with data | Link with data, eviction, decay | | |
 | `lastHitBy` | Exclusive link, cleared when the unit is destroyed | | |
 | Veteran chronicle | Array data per entity | | |

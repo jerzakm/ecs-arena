@@ -13,6 +13,8 @@ export interface Scenario {
   surgeCap: number
   /** Units that one shrine holds (SPEC §6.14). */
   garrisonCap: number
+  /** Commander orders that each team gives every ORDER_PERIOD ticks (SPEC §6.12). */
+  ordersPerTeam: number
 }
 
 /** SPEC §8: one flat array of int32 values. */

@@ -5,7 +5,7 @@ export const snapshot = (ctx: Context): CanonicalState => {
   const { world, shrines, units, projectiles, groundItems, unitById } = ctx
   const s: number[] = [
     world.tick, world.alive[0], world.alive[1], world.kills[0], world.kills[1], world.damage[0], world.damage[1], world.winner,
-    world.score[0], world.score[1], shrines.length,
+    world.score[0], world.score[1], world.orders[0], world.orders[1], shrines.length,
   ]
   for (let sh_i = 0, sh = shrines[0]; sh_i < shrines.length; sh = shrines[++sh_i]) {
     s.push(sh.gameId, sh.owner, sh.progress, sh.garrison.length)

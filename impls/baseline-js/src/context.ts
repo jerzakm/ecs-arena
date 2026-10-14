@@ -22,7 +22,7 @@ export interface Context {
   readonly unitById: Map<number, Unit>
   nextId: number
   tick: number // advances in the last phase (stats system)
-  world: { tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[] }
+  world: { tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[]; orders: number[] }
   buffed: Set<Unit> // units with a buff running
   threatened: Set<Unit> // units that may hold Threat edges, emptied lazily
   targeters: Map<number, Set<Unit>> // gameId -> units that target it (inverse of Targets)
@@ -61,7 +61,7 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     unitById,
     nextId: 1,
     tick: 0,
-    world: { tick: -1, alive: [0, 0], kills: [0, 0], damage: [0, 0], winner: -1, score: [0, 0] },
+    world: { tick: -1, alive: [0, 0], kills: [0, 0], damage: [0, 0], winner: -1, score: [0, 0], orders: [0, 0] },
     buffed: new Set<Unit>(),
     threatened: new Set<Unit>(),
     targeters,

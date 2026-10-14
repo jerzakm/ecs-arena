@@ -10,7 +10,7 @@ export const snapshot = (ctx: Context): CanonicalState => {
   const { world, gid, sortedByGameId } = ctx
   const { BUFF } = ctx.k
   const m = world.get(Metrics)!, score = world.get(Score)!
-  const s: number[] = [ctx.tickNow(), m.alive0, m.alive1, m.kills0, m.kills1, m.damage0, m.damage1, m.winner, score.shrines0, score.shrines1]
+  const s: number[] = [ctx.tickNow(), m.alive0, m.alive1, m.kills0, m.kills1, m.damage0, m.damage1, m.winner, score.shrines0, score.shrines1, m.orders0, m.orders1]
 
   const shrines = sortedByGameId(Shrine)
   s.push(shrines.length)

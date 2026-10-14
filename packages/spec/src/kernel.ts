@@ -58,7 +58,7 @@ export const randInt = (n: number, seed: number, tick: number, gameId: number, p
 export const teamGameId = (team: number): number => 0xffffff00 + team
 
 export const PURPOSE = {
-  SQUAD_KIND: 1, SPAWN_Y: 2, ITEM_COUNT: 3, ITEM_KIND: 4, ITEM_QUALITY: 5, CRIT: 6, SURGE_KIND: 7, SURGE_Y: 8,
+  SQUAD_KIND: 1, SPAWN_Y: 2, ITEM_COUNT: 3, ITEM_KIND: 4, ITEM_QUALITY: 5, CRIT: 6, SURGE_KIND: 7, SURGE_Y: 8, ORDER_SUBJECT: 9, ORDER_OBJECT: 10,
 } as const
 
 export const KIND = {
@@ -194,3 +194,11 @@ export const volleyDamage = (attack: number, armor: number, crit: boolean): numb
 /** SPEC §7.1 */
 export const isCrit = (seed: number, tick: number, attackerGameId: number): boolean =>
   randInt(100, seed, tick, attackerGameId, PURPOSE.CRIT) < CRIT_PERCENT
+
+export const ORDER_PERIOD = 10
+
+/** SPEC §6.12: the subject and object keys of order `k` of `team`. `n` is the gameId counter at the start of `ai/target`, at least 2. */
+export const orderKeys = (n: number, seed: number, tick: number, team: number, k: number): [number, number] => [
+  1 + randInt(n - 1, seed, tick, teamGameId(team), PURPOSE.ORDER_SUBJECT, k),
+  1 + randInt(n - 1, seed, tick, teamGameId(team), PURPOSE.ORDER_OBJECT, k),
+]

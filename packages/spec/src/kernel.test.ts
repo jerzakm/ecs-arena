@@ -108,6 +108,25 @@ describe('tables', () => {
     expect([0, 1, 2, 3, 4, 5, 6].map(kernel.shrineY)).toEqual([16, 48, 80, 112, 144, 176, 208].map((t) => t * FX))
     expect(PURPOSE.SURGE_KIND).toBe(7)
     expect(PURPOSE.SURGE_Y).toBe(8)
+    expect(PURPOSE.ORDER_SUBJECT).toBe(9)
+    expect(PURPOSE.ORDER_OBJECT).toBe(10)
+    expect(kernel.ORDER_PERIOD).toBe(10)
     expect(Object.keys(SCENARIOS)).toHaveLength(6)
   })
+
+describe('orderKeys', () => {
+  it('draws the subject and object of order k as 1 + randInt(n - 1, ..., ORDER_SUBJECT or ORDER_OBJECT, k)', () => {
+    for (const [n, tick, team, k] of [[2, 0, 0, 0], [40, 10, 1, 3], [100_000, 1990, 0, 127]]) {
+      expect(kernel.orderKeys(n, S, tick, team, k)).toEqual([
+        1 + randInt(n - 1, S, tick, teamGameId(team), PURPOSE.ORDER_SUBJECT, k),
+        1 + randInt(n - 1, S, tick, teamGameId(team), PURPOSE.ORDER_OBJECT, k),
+      ])
+    }
+  })
+  it('stays in [1, n - 1] and is not constant', () => {
+    const seen = new Set<number>()
+    for (let k = 0; k < 200; k++) for (const key of kernel.orderKeys(50, S, 10, 0, k)) { expect(key).toBeGreaterThanOrEqual(1); expect(key).toBeLessThanOrEqual(49); seen.add(key) }
+    expect(seen.size).toBeGreaterThan(30)
+  })
+})
 })

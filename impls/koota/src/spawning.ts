@@ -19,6 +19,8 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
   ctx.teamAt[e.id()] = team
   ctx.grid.add(e.id(), id, px, py)
   ctx.inGrid[e.id()] = true
+  ctx.unitById.set(id, e)
+  ctx.idAt[e.id()] = id
   if (kind === k.KIND.SUMMONER) e.add(Summoner({ lastSummon: tick }))
   if (kind === k.KIND.MINION) e.add(Minion, Age)
   else {

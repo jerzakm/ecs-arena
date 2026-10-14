@@ -22,7 +22,7 @@ const memo = <T>(f: () => T) => { let v: T | undefined; return () => (v ??= f())
 
 const SEEDS = [SCENARIOS.skirmish.seed, 5]
 const fights = memo(() => SEEDS.map((seed) => {
-  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, seed }
+  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed }
   return { sc, h: run(sc) }
 }))
 
@@ -35,7 +35,7 @@ const stepsOf = (seed: number, h: Parsed[]): Step[] => {
 const steps = memo(() => fights().flatMap(({ sc, h }) => stepsOf(sc.seed, h)))
 /** A bigger fight with a different seed, for rules that need many kills by one unit. */
 const veteranFight = memo(() => {
-  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
+  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
   return stepsOf(sc.seed, run(sc))
 })
 
@@ -500,7 +500,7 @@ describe('projectiles', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, seed })))
+    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed })))
     expect(onTarget).toBeGreaterThan(0)
   })
 
@@ -557,7 +557,7 @@ describe('Banner', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, seed })))
+    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed })))
     expect(on).toBeGreaterThan(0)
     expect(lost).toBeGreaterThan(0)
   })
@@ -1234,6 +1234,77 @@ describe('Garrison', () => {
   it('counts garrisoned units toward the capture of their shrine, like any unit within 4 tiles', () => {
     expect(pass().bad.capture ?? []).toEqual([])
     expect(pass().seen.counted).toBeGreaterThan(0)
+  })
+})
+
+describe('Commander orders', () => {
+  const dense = { ...SCENARIOS.skirmish, targetPop: 300, maxSquadsPerWave: 30, garrisonCap: 0, ordersPerTeam: 8000, ticks: 700 }
+  const idsOf = (s: Parsed) => [...s.shrines.map((x) => x.gameId), ...s.units.flatMap((u) => [u.gameId, ...u.items.map((i) => i.gameId)]), ...s.projectiles.map((q) => q.gameId), ...s.ground.map((g) => g.gameId)]
+
+  // The key range n is the gameId counter at the start of ai/target. A snapshot only shows the ids that exist, so n is
+  // searched from the highest existing id upward, and a tick passes when one n explains every target and both counters.
+  const pass = memo(() => {
+    const bad: string[] = []
+    let effective = 0, ticksWithOrders = 0
+    const sim = createSim(dense, kernel)
+    let before = parse(sim.snapshot())
+    for (let t = 0; t < dense.ticks; t++) {
+      sim.phases.spawn()
+      const s1 = parse(sim.snapshot())
+      sim.phases['ai/target']()
+      const s2 = parse(sim.snapshot())
+      for (const ph of PHASES.slice(2)) sim.phases[ph]()
+      if (t % kernel.ORDER_PERIOD === 0 && t > 0) {
+        const units = index(s1), after = index(s2)
+        const top = Math.max(...idsOf(s1))
+        const delta = [s2.orders[0] - s1.orders[0], s2.orders[1] - s1.orders[1]]
+        let found = false, hits = 0
+        for (let n = top + 1; n <= top + 400 && !found; n++) {
+          const targets = new Map<number, number>()
+          const count = [0, 0]
+          for (const team of [0, 1]) for (let k = 0; k < dense.ordersPerTeam; k++) {
+            const [sk, ok] = kernel.orderKeys(n, dense.seed, t, team, k)
+            const subj = units.get(sk), obj = units.get(ok)
+            if (!subj || !obj || subj.team !== team || stunned(subj) || fleeing(subj) || subj.kind === KIND.HEALER || subj.kind === KIND.SUMMONER) continue
+            if (obj.team === team || fleeing(obj) || !inRange(subj, obj, UNIT_STATS[subj.kind].sight)) continue
+            targets.set(sk, ok)
+            count[team]++
+          }
+          if (count[0] !== delta[0] || count[1] !== delta[1]) continue
+          if ([...targets].every(([sk, ok]) => after.get(sk)?.target === ok)) { found = true; hits = count[0] + count[1] }
+        }
+        if (!found) bad.push(`tick ${t}: no n explains delta ${delta}`)
+        effective += hits
+        if (hits > 0) ticksWithOrders++
+      }
+      before = s2
+    }
+    void before
+    return { bad, effective, ticksWithOrders }
+  })
+
+  it('gives each team ordersPerTeam draws every 10 ticks: a subject that can act targets its object, and a dead key changes nothing', () => {
+    expect(pass().bad).toEqual([])
+    expect(pass().ticksWithOrders).toBeGreaterThan(20)
+    expect(pass().effective).toBeGreaterThan(60)
+  })
+
+  it('changes orders0 and orders1 only on ticks that are a multiple of 10, and never decreases them', () => {
+    const h = run(dense)
+    let moved = 0
+    h.slice(1).forEach((c, i) => {
+      const p = h[i]
+      for (const team of [0, 1]) {
+        expect(c.orders[team]).toBeGreaterThanOrEqual(p.orders[team])
+        if (c.tick % kernel.ORDER_PERIOD !== 0) expect(c.orders[team]).toBe(p.orders[team])
+        else moved += c.orders[team] - p.orders[team]
+      }
+    })
+    expect(moved).toBeGreaterThan(0)
+  })
+
+  it('gives no order when ordersPerTeam is 0', () => {
+    expect(run({ ...dense, ordersPerTeam: 0, ticks: 300 }).every((c) => c.orders[0] === 0 && c.orders[1] === 0)).toBe(true)
   })
 })
 

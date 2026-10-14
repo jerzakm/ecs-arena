@@ -1,12 +1,13 @@
 import type { Entity } from 'koota'
 import type { Context } from '../context.ts'
-import { Fleeing, Garrisoned, Health, Position, Team } from '../components.ts'
+import { Fleeing, Garrisoned, Kind, Metrics, NextId, Health, Position, Stun, Team } from '../components.ts'
 import { Targets, Threat } from '../relations.ts'
 
 export const aiTargetSystem = (ctx: Context) => {
   const { k, world, gid, inRange, isThinkTick } = ctx
   const { KIND, UNIT_STATS } = k
   let seekerTeam = 0
+  const ordered = new Set<Entity>() // units that took an order in this tick
   const isEnemy = (h: number) => ctx.teamAt[h] !== seekerTeam && !ctx.unitAt[h].has(Fleeing)
 
   return () => {
@@ -30,7 +31,28 @@ export const aiTargetSystem = (ctx: Context) => {
       return best
     }
 
+    // SPEC 6.12. koota has no lookup by key, so ctx.unitById finds the subject and the object of each order.
+    ordered.clear()
+    const n = world.get(NextId)!.value
+    if (tick % k.ORDER_PERIOD === 0 && n > 1) {
+      const given = [0, 0]
+      for (let team = 0; team < 2; team++) for (let o = 0; o < ctx.scenario.ordersPerTeam; o++) {
+        const [sk, ok] = k.orderKeys(n, ctx.scenario.seed, tick, team, o)
+        const s = ctx.unitById.get(sk), t = ctx.unitById.get(ok)
+        if (!s || !t) continue
+        const kind = s.get(Kind)!.value
+        if (s.get(Team)!.value !== team || s.has(Stun) || s.has(Fleeing) || s.has(Garrisoned) || kind === KIND.HEALER || kind === KIND.SUMMONER) continue
+        const sp = s.get(Position)!
+        if (!validTarget(team, sp.x, sp.y, UNIT_STATS[kind].sight, t)) continue
+        s.add(Targets(t))
+        ordered.add(s)
+        given[team]++
+      }
+      world.set(Metrics, (m) => ({ orders0: (m.orders0 + given[0]) | 0, orders1: (m.orders1 + given[1]) | 0 }))
+    }
+
     world.query(ctx.q.thinkers).readEach(([g, kindT, p, teamT], e) => {
+      if (ordered.has(e)) return
       const kind = kindT.value
       if (kind === KIND.SUMMONER) return
       const stats = UNIT_STATS[kind]

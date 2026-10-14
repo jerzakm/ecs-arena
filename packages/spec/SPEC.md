@@ -13,7 +13,7 @@ The spec states behaviour, not a mechanism. A rule of the form "when `T` is Adde
 - Intermediate values can be plain JS numbers, but they must stay integers below 2^53.
 - Rules must not use `Math.sqrt`, `Math.hypot`, `Math.atan2`, or any other float function. Use the kernel helpers. The kernel itself is exempt from this ban. For example, `isqrt` can use `Math.sqrt` and then correct the result.
 - Integer division truncates toward zero: `fx.div(a, b) = Math.trunc(a / b)`. This is exact when `a` and `b` are integers, `b != 0`, and `|a| < 2^53`. Every division in this spec is in that bound.
-- A world total that can grow without limit wraps mod 2^32 into int32: `total = (total + value) | 0`. This applies to `damage0` and `damage1`.
+- A world total that can grow without limit wraps mod 2^32 into int32: `total = (total + value) | 0`. This applies to `damage0`, `damage1`, `orders0` and `orders1`.
 - The only distance measure is **squared distance**. A range `r` in tiles compares as `distSq <= (r * FX)^2`.
 
 ### Kernel math
