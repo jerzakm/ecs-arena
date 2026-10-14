@@ -91,3 +91,50 @@ The 3 projectiles of one archer attack.
 
 **Peak entities**:
 The highest count in a run of entities that have a gameId, equipped items included.
+
+**Tag set**:
+The tags on one unit: one tag for each item kind it carries, one for each buff, and the state tags. Units carry many distinct tag sets.
+_Avoid_: archetype (a storage term of some libraries)
+
+**Set bonus**:
+A stat bonus for a unit that has both item tags of a set, for example `Sword` and `Shield`.
+
+**Kernel grid**:
+The spatial grid that the kernel owns. Each library tells it which units it added, removed or moved. Every spatial search uses it.
+_Avoid_: spatial hash, index
+
+**Overwhelmed**:
+A unit that 6 or more enemy units target at the start of `combat`. It takes more damage in that tick.
+
+**Banner**:
+The armor bonus of each unit whose chain of `MemberOf` and `ChildOf` links ends at a living warlord. `bannered` is 1 for such a unit.
+
+**Garrison**:
+The units that are in a shrine that their team owns. A `Garrisoned` unit does not move, target or attack, and no search finds it. It leaves when the shrine changes owner or when it flees.
+
+**Commander order**:
+An order from a team that names a subject and an object by `gameId`. The keys come from draws.
+
+**Dead-key result**:
+The result of an order whose key names no matching unit: the order changes nothing and does not count.
+
+**Render buffer**:
+The flat int32 array of render state for all units that `stats` writes at the end of each tick.
+
+**Render chain**:
+The world value that folds in each render buffer. It is in the snapshot, so no tick can skip the buffer.
+
+**Save**:
+A deep copy of all world state at the end of a tick. The game makes one each 100 ticks.
+
+**Load tick**:
+The tick after which the game loads the newest save and replays the ticks after it.
+
+**Headline number**:
+The geometric mean over the 3 scenarios of library time divided by `baseline-js` time.
+
+**Load budget**:
+The rule that each facet uses at least 2% and at most 25% of the tick in `baseline-js` time, and that its naive way is at least 1.5 times slower.
+
+**Facet region**:
+A named, timed region of `baseline-js` code for one facet. A flag switches it to the naive way.
