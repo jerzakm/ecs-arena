@@ -35,3 +35,59 @@ _Avoid_: distance, length
 **Ground item**:
 An item that a dead unit drops. In `cleanup`, ground items in gameId order go to the nearest unit of either team in pickup range that holds fewer than 3 items. A ground item despawns after 300 ticks.
 _Avoid_: loot, drop
+
+**Shrine**:
+One of 7 fixed points in the middle of the arena. A team owns a shrine when its units hold the shrine long enough. A shrine is not a unit.
+
+**Score**:
+The world record of how many shrines each team owns. It decides the surge.
+
+**Surge**:
+An extra spawn of squads for the team that owns more shrines. It happens at a fixed period.
+
+**Warlord**:
+A unit kind that leads a warband. It is the top of the hierarchy.
+
+**Warband**:
+A warlord and up to 4 squads. The squad leaders keep a formation slot around the warlord.
+
+**Depth**:
+The number of parent links above a unit. A warlord has depth 0, a squad leader 1, a member 2, and the minion of a member 3.
+
+**Morale**:
+The loss count of a squad, kept on its leader.
+
+**Rout**:
+The moment a squad loses too many members. The leader gets `Routed`, and the squad gets `Fleeing`.
+_Avoid_: break, panic
+
+**Fleeing**:
+A unit that runs to its home edge. It does not attack, and enemies do not choose it as a target. It never recovers.
+
+**Leave**:
+A fleeing unit that reaches its home edge leaves the battle. It gives no kill and drops nothing.
+
+**Threat**:
+A relation from a unit to an enemy that damaged it, with an amount. A unit keeps at most 4. The amount decays over time.
+_Avoid_: grudge, aggro
+
+**Retaliation**:
+A unit with a large enough threat targets its worst attacker in sight.
+
+**Think tick**:
+A tick on which a unit can search the area for a new target. Each unit has one think tick in 4.
+
+**lastHitBy**:
+The unit that dealt the most damage to a unit in the last tick it took damage from units. It gets the kill credit.
+
+**Veteran**:
+A unit with 3 or more kills. It gets more attack and a chronicle.
+
+**Chronicle**:
+The list of the last 4 victim kinds of a veteran, oldest first.
+
+**Volley**:
+The 3 projectiles of one archer attack.
+
+**Peak entities**:
+The highest count in a run of entities that have a gameId, equipped items included.
