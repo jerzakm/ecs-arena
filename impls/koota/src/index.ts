@@ -52,7 +52,7 @@ const FiredBy = relation({ exclusive: true })
 
 const CELL = 16 * 1024
 
-interface Cell { e: Entity; id: number; team: number; x: number; y: number; hp: number; maxHp: number }
+interface Cell { e: Entity; id: number; team: number; x: number; y: number; hp: number; maxHp: number; fleeing: boolean }
 interface Damage { victim: Entity; victimId: number; attacker: Entity | undefined; attackerId: number; team: number; value: number }
 interface Incoming { damage: number; heal: number; stun: boolean; burn: boolean; haste: boolean }
 interface Shot { id: number; j: number; shooter: Entity; target: Entity; x: number; y: number; team: number; kind: number; attack: number; crit: boolean }
@@ -71,6 +71,13 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   const newlyVeteran = createQuery(Unit, Added(Veteran))
   const killsChanged = createQuery(Unit, Changed(KillCount), Not(Veteran))
   const unitsQuery = createQuery(Unit, GameId, Team, Position, Health)
+  const teamQuery = createQuery(Unit, Team)
+  const thinkers = createQuery(Unit, GameId, Kind, Position, Team, Not(Stun), Not(Fleeing))
+  const movers = createQuery(Unit, Kind, Team, Stats, Not(Stun))
+  const projectiles = createQuery(Projectile, Position)
+  const attackers = createQuery(Unit, GameId, Kind, Team, Position, Stats, Cooldown, Not(Stun), Not(Fleeing))
+  const cooldowns = createQuery(Unit, Cooldown)
+  const starts = createQuery(Position, Start)
 
   // Units whose derived stats may have changed. Added(Equips) reports only the first pair of an entity in koota 0.6.6, so observers.
   const dirty = new Set<Entity>()
@@ -95,7 +102,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   const inRange = (ax: number, ay: number, bx: number, by: number, r: number) => distSq(ax, ay, bx, by) <= r * r
   const aliveCount = (team: number) => {
     let n = 0
-    world.query(Unit, Team).readEach(([t]) => { if (t.value === team) n++ })
+    world.query(teamQuery).readEach(([t]) => { if (t.value === team) n++ })
     return n
   }
 
@@ -140,7 +147,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   const buildGrid = (): Cell[][] => {
     const grid: Cell[][] = Array.from({ length: GRID_N * GRID_N }, () => [])
     world.query(unitsQuery).readEach(([g, t, p, h], e) => {
-      grid[cellOf(p.y) * GRID_N + cellOf(p.x)].push({ e, id: g.id, team: t.value, x: p.x, y: p.y, hp: h.hp, maxHp: h.maxHp })
+      grid[cellOf(p.y) * GRID_N + cellOf(p.x)].push({ e, id: g.id, team: t.value, x: p.x, y: p.y, hp: h.hp, maxHp: h.maxHp, fleeing: e.has(Fleeing) })
     })
     return grid
   }
@@ -246,7 +253,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       return best
     }
 
-    world.query(Unit, GameId, Kind, Position, Team, Not(Stun), Not(Fleeing)).readEach(([g, kindT, p, teamT], e) => {
+    world.query(thinkers).readEach(([g, kindT, p, teamT], e) => {
       const kind = kindT.value
       if (kind === KIND.SUMMONER) return
       const stats = UNIT_STATS[kind]
@@ -274,7 +281,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
           let bestCell: Cell | undefined
           let bestD = 0
           forNear(grid, p.x, p.y, stats.sight, (v) => {
-            if (v.team === teamT.value || v.e.has(Fleeing)) return
+            if (v.team === teamT.value || v.fleeing) return
             const d = distSq(p.x, p.y, v.x, v.y)
             if (d > stats.sight * stats.sight) return
             if (!bestCell || d < bestD || (d === bestD && v.id < bestCell.id)) { bestCell = v; bestD = d }
@@ -292,22 +299,28 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   }
 
   const move = () => {
-    world.query(Position, Start).updateEach(([p, s]) => { s.x = p.x; s.y = p.y })
+    world.query(starts).updateEach(([p, s]) => { s.x = p.x; s.y = p.y })
 
-    const depthOf = (e: Entity) => {
-      let d = 0
-      for (let p = e.targetFor(MemberOf) ?? e.targetFor(ChildOf); p; p = p.targetFor(MemberOf) ?? p.targetFor(ChildOf)) d++
+    // Depth is memoized for the phase, since siblings share their parent chain.
+    const depth = new Map<Entity, number>()
+    const depthOf = (e: Entity): number => {
+      let d = depth.get(e)
+      if (d === undefined) {
+        const p = e.targetFor(MemberOf) ?? e.targetFor(ChildOf)
+        depth.set(e, d = p ? depthOf(p) + 1 : 0)
+      }
       return d
     }
-    const levels: Entity[][] = []
-    for (const e of world.query(Unit, Not(Stun))) (levels[depthOf(e)] ??= []).push(e)
+    const levels: { e: Entity; kind: number; team: number; speed: number }[][] = []
+    world.query(movers).readEach(([kindT, teamT, s], e) => {
+      (levels[depthOf(e)] ??= []).push({ e, kind: kindT.value, team: teamT.value, speed: s.speed })
+    })
 
     // Hierarchy order: a parent moves before its children, and children read the new parent position.
     for (const level of levels) {
-      for (const e of level) {
+      if (!level) continue
+      for (const { e, kind, team, speed } of level) {
         const p = e.get(Position)!
-        const kind = e.get(Kind)!.value
-        const team = e.get(Team)!.value
         let tx: number, ty: number
         if (e.has(Fleeing)) { tx = homeX(team); ty = p.y }
         else {
@@ -323,12 +336,12 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
           else if (kind === KIND.MINION) { const sp = e.targetFor(ChildOf)!.get(Position)!; tx = sp.x; ty = sp.y }
           else { tx = team === 0 ? k.MAX_COORD : 0; ty = p.y }
         }
-        const [x, y] = stepToward(p.x, p.y, tx, ty, e.get(Stats)!.speed)
+        const [x, y] = stepToward(p.x, p.y, tx, ty, speed)
         e.set(Position, { x, y })
       }
     }
 
-    world.query(Projectile, Position).updateEach(([pr, p], e) => {
+    world.query(projectiles).updateEach(([pr, p], e) => {
       const t = e.targetFor(Targets)
       if (t) { const tp = t.get(Position)!; [p.x, p.y] = stepToward(p.x, p.y, tp.x, tp.y, pr.speed) }
     })
@@ -350,7 +363,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     }
 
     const spent: Entity[] = []
-    world.query(Projectile, Position).readEach(([pr, p], e) => {
+    world.query(projectiles).readEach(([pr, p], e) => {
       const t = e.targetFor(Targets)
       if (!t) return
       const tp = t.get(Position)!
@@ -372,7 +385,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     for (const e of spent) e.add(Spent)
 
     const shots: Shot[] = []
-    world.query(Unit, GameId, Kind, Team, Position, Stats, Cooldown, Not(Stun), Not(Fleeing)).updateEach(([g, kindT, teamT, p, s, cd], e) => {
+    world.query(attackers).updateEach(([g, kindT, teamT, p, s, cd], e) => {
       const kind = kindT.value
       if (cd.value !== 0 || kind === KIND.SUMMONER) return
       const t = e.targetFor(Targets)
@@ -408,7 +421,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       )
     }
 
-    world.query(Unit, Cooldown).updateEach(([cd]) => { if (cd.value > 0) cd.value-- })
+    world.query(cooldowns).updateEach(([cd]) => { if (cd.value > 0) cd.value-- })
 
     for (const [e, inc] of incoming) {
       const h = e.get(Health)!
@@ -630,7 +643,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       const pos = e.get(Position)!
       const count = [0, 0]
       forNear(grid, pos.x, pos.y, k.SHRINE_RADIUS, (v) => {
-        if (inRange(pos.x, pos.y, v.x, v.y, k.SHRINE_RADIUS) && !v.e.has(Fleeing)) count[v.team]++
+        if (inRange(pos.x, pos.y, v.x, v.y, k.SHRINE_RADIUS) && !v.fleeing) count[v.team]++
       })
       const step = Math.max(-k.SHRINE_STEP_MAX, Math.min(k.SHRINE_STEP_MAX, count[0] - count[1]))
       e.set(Shrine, (s) => {
@@ -653,7 +666,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     dirty.clear()
 
     const alive = [0, 0]
-    world.query(Unit, Team).readEach(([t]) => { alive[t.value]++ })
+    world.query(teamQuery).readEach(([t]) => { alive[t.value]++ })
     const tick = tickNow()
     world.set(Metrics, (m) => {
       let winner = m.winner

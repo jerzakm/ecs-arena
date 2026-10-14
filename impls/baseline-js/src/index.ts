@@ -535,7 +535,11 @@ const createSim = (scenario: Scenario, k: Parameters<CreateSim>[1], counters?: C
 
     const members = memberIndex()
     const minions = new Map<number, Unit[]>()
-    for (const u of units) if (u.childOf !== -1) minions.set(u.childOf, [...(minions.get(u.childOf) ?? []), u])
+    for (const u of units) if (u.childOf !== -1) {
+      const list = minions.get(u.childOf)
+      if (list) list.push(u)
+      else minions.set(u.childOf, [u])
+    }
 
     const promote = (old: Unit) => {
       const live = (members.get(old.gameId) ?? []).filter((m) => !m.destroyed)
