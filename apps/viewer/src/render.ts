@@ -324,7 +324,7 @@ export const createViewer = async (canvas: HTMLCanvasElement): Promise<Viewer> =
   let snapAt = 0
   let intervalMs = 100
   const reset = () => {
-    tracker = new AnimTracker((u) => sets[SET_INDEX[setOf(u)]].frames[ROW.Death])
+    tracker = new AnimTracker((u, a) => sets[SET_INDEX[setOf(u)]].frames[ROW[a]])
     units.reset()
     projs.reset()
     snap = null
@@ -357,7 +357,7 @@ export const createViewer = async (canvas: HTMLCanvasElement): Promise<Viewer> =
         const si = SET_INDEX[setOf(u)]
         const row = ROW[a.anim]
         const n = sets[si].frames[row]
-        const col = a.anim === 'Death' ? Math.min(a.frame, n - 1) : spriteFrame % n
+        const col = a.anim === 'Idle' || a.anim === 'Walk' ? spriteFrame % n : Math.min(a.frame, n - 1)
         setTint(u)
         sprites[si].push(x, 0, z, col, row, sizeOf(u), a.facing, tint[0], tint[1], tint[2], tint[3])
         if (a.anim === 'Death') continue
