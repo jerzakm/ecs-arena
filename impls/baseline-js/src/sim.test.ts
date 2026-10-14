@@ -4,7 +4,7 @@
 import { describe, it } from 'vitest'
 import { PHASES, SCENARIOS, kernel, type Scenario } from '@ecs-arena/spec'
 import { expect } from './fast-expect.ts'
-import { BANNERED, FLEEING, OVERWHELMED, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
+import { BANNERED, FLEEING, GARRISONED, OVERWHELMED, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
 import createSim from './index.ts'
 
 /** Runs `sc.ticks` ticks and returns the parsed snapshot after each one. */
@@ -22,7 +22,7 @@ const memo = <T>(f: () => T) => { let v: T | undefined; return () => (v ??= f())
 
 const SEEDS = [SCENARIOS.skirmish.seed, 5]
 const fights = memo(() => SEEDS.map((seed) => {
-  const sc = { ...SCENARIOS.skirmish, seed }
+  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, seed }
   return { sc, h: run(sc) }
 }))
 
@@ -35,7 +35,7 @@ const stepsOf = (seed: number, h: Parsed[]): Step[] => {
 const steps = memo(() => fights().flatMap(({ sc, h }) => stepsOf(sc.seed, h)))
 /** A bigger fight with a different seed, for rules that need many kills by one unit. */
 const veteranFight = memo(() => {
-  const sc = { ...SCENARIOS.skirmish, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
+  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
   return stepsOf(sc.seed, run(sc))
 })
 
@@ -143,7 +143,7 @@ describe('snapshot layout', () => {
     expect(s.kills).toEqual([0, 0])
     expect(s.damage).toEqual([0, 0])
     expect(s.score).toEqual([0, 0])
-    expect(s.shrines).toEqual([1, 2, 3, 4, 5, 6, 7].map((gameId) => ({ gameId, owner: -1, progress: 0 })))
+    expect(s.shrines).toEqual([1, 2, 3, 4, 5, 6, 7].map((gameId) => ({ gameId, owner: -1, progress: 0, garrison: [] })))
     expect(s.projectiles).toEqual([])
     expect(s.ground).toEqual([])
   })
@@ -500,7 +500,7 @@ describe('projectiles', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, seed })))
+    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, seed })))
     expect(onTarget).toBeGreaterThan(0)
   })
 
@@ -557,7 +557,7 @@ describe('Banner', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, seed })))
+    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, seed })))
     expect(on).toBeGreaterThan(0)
     expect(lost).toBeGreaterThan(0)
   })
@@ -1123,6 +1123,117 @@ describe('winner', () => {
 
   it('does not name a winner at tick 0', () => {
     expect(run(scenario({ targetPop: 1000, maxSquadsPerWave: 2 }))[0].winner).toBe(-1)
+  })
+})
+
+describe('Garrison', () => {
+  const cap = SCENARIOS.skirmish.garrisonCap
+  const garrisoned = (u: PUnit) => (u.flags & GARRISONED) !== 0
+  const shrinePos = (i: number) => ({ x: 128 * FX, y: (16 + 32 * i) * FX })
+  const d2 = (u: PUnit, i: number) => distSq(u.x, u.y, shrinePos(i).x, shrinePos(i).y)
+
+  // One streaming pass over four fights with garrisons on. It keeps two snapshots at a time, since the parsed
+  // history of four fights does not fit in memory. Each rule collects its violations, and each test reads its own.
+  const pass = memo(() => {
+    const bad: Record<string, string[]> = {}
+    const seen: Record<string, number> = { listed: 0, entered: 0, ownerChanged: 0, held: 0, burned: 0, exitOwner: 0, exitFlee: 0, counted: 0 }
+    const rule = (name: string, ok: boolean, info: () => string) => { if (!ok) (bad[name] ??= []).push(info()) }
+    for (const seed of [SCENARIOS.skirmish.seed, 11, 13, 21]) {
+      const sc = { ...SCENARIOS.skirmish, seed }
+      const sim = createSim(sc, kernel)
+      const tickOf = () => { for (const ph of PHASES) sim.phases[ph](); return parse(sim.snapshot()) }
+      let p = tickOf()
+      for (let t = 1; t < sc.ticks; t++) {
+        const c = tickOf()
+        const cm = index(c)
+        const at = `seed ${seed} tick ${c.tick}`
+        const targeted = new Set([...c.units.map((u) => u.target), ...c.projectiles.map((q) => q.target)])
+        const listed = new Set<number>()
+        c.shrines.forEach((sh, i) => {
+          rule('lists', sh.garrison.every((id, k) => k === 0 || id > sh.garrison[k - 1]) && sh.garrison.length <= cap, () => `${at} shrine ${i}`)
+          for (const id of sh.garrison) {
+            const u = cm.get(id)
+            rule('lists', !!u && garrisoned(u) && u.team === sh.owner && inRange(u, shrinePos(i), 4 * FX) && !fleeing(u), () => `${at} unit ${id}`)
+            listed.add(id)
+            seen.listed++
+          }
+          if (sh.owner === -1) { rule('fills', sh.garrison.length === 0, () => `${at} shrine ${i} unowned`); return }
+          const eligible = c.units.filter((u) => u.team === sh.owner && !fleeing(u) && inRange(u, shrinePos(i), 4 * FX))
+          rule('fills', sh.garrison.length === Math.min(cap, eligible.length), () => `${at} shrine ${i}`)
+          const before = new Set(p.shrines[i].owner === sh.owner ? p.shrines[i].garrison : [])
+          const fresh = eligible.filter((u) => garrisoned(u) && !before.has(u.gameId))
+          const left = eligible.filter((u) => !garrisoned(u))
+          for (const a of fresh) for (const b of left) rule('fills', d2(a, i) < d2(b, i) || (d2(a, i) === d2(b, i) && a.gameId < b.gameId), () => `${at} order ${a.gameId} ${b.gameId}`)
+          seen.entered += fresh.length
+          if (p.shrines[i].owner !== sh.owner) seen.ownerChanged++
+        })
+        rule('lists', c.units.filter(garrisoned).length === listed.size, () => `${at} flag count`)
+        for (const u of c.units) {
+          if (fleeing(u)) rule('exits', !garrisoned(u), () => `${at} fleeing unit ${u.gameId} garrisoned`)
+          if (garrisoned(u)) rule('still', u.target === -1 && !targeted.has(u.gameId), () => `${at} unit ${u.gameId} targeted`)
+        }
+        for (const u of p.units) {
+          const now = cm.get(u.gameId)
+          if (!garrisoned(u) || !now) continue
+          rule('still', now.x === u.x && now.y === u.y && now.target === -1, () => `${at} unit ${u.gameId} moved`)
+          seen.held++
+          const burn = u.buffs.some((b) => b.kind === BUFF.BURN)
+          rule('quiet', u.hp - now.hp === 0 || (u.hp - now.hp === kernel.BURN_DAMAGE && burn), () => `${at} unit ${u.gameId} hp ${u.hp} -> ${now.hp}`)
+          rule('quiet', now.cooldown <= u.cooldown, () => `${at} unit ${u.gameId} cooldown`)
+          if (now.hp < u.hp) seen.burned++
+        }
+        p.shrines.forEach((sh, i) => {
+          const changed = sh.owner !== c.shrines[i].owner
+          for (const id of sh.garrison) {
+            const now = cm.get(id)
+            if (!now) continue
+            if (changed) { rule('exits', !garrisoned(now), () => `${at} unit ${id} stays after a capture`); seen.exitOwner++ }
+            else if (!garrisoned(now)) { rule('exits', fleeing(now), () => `${at} unit ${id} left for no reason`); seen.exitFlee++ }
+          }
+        })
+        const max = kernel.SHRINE_PROGRESS_MAX
+        c.shrines.forEach((sh, i) => {
+          const near = c.units.filter((u) => !fleeing(u) && inRange(u, shrinePos(i), 4 * FX))
+          const step = Math.max(-5, Math.min(5, near.filter((u) => u.team === 0).length - near.filter((u) => u.team === 1).length))
+          rule('capture', sh.progress === Math.max(-max, Math.min(max, p.shrines[i].progress + step)), () => `${at} shrine ${i}`)
+          if (p.shrines[i].garrison.length > 0) seen.counted++
+        })
+        p = c
+      }
+    }
+    return { bad, seen }
+  })
+
+  it('lists the garrisoned units under their shrine in gameId order: owner team, within 4 tiles, not fleeing, at most garrisonCap', () => {
+    expect(pass().bad.lists ?? []).toEqual([])
+    expect(pass().seen.listed).toBeGreaterThan(0)
+  })
+
+  it('tops each owned shrine up to garrisonCap from the owner units within 4 tiles, nearest first, ties to the lowest gameId', () => {
+    expect(pass().bad.fills ?? []).toEqual([])
+    expect(pass().seen.entered).toBeGreaterThan(0)
+    expect(pass().seen.ownerChanged).toBeGreaterThan(0)
+  })
+
+  it('holds a garrisoned unit still, without a target, and no unit or projectile targets it', () => {
+    expect(pass().bad.still ?? []).toEqual([])
+    expect(pass().seen.held).toBeGreaterThan(0)
+  })
+
+  it('takes no attack, heal or splash: hp falls only by burn and the cooldown never restarts', () => {
+    expect(pass().bad.quiet ?? []).toEqual([])
+    expect(pass().seen.burned).toBeGreaterThan(0)
+  })
+
+  it('leaves the garrison only when its shrine changes owner or the unit flees, and a fleeing unit is never garrisoned', () => {
+    expect(pass().bad.exits ?? []).toEqual([])
+    expect(pass().seen.exitOwner).toBeGreaterThan(0)
+    expect(pass().seen.exitFlee).toBeGreaterThan(0)
+  })
+
+  it('counts garrisoned units toward the capture of their shrine, like any unit within 4 tiles', () => {
+    expect(pass().bad.capture ?? []).toEqual([])
+    expect(pass().seen.counted).toBeGreaterThan(0)
   })
 })
 

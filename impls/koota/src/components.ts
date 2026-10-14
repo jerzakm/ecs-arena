@@ -28,6 +28,7 @@ export const Routed = trait()
 export const Veteran = trait()
 export const Overwhelmed = trait()
 export const Bannered = trait()
+export const Garrisoned = trait()
 
 // One tag per item kind (SPEC 3.1), indexed by item kind. A unit carries the tag while it holds an item of that kind.
 export const Sword = trait()

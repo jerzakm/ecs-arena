@@ -82,7 +82,7 @@ export const combatSystem = (ctx: Context) => {
       if (p.ownerKind === KIND.MAGE) {
         ctx.grid.forNear(p.x, p.y, k.SPLASH_RADIUS, (h) => {
           const v = ctx.slots[h]
-          if (v.team === p.ownerTeam) return
+          if (v.team === p.ownerTeam || v.garrison) return
           addDamage(v, p.owner, p.ownerTeam, k.damage(p.attack, v.armor, p.crit))
           v.burnIn = true
         }, 'splash')

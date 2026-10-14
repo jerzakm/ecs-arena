@@ -462,6 +462,7 @@ Units can go into a shrine that their team owns. A unit in a garrison has the `G
 - **On entry.** Remove the `Targets` relation from the unit, and every `Targets` relation to it from units and projectiles. The unit leaves the kernel grid.
 - **While garrisoned.** The unit does not move, does not choose a target, does not attack and does not pick up items. It is not a valid target and not a heal target. A grid search does not find it, so a mage splash does not hit it. Its buffs, burn damage, `Threat` decay, summons and lifetime continue as normal. Its `Threat` edges stay. Burn can kill it.
 - **Exit.** The unit loses `Garrisoned` and `GarrisonOf` when its shrine changes owner (§6.8 step 4) or when it gets `Fleeing` (§6.6 step 4). It goes back into the kernel grid at its position, and it stays at that position. A destroyed unit leaves the garrison with all its relations.
+- **Projectiles.** A projectile that targeted the unit has no target after the entry. It does not move and cannot hit, and `cleanup` destroys it (§6.7 step 7).
 
 ### 6.15 Render extraction
 

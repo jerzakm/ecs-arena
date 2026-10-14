@@ -5,7 +5,7 @@ export const aiTargetSystem = (ctx: Context) => {
   const { k, add, unitById, isStunned, inRange, targetOf } = ctx
   const { KIND, UNIT_STATS } = k
   let seeker!: Unit
-  const isEnemy = (h: number) => { const v = ctx.slots[h]; return v.team !== seeker.team && !v.fleeing }
+  const isEnemy = (h: number) => { const v = ctx.slots[h]; return v.team !== seeker.team && !v.fleeing && !v.garrison }
   const isThinkTick = (u: Unit) => (u.gameId + ctx.tick) % k.THINK_INTERVAL === 0
 
   return () => {
@@ -17,7 +17,7 @@ export const aiTargetSystem = (ctx: Context) => {
       }
     }
     const validTarget = (u: Unit, v: Unit) =>
-      v.team !== u.team && !v.fleeing && inRange(u.x, u.y, v.x, v.y, UNIT_STATS[u.kind].sight)
+      v.team !== u.team && !v.fleeing && !v.garrison && inRange(u.x, u.y, v.x, v.y, UNIT_STATS[u.kind].sight)
 
     const healTarget = (u: Unit): number => {
       const range = UNIT_STATS[u.kind].range
@@ -27,7 +27,7 @@ export const aiTargetSystem = (ctx: Context) => {
       let best: Unit | null = null
       ctx.grid.forNear(u.x, u.y, range, (h) => {
         const v = ctx.slots[h]
-        if (v.team !== u.team || v === u || v.hp >= v.maxHp) return
+        if (v.team !== u.team || v === u || v.hp >= v.maxHp || v.garrison) return
         if (!best) { best = v; return }
         const a = v.hp * best.maxHp, b = best.hp * v.maxHp
         if (a < b || (a === b && v.gameId < best.gameId)) best = v
@@ -58,7 +58,7 @@ export const aiTargetSystem = (ctx: Context) => {
     }
 
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
-      if (isStunned(u)) continue
+      if (isStunned(u) || u.garrison) continue
       add('q.ai.evaluated')
       if (u.fleeing || u.kind === KIND.SUMMONER) setTarget(u, -1)
       else if (u.kind === KIND.HEALER) setTarget(u, healTarget(u))

@@ -8,7 +8,7 @@ export const spawnSystem = (ctx: Context) => {
 
   const spawnShrines = () => {
     for (let i = 0; i < k.SHRINE_COUNT; i++) {
-      ctx.shrines.push({ gameId: ctx.nextId++, y: k.shrineY(i), owner: -1, progress: 0 })
+      ctx.shrines.push({ gameId: ctx.nextId++, y: k.shrineY(i), owner: -1, progress: 0, garrison: [] })
       add('create.shrine')
     }
   }

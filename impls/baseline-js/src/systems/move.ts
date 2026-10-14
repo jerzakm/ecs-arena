@@ -10,7 +10,7 @@ export const moveSystem = (ctx: Context) => {
 
   // Where the unit steps this tick, or null when it stays. Targets are read at their start-of-phase position.
   const moveGoal = (u: Unit): [number, number] | null => {
-    if (isStunned(u)) return null
+    if (isStunned(u) || u.garrison) return null
     if (u.fleeing) return [homeX(u.team), u.y]
     const t = targetOf(u)
     if (t && inRange(u.x, u.y, t.sx, t.sy, UNIT_STATS[u.kind].range)) return null
@@ -42,13 +42,13 @@ export const moveSystem = (ctx: Context) => {
     }
     add('q.move.projectiles', projectiles.length)
     for (let p_i = 0, p = projectiles[0]; p_i < projectiles.length; p = projectiles[++p_i]) {
-      const t = unitById.get(p.target)!
-      ;[p.x, p.y] = stepToward(p.x, p.y, t.x, t.y, p.speed)
+      const t = unitById.get(p.target)
+      if (t) [p.x, p.y] = stepToward(p.x, p.y, t.x, t.y, p.speed)
     }
     end('move.step')
 
     begin('grid.update')
-    if (naiveGrid) for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) ctx.grid.update(u.h, u.x, u.y)
+    if (naiveGrid) for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) { if (!u.garrison) ctx.grid.update(u.h, u.x, u.y) }
     else for (let u_i = 0, u = moved[0]; u_i < moved.length; u = moved[++u_i]) ctx.grid.update(u.h, u.x, u.y)
     end('grid.update')
     moved.length = 0

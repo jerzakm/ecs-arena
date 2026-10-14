@@ -11,6 +11,8 @@ export interface Scenario {
   surgePeriod: number
   surgeBase: number
   surgeCap: number
+  /** Units that one shrine holds (SPEC §6.14). */
+  garrisonCap: number
 }
 
 /** SPEC §8: one flat array of int32 values. */

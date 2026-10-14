@@ -1,6 +1,6 @@
 import type { Entity } from 'koota'
 import type { Context } from '../context.ts'
-import { Fleeing, Health, Position, Team } from '../components.ts'
+import { Fleeing, Garrisoned, Health, Position, Team } from '../components.ts'
 import { Targets, Threat } from '../relations.ts'
 
 export const aiTargetSystem = (ctx: Context) => {
@@ -15,7 +15,7 @@ export const aiTargetSystem = (ctx: Context) => {
 
     const validTarget = (team: number, x: number, y: number, sight: number, t: Entity) => {
       const tp = t.get(Position)!
-      return t.get(Team)!.value !== team && !t.has(Fleeing) && inRange(x, y, tp.x, tp.y, sight)
+      return t.get(Team)!.value !== team && !t.has(Fleeing) && !t.has(Garrisoned) && inRange(x, y, tp.x, tp.y, sight)
     }
 
     const retaliation = (e: Entity, team: number, x: number, y: number, sight: number) => {
