@@ -3,16 +3,15 @@ import { sampleEntities } from '../profiling.ts'
 import type { DamageIntent, Edge, Unit } from '../types.ts'
 
 export const combatSystem = (ctx: Context) => {
-  const { k, scenario, add, dirty, unitById, world, isStunned, inRange, targetOf } = ctx
+  const { k, scenario, add, begin, end, dirty, buffed, threatened, unitById, world, isStunned, inRange, targetOf } = ctx
   const { seed } = scenario
   const { BUFF, KIND, UNIT_STATS } = k
 
   const applyBuff = (u: Unit, b: number) => {
-    if (ctx.counters) {
-      if (u.buffs[b] > 0) add(`buff.refresh.${BUFF_NAME[b]}`)
-      else { add(`buff.add.${BUFF_NAME[b]}`); dirty?.add(u.gameId) }
-    }
+    if (u.buffs[b] > 0) add(`buff.refresh.${BUFF_NAME[b]}`)
+    else { add(`buff.add.${BUFF_NAME[b]}`); dirty.add(u) }
     u.buffs[b] = k.BUFF_DURATION[b]
+    buffed.add(u)
   }
 
   const addThreat = (victim: Unit, attacker: number, amount: number) => {
@@ -118,8 +117,11 @@ export const combatSystem = (ctx: Context) => {
       for (let s_i = 0, s = sums[0]; s_i < sums.length; s = sums[++s_i]) if (!best || s.amount > best.amount) best = s
       if (best) victim.lastHitBy = best.attacker
       if (victim.fleeing) continue
+      begin('threat')
       for (let s_i = 0, s = sums[0]; s_i < sums.length; s = sums[++s_i]) addThreat(victim, s.attacker, s.amount)
       evictThreat(victim)
+      if (sums.length > 0) threatened.add(victim)
+      end('threat')
     }
 
     for (let d_i = 0, d = intents[0]; d_i < intents.length; d = intents[++d_i]) world.damage[d.team] = (world.damage[d.team] + d.value) | 0

@@ -33,6 +33,16 @@ export interface GroundItem { gameId: number; kind: number; quality: number; x: 
 export interface Shrine { gameId: number; y: number; owner: number; progress: number }
 export interface DamageIntent { victim: Unit; attacker: number; team: number; value: number }
 
+/**
+ * Optional region timer (runner/src/budget.ts). `begin` and `end` bracket a named facet region and may nest.
+ * `naive` names the regions that run their naive code (same hash, slower). Without it every call is a no-op.
+ */
+export interface Regions {
+  begin(name: string): void
+  end(name: string): void
+  naive: ReadonlySet<string>
+}
+
 /** Optional work-count hooks (runner/src/profile.ts). `add` accumulates, `set` records a per-tick gauge. Never read back. */
 export interface Counters {
   add(name: string, n?: number): void

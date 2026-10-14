@@ -1,25 +1,31 @@
 import type { Context } from '../context.ts'
 import { recomputeStats } from '../derived-stats.ts'
 import { sampleEntities } from '../profiling.ts'
+import type { Unit } from '../types.ts'
 
 export const statsSystem = (ctx: Context) => {
-  const { k, add, dirty, unitById, world, parentOf, depthOf } = ctx
+  const { k, add, begin, end, dirty, world, parentOf, depthOf } = ctx
+  const naive = ctx.isNaive('stats.recompute')
+
+  const refresh = (u: Unit) => {
+    if (u.killCount >= k.VETERAN_KILLS && !u.veteran) {
+      u.veteran = true
+      u.chronicle = [k.PROMOTION_MARK]
+      add('tag.add.veteran')
+    }
+    recomputeStats(ctx, u)
+  }
 
   return () => {
     const { units, counters } = ctx
-    for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
-      if (u.killCount >= k.VETERAN_KILLS && !u.veteran) {
-        u.veteran = true
-        u.chronicle = [k.PROMOTION_MARK]
-        dirty?.add(u.gameId)
-        add('tag.add.veteran')
-      }
-      recomputeStats(ctx, u)
-    }
-    if (counters && dirty) {
+    begin('stats.recompute')
+    // New units are not dirty: spawn already computed them and only items, buffs and kills change them later.
+    if (naive) for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) refresh(u)
+    else for (const u of dirty) if (!u.destroyed) refresh(u)
+    end('stats.recompute')
+    if (counters) {
       let needed = 0
-      for (const id of dirty) if (unitById.has(id)) needed++
-      dirty.clear()
+      for (const u of dirty) if (!u.destroyed) needed++
       add('stats.needed', needed)
       add('stats.full', units.length)
       sampleEntities(ctx)
@@ -33,6 +39,7 @@ export const statsSystem = (ctx: Context) => {
       counters.set('hier.depth', maxDepth)
       counters.set('hier.maxChildren', Math.max(0, ...children.values()))
     }
+    dirty.clear()
     world.alive = [0, 0]
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) world.alive[u.team]++
     if (ctx.tick > 0 && world.winner === -1) {

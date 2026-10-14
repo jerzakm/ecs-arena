@@ -3,7 +3,7 @@ import { recomputeStats } from './derived-stats.ts'
 import type { Item, Unit } from './types.ts'
 
 export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y: number): Unit => {
-  const { k, scenario, add, dirty } = ctx
+  const { k, scenario, add } = ctx
   const { clampToArena, randInt, PURPOSE, KIND, UNIT_STATS } = k
   const { seed } = scenario
   const gameId = ctx.nextId++
@@ -29,7 +29,6 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
   }
   recomputeStats(ctx, u)
   add(`create.${ctx.kindName(kind)}`)
-  dirty?.add(gameId)
   ctx.units.push(u)
   ctx.slots[u.h] = u
   ctx.grid.add(u.h, gameId, u.x, u.y)

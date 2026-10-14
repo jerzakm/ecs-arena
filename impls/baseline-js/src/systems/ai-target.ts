@@ -13,7 +13,7 @@ export const aiTargetSystem = (ctx: Context) => {
     const setTarget = (u: Unit, t: number) => {
       if (u.target !== t) {
         add(u.target === -1 ? 'rel.Targets.add' : t === -1 ? 'rel.Targets.remove' : 'rel.Targets.retarget')
-        u.target = t
+        ctx.retarget(u, t)
       }
     }
     const validTarget = (u: Unit, v: Unit) =>
