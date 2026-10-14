@@ -2,7 +2,7 @@
 // Units, projectiles, items and shrines are koota entities. gameId is a trait, never the entity id.
 import {
   Not, createAdded, createChanged, createQuery, createWorld, relation, trait,
-  type Entity, type World,
+  type Entity, type QueryParameter, type World,
 } from 'koota'
 import type { CanonicalState, CreateSim, Scenario } from '@ecs-arena/spec'
 
@@ -97,6 +97,11 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   }
   const gid = (e: Entity) => e.get(GameId)!.id
   const byId = (a: { id: number }, b: { id: number }) => a.id - b.id
+  const sortedByGameId = (...params: QueryParameter[]) => {
+    const out: { id: number; e: Entity }[] = []
+    world.query(GameId, ...params).readEach(([g], e) => out.push({ id: g.id, e }))
+    return out.sort(byId)
+  }
   const homeX = (team: number) => (team === 0 ? 0 : k.MAX_COORD)
   const isThinkTick = (id: number, tick: number) => (id + tick) % k.THINK_INTERVAL === 0
   const inRange = (ax: number, ay: number, bx: number, by: number, r: number) => distSq(ax, ay, bx, by) <= r * r
@@ -561,8 +566,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
   const cleanup = () => {
     const kills = [0, 0]
 
-    const leaving: { id: number; e: Entity }[] = []
-    world.query(Dead, GameId).readEach(([g], e) => leaving.push({ id: g.id, e }))
+    const leaving = sortedByGameId(Dead)
     world.query(Fleeing, GameId, Position, Team, Not(Dead)).readEach(([g, p, t], e) => {
       if (p.x === homeX(t.value)) leaving.push({ id: g.id, e })
     })
@@ -604,10 +608,8 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     })
     for (const e of doneProjectiles) e.destroy()
 
-    const ground: { id: number; e: Entity }[] = []
-    world.query(Ground, GameId).readEach(([, g], e) => ground.push({ id: g.id, e }))
+    const ground = sortedByGameId(Ground)
     if (ground.length > 0) {
-      ground.sort(byId)
       const grid = buildGrid()
       for (const g of ground) {
         const gp = g.e.get(Position)!
@@ -636,9 +638,7 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
 
   const objectives = () => {
     const grid = buildGrid()
-    const shrines: { id: number; e: Entity }[] = []
-    world.query(Shrine, GameId).readEach(([, g], e) => shrines.push({ id: g.id, e }))
-    shrines.sort(byId)
+    const shrines = sortedByGameId(Shrine)
     for (const { e } of shrines) {
       const pos = e.get(Position)!
       const count = [0, 0]
@@ -682,18 +682,14 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
     const m = world.get(Metrics)!, score = world.get(Score)!
     const s: number[] = [tickNow(), m.alive0, m.alive1, m.kills0, m.kills1, m.damage0, m.damage1, m.winner, score.shrines0, score.shrines1]
 
-    const shrines: { id: number; e: Entity }[] = []
-    world.query(Shrine, GameId).readEach(([, g], e) => shrines.push({ id: g.id, e }))
-    shrines.sort(byId)
+    const shrines = sortedByGameId(Shrine)
     s.push(shrines.length)
     for (const { id, e } of shrines) {
       const sh = e.get(Shrine)!
       s.push(id, sh.owner, sh.progress)
     }
 
-    const units: { id: number; e: Entity }[] = []
-    world.query(Unit, GameId).readEach(([g], e) => units.push({ id: g.id, e }))
-    units.sort(byId)
+    const units = sortedByGameId(Unit)
     s.push(units.length)
     for (const { id, e } of units) {
       const p = e.get(Position)!, h = e.get(Health)!, st = e.get(Stats)!
@@ -722,18 +718,14 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       s.push(chronicle.length, ...chronicle)
     }
 
-    const projectiles: { id: number; e: Entity }[] = []
-    world.query(Projectile, GameId).readEach(([, g], e) => projectiles.push({ id: g.id, e }))
-    projectiles.sort(byId)
+    const projectiles = sortedByGameId(Projectile)
     s.push(projectiles.length)
     for (const { id, e } of projectiles) {
       const p = e.get(Position)!, pr = e.get(Projectile)!, t = e.targetFor(Targets)
       s.push(id, pr.owner, t ? gid(t) : -1, p.x, p.y, e.get(Age)!.value, pr.speed, pr.volley)
     }
 
-    const ground: { id: number; e: Entity }[] = []
-    world.query(Ground, GameId).readEach(([, g], e) => ground.push({ id: g.id, e }))
-    ground.sort(byId)
+    const ground = sortedByGameId(Ground)
     s.push(ground.length)
     for (const { id, e } of ground) {
       const p = e.get(Position)!
