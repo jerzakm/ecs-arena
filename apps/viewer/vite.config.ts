@@ -1,3 +1,3 @@
 import { defineConfig } from 'vite'
 
-export default defineConfig({ worker: { format: 'es' } })
+export default defineConfig({ base: './', worker: { format: 'es' }, build: { target: 'esnext' } })
