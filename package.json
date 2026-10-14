@@ -7,6 +7,7 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p .",
     "verify": "tsx runner/src/verify.ts",
+    "profile": "tsx runner/src/profile.ts",
     "bench": "tsx runner/src/bench.ts",
     "compare": "tsx runner/src/compare.ts",
     "verify:all": "tsx runner/src/verify-all.ts"
