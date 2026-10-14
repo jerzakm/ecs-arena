@@ -121,7 +121,7 @@ Speeds are in fixed point units per tick. Ranges and sight are in tiles.
 
 - The heal range of a healer is its range. A summoner has range 0 and never attacks.
 - Crit chance is 10%. Pickup range is 1.5 tiles. Use 1.5 tiles = 1536 units.
-- Projectile speed: 512 units per tick for a mage. A volley uses the speeds in §6.4. Projectile lifetime: 60 ticks.
+- Projectile speed: 2048 units per tick for a mage. A projectile must be faster than every unit, or a unit can outrun it. A volley uses the speeds in §6.4. Projectile lifetime: 60 ticks.
 - Mage splash radius: 2 tiles.
 - Summoner: one minion each 120 ticks, at most 3 alive minions. Minion lifetime: 300 ticks.
 - **Think interval:** 4 ticks. A unit makes a new spatial search only on a tick where `(gameId + tick) % 4 == 0`. See §6.2.
@@ -268,7 +268,7 @@ A think tick for a unit is a tick where `(gameId + tick) % 4 == 0` _(tune)_.
 2. **Attacks.** A unit that is not stunned, is not `Fleeing`, has cooldown 0, and has a target in range attacks:
    - Warrior, Minion, Warlord: a damage intent. If the hit is a crit and the attacker is a warrior or a warlord, the target gets `Stun`.
    - Mage: one projectile spawn intent, at speed 512.
-   - Archer: a **volley** of 3 projectile spawn intents, `j = 0, 1, 2`. Each one starts at the archer position after `move`, has age 0, targets the archer target, and has no offset. Projectile `j` has speed `512 - 64 * j` _(tune)_. The 3 projectiles share one crit draw.
+   - Archer: a **volley** of 3 projectile spawn intents, `j = 0, 1, 2`. Each one starts at the archer position after `move`, has age 0, targets the archer target, and has no offset. Projectile `j` has speed `2048 - 256 * j` _(tune)_. The 3 projectiles share one crit draw.
    - Each projectile starts at the owner position after `move` and has age 0.
    - The phase sorts projectile spawn intents by (attacker gameId, `j`), then assigns gameIds. A mage intent has `j = 0`.
    - Healer: a heal intent. The target gets `Haste`.

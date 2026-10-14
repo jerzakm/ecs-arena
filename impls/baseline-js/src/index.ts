@@ -604,6 +604,7 @@ const createSim = (scenario: Scenario, k: Parameters<CreateSim>[1], counters?: C
     // Pickup, in gameId order. Items taken here count toward the cap of later items.
     add('q.cleanup.groundItems', groundItems.length)
     if (groundItems.length > 0) {
+      groundItems.sort(byGameId)
       const grid = buildGrid()
       groundItems = groundItems.filter((g) => {
         let best: Unit | null = null

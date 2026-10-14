@@ -432,7 +432,7 @@ describe('projectiles', () => {
     expect(fresh).toBeGreaterThan(0)
   })
 
-  it('fires an archer volley of 3 at speeds 512, 448 and 384, and a mage shot of 1 at 512', () => {
+  it('fires an archer volley of 3 at speeds 2048, 1792 and 1536, and a mage shot of 1 at 2048', () => {
     let volleys = 0, mageShots = 0
     for (const s of steps()) {
       const fresh = s.c.projectiles.filter((pr) => pr.age === 0)
@@ -443,7 +443,7 @@ describe('projectiles', () => {
         if (kind === undefined) continue
         if (kind === KIND.ARCHER) {
           volleys++
-          expect(prs.map((x) => x.speed)).toEqual([512, 448, 384])
+          expect(prs.map((x) => x.speed)).toEqual([2048, 1792, 1536])
           expect(prs.map((x) => x.volley)).toEqual([1, 1, 1])
           expect(prs[1].gameId).toBe(prs[0].gameId + 1)
           expect(prs[2].gameId).toBe(prs[0].gameId + 2)
@@ -451,7 +451,7 @@ describe('projectiles', () => {
         } else {
           mageShots++
           expect(prs).toHaveLength(1)
-          expect(prs[0]).toMatchObject({ speed: 512, volley: 0 })
+          expect(prs[0]).toMatchObject({ speed: 2048, volley: 0 })
         }
       }
       for (let i = 1; i < fresh.length; i++) expect(fresh[i].gameId).toBeGreaterThan(fresh[i - 1].gameId)

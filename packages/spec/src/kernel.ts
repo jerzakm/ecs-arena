@@ -95,10 +95,10 @@ export const UNIT_STATS: Readonly<Record<number, UnitStats>> = {
   [KIND.WARLORD]: u(400, 20, 6, 1.5, 10, 25, 416),
 }
 
-export const PROJECTILE_SPEED = 512
+export const PROJECTILE_SPEED = 2048
 export const PROJECTILE_LIFETIME = 60
 export const VOLLEY_SIZE = 3
-export const VOLLEY_SPEED_STEP = 64
+export const VOLLEY_SPEED_STEP = 256
 export const SPLASH_RADIUS = 2 * FX
 export const SUMMON_PERIOD = 120
 export const MAX_MINIONS = 3
