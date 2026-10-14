@@ -27,6 +27,15 @@ importers:
         specifier: workspace:*
         version: link:../../packages/spec
 
+  impls/koota:
+    dependencies:
+      '@ecs-arena/spec':
+        specifier: workspace:*
+        version: link:../../packages/spec
+      koota:
+        specifier: ^0.6.6
+        version: 0.6.6
+
   packages/spec: {}
 
   runner:
@@ -568,6 +577,17 @@ packages:
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
 
+  koota@0.6.6:
+    resolution: {integrity: sha512-Fn8lSooH3u9TIP+eAMugFrOju40Ec70+sB7x1eZBB3H0Lki2hyIbFAodk3NDB/RIRzoMs54O4422BVN6SbtWfw==}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      react: '>=18.0.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react:
+        optional: true
+
   loupe@3.2.1:
     resolution: {integrity: sha512-CdzqowRJCeLU72bHvWqwRBBlLcMEtIvGrlvef74kMnV2AolS9Y8xUv1I0U/MNAWMhBlKIoyuEgoJ0t/bbwHbLQ==}
 
@@ -1071,6 +1091,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  koota@0.6.6: {}
 
   loupe@3.2.1: {}
 

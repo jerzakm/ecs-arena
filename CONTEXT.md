@@ -33,5 +33,5 @@ The only distance measure in the rules: `dx*dx + dy*dy` as an exact JS number, c
 _Avoid_: distance, length
 
 **Ground item**:
-An item that a dead unit drops. In `cleanup`, ground items in gameId order go to the nearest ally in pickup range that holds fewer than 3 items. A ground item despawns after 300 ticks.
+An item that a dead unit drops. In `cleanup`, ground items in gameId order go to the nearest unit of either team in pickup range that holds fewer than 3 items. A ground item despawns after 300 ticks.
 _Avoid_: loot, drop
