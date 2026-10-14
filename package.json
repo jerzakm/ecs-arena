@@ -1,0 +1,26 @@
+{
+  "name": "ecs-arena",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/**",
+    "typecheck": "tsc --noEmit -p .",
+    "verify": "tsx runner/src/verify.ts",
+    "profile": "tsx runner/src/profile.ts",
+    "bench": "tsx runner/src/bench.ts",
+    "compare": "tsx runner/src/compare.ts",
+    "diff": "tsx runner/src/diff.ts",
+    "check:caps": "tsx runner/src/check-capabilities.ts",
+    "verify:all": "tsx runner/src/verify-all.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=24.2.0"
+  }
+}
