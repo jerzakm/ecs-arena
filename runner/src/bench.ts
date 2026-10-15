@@ -29,14 +29,28 @@ export const machine = (runs: number) => ({
 // Protocol mode keeps stdout for benchbox JSON lines, so child output goes to stderr.
 let quiet = false
 
-const runOnce = (impl: string, scenario: string, alias: Record<string, string>, kind: 'headline' | 'deep'): Promise<RunResult> =>
+/** How to start a child run: the script, its leading args and its node flags. */
+export interface ChildCmd {
+  script: string
+  args: string[]
+  execArgv: string[]
+}
+
+/** The dev child loads TS through tsx and resolves variant imports through the alias hook. */
+export const DEV_CHILD: ChildCmd = {
+  script: resolve(HERE, 'bench-child.ts'),
+  args: [],
+  execArgv: ['--import', 'tsx', '--import', pathToFileURL(resolve(HERE, 'alias-register.mjs')).href],
+}
+
+const runOnce = (impl: string, scenario: string, alias: Record<string, string>, kind: 'headline' | 'deep', cmd: ChildCmd): Promise<RunResult> =>
   new Promise((res, rej) => {
-    // Fresh process per run so JIT/heap state never leaks. tsx loads the TS; alias hook resolves variant imports.
+    // Fresh process per run so JIT/heap state never leaks.
     // BENCH_WRAP prefixes the child command, for example "taskset -c 3" or "chrt -f 99" on a tuned box.
     const [wrap, ...wrapArgs] = WRAP
-    const child = fork(resolve(HERE, 'bench-child.ts'), [impl, scenario, kind], {
+    const child = fork(cmd.script, [...cmd.args, impl, scenario, kind], {
       ...(wrap && { execPath: wrap }),
-      execArgv: [...wrapArgs, ...(wrap ? [process.execPath] : []), '--import', 'tsx', '--import', pathToFileURL(resolve(HERE, 'alias-register.mjs')).href, '--expose-gc'],
+      execArgv: [...wrapArgs, ...(wrap ? [process.execPath] : []), ...cmd.execArgv, '--expose-gc'],
       env: { ...process.env, ECS_ALIAS: JSON.stringify(alias) },
       silent: quiet,
     })
@@ -50,10 +64,11 @@ const runOnce = (impl: string, scenario: string, alias: Record<string, string>, 
 export type BenchReport = Record<string, Record<string, Aggregate>>
 
 /** Runs are interleaved target-by-target (ABAB...) so machine drift hits every target alike. `deep` adds deep-dive runs after the headline runs. */
-export const bench = async (targets: string[], scenarios: string[], runs: number, deep = false): Promise<BenchReport> => {
+export const bench = async (targets: string[], scenarios: string[], runs: number, deep = false, child = DEV_CHILD): Promise<BenchReport> => {
   const prepared = targets.map((target) => {
     const { impl, variant } = parseTarget(target)
-    const alias: Record<string, string> = variant ? { koota: ensureVariant(variant) } : {}
+    // A bundled entry has its variant built in.
+    const alias: Record<string, string> = variant && child === DEV_CHILD ? { koota: ensureVariant(variant) } : {}
     return { target, impl, alias }
   })
   const report: BenchReport = Object.fromEntries(targets.map((t) => [t, {}]))
@@ -62,7 +77,7 @@ export const bench = async (targets: string[], scenarios: string[], runs: number
     const collect = async (kind: 'headline' | 'deep') => {
       const rs: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
       for (let i = 0; i < runs; i++)
-        for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, kind))
+        for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, kind, child))
       return rs
     }
     const head = await collect('headline')
@@ -109,18 +124,22 @@ export const printScores = (report: BenchReport) => {
 
 const COLS = [...TIMED_PHASES, 'tick']
 
-/** benchbox native protocol v1: one bench per scenario and column, samples = per-tick median in ns. */
-export const writeProtocol = async (target: string, scenarios: string[], runs: number) => {
+/** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. */
+export const writeProtocol = async (target: string, scenarios: string[], runs: number, child = DEV_CHILD) => {
   quiet = true
   const out = (r: object) => process.stdout.write(JSON.stringify(r) + '\n')
   out({ type: 'meta', language: 'js', toolchain: process.version, target: `${process.arch}-${process.platform}`, machine: machine(runs) })
   for (const sc of scenarios) {
+    const group = `${sc}/${target}`
     try {
-      const a = (await bench([target], [sc], runs, true))[target][sc].deep!
-      COLS.forEach((c, i) => out({ type: 'bench', group: `${sc}/${target}`, name: c, samples: a.ticks.map((r) => Math.round(r[i] * 1e6)) }))
+      const a = (await bench([target], [sc], runs, true, child))[target][sc]
+      const ns = (ms: number) => Math.round(ms * 1e6)
+      COLS.forEach((c, i) => out({ type: 'bench', group, name: c, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
+      out({ type: 'bench', group, name: 'total', samples: a.samples.total.map(ns) })
+      out({ type: 'bench', group, name: 'gc', samples: a.deep!.ticks.map((r) => ns(r[COLS.length])) })
     } catch (e) {
       // A golden hash mismatch exits the child with code 3, so a wrong result never gives samples.
-      for (const c of COLS) out({ type: 'error', group: `${sc}/${target}`, name: c, message: String(e) })
+      for (const c of [...COLS, 'total', 'gc']) out({ type: 'error', group, name: c, message: String(e) })
     }
   }
 }
