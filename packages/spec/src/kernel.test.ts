@@ -103,7 +103,7 @@ describe('tables', () => {
     expect(kernel.UNIT_STATS[0].range).toBe(1536)
     expect(SCENARIOS['battle'].ticks).toBe(2000)
     expect(SCENARIOS['war-smoke']).toMatchObject({ ticks: 400, targetPop: SCENARIOS['war'].targetPop, seed: S })
-    expect(kernel.UNIT_STATS[kernel.KIND.WARLORD]).toMatchObject({ maxHp: 400, attack: 20, armor: 6, range: 1536, sight: 10 * FX, cooldown: 25, speed: 416 })
+    expect(kernel.UNIT_STATS[kernel.KIND.WARLORD]).toMatchObject({ maxHp: 400, attack: 20, armor: 6, range: 1536, sight: 7.5 * FX, cooldown: 25, speed: 416 })
     expect(kernel.SQUADS[3].members).toEqual([0, 0, 4, 3])
     expect([0, 1, 2, 3, 4, 5, 6].map(kernel.shrineY)).toEqual([16, 48, 80, 112, 144, 176, 208].map((t) => t * FX))
     expect(PURPOSE.SURGE_KIND).toBe(7)

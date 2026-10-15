@@ -16,24 +16,27 @@ export const combatSystem = (ctx: Context) => {
   }
 
   const addThreat = (victim: Unit, attacker: number, amount: number) => {
-    const i = victim.threat.findIndex((e) => e.attacker >= attacker)
-    if (i !== -1 && victim.threat[i].attacker === attacker) {
-      victim.threat[i].amount = Math.min(k.THREAT_CLAMP, victim.threat[i].amount + amount)
+    const th = victim.threat
+    let i = 0
+    while (i < th.length && th[i].attacker < attacker) i++
+    if (i < th.length && th[i].attacker === attacker) {
+      th[i].amount = Math.min(k.THREAT_CLAMP, th[i].amount + amount)
       add('rel.Threat.accumulate')
     } else {
-      victim.threat.splice(i === -1 ? victim.threat.length : i, 0, { attacker, amount: Math.min(k.THREAT_CLAMP, amount) })
+      th.splice(i, 0, { attacker, amount: Math.min(k.THREAT_CLAMP, amount) })
       add('rel.Threat.add')
     }
   }
 
   const evictThreat = (victim: Unit) => {
-    while (victim.threat.length > k.THREAT_MAX_EDGES) {
+    const th = victim.threat
+    while (th.length > k.THREAT_MAX_EDGES) {
       let worst = 0
-      victim.threat.forEach((e, i) => {
-        const w = victim.threat[worst]
+      for (let i = 1; i < th.length; i++) {
+        const e = th[i], w = th[worst]
         if (e.amount < w.amount || (e.amount === w.amount && e.attacker > w.attacker)) worst = i
-      })
-      victim.threat.splice(worst, 1)
+      }
+      th.splice(worst, 1)
       add('rel.Threat.evict')
     }
   }
@@ -73,6 +76,7 @@ export const combatSystem = (ctx: Context) => {
       intents.push({ victim, attacker, team, value })
     }
 
+    ctx.resendGrid()
     add('q.combat.projectiles', projectiles.length)
     for (let p_i = 0, p = projectiles[0]; p_i < projectiles.length; p = projectiles[++p_i]) {
       const t = unitById.get(p.target)
@@ -128,6 +132,7 @@ export const combatSystem = (ctx: Context) => {
       if (u.hasteIn) applyBuff(u, BUFF.HASTE)
     }
 
+    const writes: { victim: Unit; sums: Edge[] }[] = []
     intents.sort((a, b) => a.victim.gameId - b.victim.gameId || a.attacker - b.attacker)
     for (let i = 0; i < intents.length;) {
       const victim = intents[i].victim
@@ -143,12 +148,16 @@ export const combatSystem = (ctx: Context) => {
       for (let s_i = 0, s = sums[0]; s_i < sums.length; s = sums[++s_i]) if (!best || s.amount > best.amount) best = s
       if (best) victim.lastHitBy = best.attacker
       if (victim.fleeing) continue
-      begin('threat')
+      writes.push({ victim, sums })
+    }
+    begin('threat')
+    for (let w_i = 0, w = writes[0]; w_i < writes.length; w = writes[++w_i]) {
+      const { victim, sums } = w
       for (let s_i = 0, s = sums[0]; s_i < sums.length; s = sums[++s_i]) addThreat(victim, s.attacker, s.amount)
       evictThreat(victim)
       if (sums.length > 0) threatened.add(victim)
-      end('threat')
     }
+    end('threat')
 
     for (let d_i = 0, d = intents[0]; d_i < intents.length; d = intents[++d_i]) world.damage[d.team] = (world.damage[d.team] + d.value) | 0
     sampleEntities(ctx)

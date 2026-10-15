@@ -42,7 +42,7 @@ export const spawnSystem = (ctx: Context) => {
     for (let s_i = 0, s = summoners[0]; s_i < summoners.length; s = summoners[++s_i]) {
       if (tick - s.lastSummon < k.SUMMON_PERIOD || (minionCount.get(s.gameId) ?? 0) >= k.MAX_MINIONS) continue
       const m = spawnUnit(ctx, s.team, KIND.MINION, s.x, s.y, s)
-      m.childOf = s.gameId
+      m.childOf = s.gameId; m.pref = s
       const list = ctx.minionsOf.get(s.gameId)
       if (list) list.push(m)
       else ctx.minionsOf.set(s.gameId, [m])

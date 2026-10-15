@@ -20,7 +20,7 @@ export interface Scenario {
 }
 
 /** SPEC §10: the runner asks for a save after each tick `t > 0` with `t % SAVE_INTERVAL == 0`. */
-export const SAVE_INTERVAL = 100
+export const SAVE_INTERVAL = 25
 
 /** SPEC §8: one flat array of int32 values. */
 export type CanonicalState = number[]

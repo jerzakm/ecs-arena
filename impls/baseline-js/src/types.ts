@@ -7,7 +7,9 @@ export interface Unit {
   h: number // grid handle
   hp: number; maxHp: number; attack: number; armor: number; speed: number; cooldown: number
   target: number
+  tref: Unit | undefined // the unit with gameId `target`, kept in step by `retarget` so the hot reads skip the map
   memberOf: number
+  pref: Unit | undefined // the unit with gameId `memberOf` (or `childOf` when there is no memberOf), kept in step with both
   offX: number; offY: number
   childOf: number
   items: Item[]

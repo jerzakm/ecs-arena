@@ -4,12 +4,13 @@ import type { Unit } from '../types.ts'
 
 export const objectivesSystem = (ctx: Context) => {
   const { k, add, begin, end, world, shrines, inRange } = ctx
-  const naive = ctx.isNaive('objectives.capture')
+  const naive = ctx.isNaive('objectives.capture'), naiveGarrison = ctx.isNaive('garrison')
   const cap = ctx.scenario.garrisonCap
 
   return () => {
     const { units } = ctx
     const entered: Unit[] = []
+    ctx.resendGrid()
     begin('objectives.capture')
     for (let s_i = 0, s = shrines[0]; s_i < shrines.length; s = shrines[++s_i]) {
       const count = [0, 0]
@@ -20,7 +21,11 @@ export const objectivesSystem = (ctx: Context) => {
           const u = ctx.slots[h]
           if (!u.fleeing && !u.garrison) count[u.team]++
         }, 'shrine')
-        for (let g_i = 0, g = s.garrison[0]; g_i < s.garrison.length; g = s.garrison[++g_i]) count[g.team]++
+        begin('garrison')
+        // The members of a garrison: the normal code reads the shrine's list, the naive code scans every unit for GarrisonOf.
+        if (naiveGarrison) { for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) if (u.garrison === s) count[u.team]++ }
+        else for (let g_i = 0, g = s.garrison[0]; g_i < s.garrison.length; g = s.garrison[++g_i]) count[g.team]++
+        end('garrison')
       }
       const step = Math.max(-k.SHRINE_STEP_MAX, Math.min(k.SHRINE_STEP_MAX, count[0] - count[1]))
       s.progress = Math.max(-k.SHRINE_PROGRESS_MAX, Math.min(k.SHRINE_PROGRESS_MAX, s.progress + step))

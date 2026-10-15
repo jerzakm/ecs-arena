@@ -145,20 +145,20 @@ Speeds are in fixed point units per tick. Ranges and sight are in tiles.
 
 | Kind | maxHp | attack | armor | range | sight | cooldown | speed |
 |---|---|---|---|---|---|---|---|
-| Warrior | 200 | 14 | 4 | 1.5 | 8 | 20 | 448 |
-| Archer | 80 | 10 | 1 | 8 | 10 | 30 | 416 |
-| Mage | 70 | 9 | 0 | 7 | 10 | 45 | 416 |
-| Healer | 90 | 15 (heal) | 1 | 6 | 8 | 40 | 416 |
-| Summoner | 100 | 0 | 2 | — | 8 | 120 | 352 |
-| Minion | 30 | 5 | 0 | 1.5 | 8 | 20 | 512 |
-| Warlord | 400 | 20 | 6 | 1.5 | 10 | 25 | 416 |
+| Warrior | 200 | 14 | 4 | 1.5 | 6 | 20 | 448 |
+| Archer | 80 | 10 | 1 | 8 | 8 | 30 | 416 |
+| Mage | 70 | 9 | 0 | 7 | 7.5 | 45 | 416 |
+| Healer | 90 | 15 (heal) | 1 | 6 | 6 | 40 | 416 |
+| Summoner | 100 | 0 | 2 | — | 6 | 120 | 352 |
+| Minion | 30 | 5 | 0 | 1.5 | 6 | 20 | 512 |
+| Warlord | 400 | 20 | 6 | 1.5 | 7.5 | 25 | 416 |
 
 - The heal range of a healer is its range. A summoner has range 0 and never attacks.
 - Crit chance is 10%. Pickup range is 1.5 tiles. Use 1.5 tiles = 1536 units.
 - Projectile speed: 2048 units per tick for a mage. A projectile must be faster than every unit, or a unit can outrun it. A volley uses the speeds in §6.4. Projectile lifetime: 60 ticks.
 - Mage splash radius: 2 tiles.
-- Summoner: one minion each 120 ticks, at most 3 alive minions. Minion lifetime: 300 ticks.
-- **Think interval:** 4 ticks. A unit makes a new spatial search only on a tick where `(gameId + tick) % 4 == 0`. See §6.2.
+- Summoner: one minion each 30 ticks _(tune)_, at most 3 alive minions. Minion lifetime: 90 ticks _(tune)_.
+- **Think interval:** 16 ticks. A unit makes a new spatial search only on a tick where `(gameId + tick) % 16 == 0`. See §6.2.
 
 ### Derived stats
 
@@ -273,7 +273,7 @@ A read of another entity sees its **start-of-phase value**, except for the **hie
 
 ### 6.1 `spawn`
 
-Grow the ages (§3). Then do the shrines, waves, surges and summons from §5. A summoner spawns a minion at its own position and team when `tick - lastSummon >= 120` and it has fewer than 3 alive minions. A stunned or fleeing summoner also spawns. A spawn sets `lastSummon = tick`.
+Grow the ages (§3). Then do the shrines, waves, surges and summons from §5. A summoner spawns a minion at its own position and team when `tick - lastSummon >= 30` and it has fewer than 3 alive minions. A stunned or fleeing summoner also spawns. A spawn sets `lastSummon = tick`.
 
 ### 6.2 `ai/target`
 
@@ -290,7 +290,7 @@ First do the commander orders of §6.12. Then, for each unit that is not stunned
   3. On a think tick, the target is the nearest valid target by **squared distance**. A tie goes to the lowest gameId.
   4. Otherwise the unit has no target.
 
-A think tick for a unit is a tick where `(gameId + tick) % 4 == 0` _(tune)_.
+A think tick for a unit is a tick where `(gameId + tick) % 16 == 0` _(tune)_.
 
 ### 6.3 `move`
 
@@ -370,7 +370,7 @@ Handle the dead units and the leaving units together, in gameId order:
 1. **Kill credit** (dead units only).
    - If the unit is not a minion, `kills[enemyTeam] += 1`.
    - If `lastHitBy` of the unit is a unit that exists at the start of `cleanup`, that unit gets `killCount += 1`. A unit that dies in this tick still exists at the start of `cleanup`, so it gets the credit. A minion victim also gives credit.
-   - If the credited unit has `Veteran` at the start of `cleanup`, append the victim kind to its `chronicle`. If the chronicle then has more than 4 entries, remove the oldest. Victims are handled in gameId order, so the chronicle order is fixed.
+   - If the credited unit has `Veteran` at the start of `cleanup`, append the victim kind to its `chronicle`. If the chronicle then has more than 384 entries, remove the oldest. Victims are handled in gameId order, so the chronicle order is fixed.
 2. **Drop** (dead units only). The equipped item with the lowest gameId becomes a ground item at the unit position, with age 0. It keeps its gameId and quality. Destroy the other items. A leaving unit drops nothing, and all its items are destroyed.
 3. Destroy all minions with `ChildOf` this unit. Minions destroyed this way give no kill.
 4. **Promotion.** If units have `MemberOf` this unit, the one with the lowest gameId that is not destroyed yet becomes the new head. A dead or leaving unit that waits in the list can be promoted. It is then handled in its turn, and the same rule applies again. A unit that lost its `MemberOf` in `morale` (§6.6 step 4) is not a member here.
@@ -382,7 +382,9 @@ Handle the dead units and the leaving units together, in gameId order:
 
 Then:
 
-6. Destroy minions that are 300 ticks old. They give no kill and drop nothing.
+5a. **Veteran log** _(tune)_. After all dead and leaving units of steps 1 to 5 are handled, each unit that has `Veteran` and is not destroyed appends its current `hp` to its `chronicle`. If the chronicle then has more than 384 entries, remove the oldest. This rule exists for the array-data facet: a veteran appends once each tick, so the array is long and its change is frequent.
+
+6. Destroy minions that are 90 ticks old. They give no kill and drop nothing.
 
 Then remove all `Targets` and `Threat` relations to or from every unit destroyed so far.
 
@@ -415,9 +417,9 @@ Then set `Score.shrines0` and `Score.shrines1` to the number of shrines that eac
 ### 6.10 `Veteran`
 
 - `killCount` grows in §6.7 step 1.
-- In `stats`, a unit with `killCount >= 3` _(tune)_ and no `Veteran` gets `Veteran`.
+- In `stats`, a unit with `killCount >= 1` _(tune)_ and no `Veteran` gets `Veteran`.
 - When `Veteran` is Added in this tick, the unit gets a `chronicle` with one entry, `-1`. The entry marks the promotion.
-- The `chronicle` holds at most 4 victim kinds, oldest first. §6.7 step 1 appends to it.
+- The `chronicle` holds at most 384 entries _(tune)_, oldest first. §6.7 step 1 appends a victim kind to it, and the veteran log of §6.7 appends the `hp` of the unit once each tick.
 - `Veteran` is never removed.
 
 ### 6.11 `stats`
@@ -494,7 +496,7 @@ The **snapshot** is one flat int32 array in this order:
 1. World: `tick, alive0, alive1, kills0, kills1, damage0, damage1, winner, shrines0, shrines1, orders0, orders1, renderChain` (`winner = -1` while there is none).
 2. `shrineCount`, then each shrine in gameId order: `gameId, owner, progress, garrisonCount, (unitGameId)…`. The garrison units are in gameId order.
 3. `unitCount`, then each unit in gameId order:
-   `gameId, team, kind, x, y, hp, maxHp, attack, armor, speed, cooldown, targetGameId, leaderGameId, parentGameId, buffCount, (kind, ticksLeft)…, itemCount, (itemGameId, itemKind, quality)…, flags, killCount, lastHitByGameId, moraleSize0, moraleLost, threatCount, (attackerGameId, amount)…, chronicleCount, (victimKind)…`
+   `gameId, team, kind, x, y, hp, maxHp, attack, armor, speed, cooldown, targetGameId, leaderGameId, parentGameId, buffCount, (kind, ticksLeft)…, itemCount, (itemGameId, itemKind, quality)…, flags, killCount, lastHitByGameId, moraleSize0, moraleLost, threatCount, (attackerGameId, amount)…, chronicleCount, (entry)…`
    - A missing relation is `-1`. `leaderGameId` is the `MemberOf` parent. Buffs are in kind order. Items are in gameId order.
    - `flags`: bit 0 `Fleeing`, bit 1 `Veteran`, bit 2 `Routed`, bit 3 `Overwhelmed`, bit 4 `bannered`, bit 5 `Garrisoned`.
    - `lastHitByGameId` is `-1` when there is no `lastHitBy`, or when that unit does not exist now.
@@ -515,21 +517,21 @@ FNV-1a 32-bit over the snapshot. Feed each int32 as 4 bytes, little-endian.
 
 The game saves the world at a fixed interval and loads one save. The hash trace must match a run without the load.
 
-- **Save.** After each tick `t` with `t > 0` and `t % 100 == 0` _(tune)_, after the hash, the implementation saves the world. A new save replaces the old one.
+- **Save.** After each tick `t` with `t > 0` and `t % 25 == 0` _(tune)_, after the hash, the implementation saves the world. A new save replaces the old one.
 - **Load.** After tick `loadTick` (§11) and its hash, the implementation loads the newest save. Let `S` be the tick of that save. The run then continues from tick `S + 1` to the last tick. So ticks `S + 1` to `loadTick` run two times.
 - **Contents.** A save holds all state that a later tick reads: every entity with every field, tag, buff, age and cooldown, every relation with its data, `lastSummon`, `bannered`, the `gameId` counter, and every world value (§8 item 1 and `Score`). A save is a deep copy. Ticks after the save do not change it. The form is free: a native world clone, bytes or another form.
 - **After load.** Native entity ids can change, but each `gameId` stays the same. The kernel grid must match §3.2 before the next search, so a full re-send is valid. No `Added`, `Removed` or `Changed` state from the discarded ticks can reach a later tick.
 - **Driver.** The runner drives the schedule from the scenario (`SAVE_INTERVAL` and `loadTick`) through `Sim.save()` and `Sim.load(state)`. Every run kind uses it, and a headline or deep run counts the save and load time in its total. The state that `save` returns is opaque to the runner. A load replaces the live state of the same sim.
-- **Trace length.** A full run has `ticks + (loadTick - S)` hashes, with `S = floor(loadTick / 100) * 100` (50 more in every scenario of §11). A run with `ticks` below `loadTick` never loads.
+- **Trace length.** A full run has `ticks + (loadTick - S)` hashes, with `S = floor(loadTick / 25) * 25` (12 more in every scenario of §11). A run with `ticks` below `loadTick` never loads.
 - **Check.** In verify mode the trace holds one hash for each tick in run order. Each hash must equal the golden hash of its tick. So the replayed ticks must give the same hashes as the first time.
 
 ## 11. Scenarios _(tune)_
 
 | Scenario | targetPop each team | wavePeriod | maxSquadsPerWave | surgePeriod | surgeBase | surgeCap each team | garrisonCap | ordersPerTeam | Ticks | loadTick | Smoke ticks | Smoke loadTick |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `skirmish` | 800 | 200 | 70 | 120 | 14 | 1,200 | 8 | 8 | 2,000 | 1,550 | 400 | 350 |
-| `battle` | 3,200 | 200 | 200 | 120 | 40 | 4,800 | 32 | 32 | 2,000 | 1,550 | 400 | 350 |
-| `war` | 8,000 | 200 | 420 | 120 | 100 | 12,000 | 128 | 128 | 1,000 | 750 | 400 | 350 |
+| `skirmish` | 800 | 200 | 70 | 120 | 14 | 1,200 | 8 | 8 | 2,000 | 1,562 | 400 | 362 |
+| `battle` | 3,200 | 200 | 200 | 120 | 40 | 4,800 | 32 | 32 | 2,000 | 1,562 | 400 | 362 |
+| `war` | 9,200 | 200 | 420 | 120 | 100 | 12,000 | 128 | 128 | 1,000 | 762 | 400 | 362 |
 
 Every number in this table is _(tune)_. The `targetPop` values are first guesses for the peak targets below.
 

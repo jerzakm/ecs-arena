@@ -1,7 +1,7 @@
 import { Not, type Entity } from 'koota'
 import { byGameId, type Context } from '../context.ts'
 import {
-  Age, Chronicle, Dead, Fleeing, GameId, Ground, ItemKind, ItemTags, KillCount, Kind, Metrics, Minion, Morale, Position, Projectile, Routed, Spent, Team, Veteran,
+  Age, Chronicle, Dead, Fleeing, GameId, Ground, Health, ItemKind, ItemTags, KillCount, Kind, Metrics, Minion, Morale, Position, Projectile, Routed, Spent, Team, Veteran,
 } from '../components.ts'
 import { Equips, LastHitBy, MemberOf, Targets } from '../relations.ts'
 
@@ -62,6 +62,12 @@ export const cleanupSystem = (ctx: Context) => {
       // The remaining items and the minions of the unit go with it (autoDestroy on Equips and ChildOf).
       e.destroy()
     }
+
+    // The chronicle of a Veteran also logs its hp once each tick, oldest first, at most CHRONICLE_MAX entries.
+    world.query(Veteran, Chronicle, Health).readEach(([c, h]) => {
+      c.kinds.push(h.hp)
+      if (c.kinds.length > k.CHRONICLE_MAX) c.kinds.shift()
+    })
 
     const oldMinions: Entity[] = []
     world.query(Minion, Age).readEach(([age], e) => { if (age.value >= k.MINION_LIFETIME) oldMinions.push(e) })

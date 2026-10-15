@@ -2,9 +2,9 @@
 // Rules that need a fight run the skirmish scenario once, then check every tick against the tick before it.
 // "p" is the snapshot at the start of a tick, "c" the snapshot at its end.
 import { describe, it } from 'vitest'
-import { PHASES, SCENARIOS, kernel, type Scenario } from '@ecs-arena/spec'
+import { PHASES, kernel, type Scenario } from '@ecs-arena/spec'
 import { expect } from './fast-expect.ts'
-import { BANNERED, FLEEING, GARRISONED, OVERWHELMED, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
+import { BANNERED, FLEEING, GARRISONED, OVERWHELMED, ROUTED, SMALL, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
 import createSim from './index.ts'
 
 /** Runs `sc.ticks` ticks and returns the parsed snapshot after each one. */
@@ -20,9 +20,9 @@ const { KIND, BUFF, UNIT_STATS, ITEMS, FX, SQUADS, PURPOSE, distSq, stepToward, 
 
 const memo = <T>(f: () => T) => { let v: T | undefined; return () => (v ??= f()) }
 
-const SEEDS = [SCENARIOS.skirmish.seed, 5]
+const SEEDS = [SMALL.seed, 5]
 const fights = memo(() => SEEDS.map((seed) => {
-  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed }
+  const sc = { ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed }
   return { sc, h: run(sc) }
 }))
 
@@ -35,7 +35,7 @@ const stepsOf = (seed: number, h: Parsed[]): Step[] => {
 const steps = memo(() => fights().flatMap(({ sc, h }) => stepsOf(sc.seed, h)))
 /** A bigger fight with a different seed, for rules that need many kills by one unit. */
 const veteranFight = memo(() => {
-  const sc = { ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
+  const sc = { ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
   return stepsOf(sc.seed, run(sc))
 })
 
@@ -66,7 +66,7 @@ const STUNNERS = new Set<number>([KIND.WARRIOR, KIND.WARLORD])
 type Rule = 'none' | 'retaliation' | 'keep' | 'think' | 'idle' | 'heal-keep' | 'heal-think' | 'heal-idle'
 const expectedTarget = (p: Parsed, pm: Map<number, PUnit>, u: PUnit, t: number): { id: number; rule: Rule; ties: number } => {
   const st = UNIT_STATS[u.kind]
-  const think = (u.gameId + t) % 4 === 0
+  const think = (u.gameId + t) % kernel.THINK_INTERVAL === 0
   const cur = u.target === -1 ? undefined : pm.get(u.target)
   if (fleeing(u) || u.kind === KIND.SUMMONER) return { id: -1, rule: 'none', ties: 0 }
   if (u.kind === KIND.HEALER) {
@@ -247,7 +247,7 @@ describe('spawn order and warbands', () => {
       const by = new Map(units.map((u) => [u.gameId, u]))
       const warlords = units.filter((u) => u.kind === KIND.WARLORD)
       warlords.forEach((w, wi) => {
-        expect(w.y).toBe(16 * FX + randInt(224, SCENARIOS.skirmish.seed, 0, teamGameId(n), PURPOSE.SPAWN_Y, wi) * FX)
+        expect(w.y).toBe(16 * FX + randInt(224, SMALL.seed, 0, teamGameId(n), PURPOSE.SPAWN_Y, wi) * FX)
         near(w.x, (n === 0 ? 8 : 248) * FX, w.speed)
         units.filter((u) => u.leader === w.gameId).forEach((l, j) => {
           expect(l.y).toBe(w.y + (2 * j - 3) * 4 * FX)
@@ -298,7 +298,7 @@ describe('stats recompute', () => {
     let hasted = 0, veterans = 0
     for (const { c, cm } of steps()) for (const u of c.units) {
       const haste = u.buffs.some((b) => b.kind === BUFF.HASTE)
-      const vet = (u.flags & VETERAN) ? 2 * Math.min(3, Math.trunc(u.killCount / 3)) : 0
+      const vet = (u.flags & VETERAN) ? 2 * Math.min(3, Math.trunc(u.killCount / kernel.VETERAN_KILLS)) : 0
       expect(u.attack).toBe(base(u, 'attack') + vet)
       expect(u.armor).toBe(base(u, 'armor') + (bannerOf(cm, u) ? kernel.BANNER_ARMOR : 0))
       expect(u.speed).toBe(haste ? Math.trunc((base(u, 'speed') * 3) / 2) : base(u, 'speed'))
@@ -500,7 +500,7 @@ describe('projectiles', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed })))
+    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
     expect(onTarget).toBeGreaterThan(0)
   })
 
@@ -557,7 +557,7 @@ describe('Banner', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SCENARIOS.skirmish, garrisonCap: 0, ordersPerTeam: 0, seed })))
+    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
     expect(on).toBeGreaterThan(0)
     expect(lost).toBeGreaterThan(0)
   })
@@ -922,19 +922,19 @@ describe('Threat', () => {
 })
 
 describe('Veteran and chronicle', () => {
-  it('makes a unit a Veteran at 3 kills and gives it a chronicle with the promotion mark', () => {
+  it('makes a unit a Veteran at VETERAN_KILLS kills and gives it a chronicle with the promotion mark', () => {
     let promoted = 0
     for (const s of steps()) for (const u of s.c.units) {
-      expect((u.flags & VETERAN) !== 0).toBe(u.killCount >= 3)
-      if (!(u.flags & VETERAN)) expect(u.chronicle).toEqual([])
-      else expect(u.chronicle.length).toBeGreaterThanOrEqual(1)
+      expect((u.flags & VETERAN) !== 0).toBe(u.killCount >= kernel.VETERAN_KILLS)
+      if (!(u.flags & VETERAN)) expect(u.chronicleCount).toBe(0)
+      else expect(u.chronicleCount).toBeGreaterThanOrEqual(1)
       const old = s.pm.get(u.gameId)
       if (old && !(old.flags & VETERAN) && (u.flags & VETERAN)) { expect(u.chronicle).toEqual([-1]); promoted++ }
     }
     expect(promoted).toBeGreaterThan(0)
   })
 
-  it('appends one victim kind for each kill, oldest first, and keeps the last 4', () => {
+  it('appends one victim kind for each kill and then its hp, oldest first, and keeps the last CHRONICLE_MAX entries', () => {
     let appended = 0, capped = 0
     for (const s of veteranFight()) {
       const kinds = vanished(s).filter((v) => !leaves(v)).map((v) => v.kind)
@@ -943,13 +943,13 @@ describe('Veteran and chronicle', () => {
         if (!now || !(u.flags & VETERAN)) continue
         const gained = now.killCount - u.killCount
         expect(gained).toBeGreaterThanOrEqual(0)
-        const kept = Math.min(4, u.chronicle.length + gained)
-        expect(now.chronicle).toHaveLength(kept)
-        const old = Math.max(0, kept - gained)
+        expect(now.chronicleCount).toBe(Math.min(kernel.CHRONICLE_MAX, u.chronicleCount + gained + 1)) // the kills, then one hp entry from the veteran log
+        const old = Math.max(0, now.chronicle.length - gained - 1) // the entries of the tick before that are still in the tail
         expect(now.chronicle.slice(0, old)).toEqual(u.chronicle.slice(u.chronicle.length - old))
-        for (const k of now.chronicle.slice(old)) expect(kinds).toContain(k)
+        for (const k of now.chronicle.slice(old, now.chronicle.length - 1)) expect(kinds).toContain(k)
+        expect(now.chronicle[now.chronicle.length - 1]).toBe(now.hp)
         appended += gained
-        if (u.chronicle.length + gained > 4) capped++
+        if (u.chronicleCount + gained + 1 > kernel.CHRONICLE_MAX) capped++
       }
     }
     expect(appended).toBeGreaterThan(0)
@@ -1109,7 +1109,7 @@ describe('buffs', () => {
 })
 
 describe('winner', () => {
-  it.each([[7, 0], [42, 1]])('seed %i: stays -1 while both teams have units, is set once to the team that still has units, and never changes', (seed, team) => {
+  it.each([[112, 0], [140, 1]])('seed %i: stays -1 while both teams have units, is set once to the team that still has units, and never changes', (seed, team) => {
     const h = run(scenario({ seed, ticks: 1600 }))
     const at = h.findIndex((s) => s.winner !== -1)
     expect(at).toBeGreaterThan(0)
@@ -1127,19 +1127,19 @@ describe('winner', () => {
 })
 
 describe('Garrison', () => {
-  const cap = SCENARIOS.skirmish.garrisonCap
+  const cap = SMALL.garrisonCap
   const garrisoned = (u: PUnit) => (u.flags & GARRISONED) !== 0
   const shrinePos = (i: number) => ({ x: 128 * FX, y: (16 + 32 * i) * FX })
   const d2 = (u: PUnit, i: number) => distSq(u.x, u.y, shrinePos(i).x, shrinePos(i).y)
 
-  // One streaming pass over four fights with garrisons on. It keeps two snapshots at a time, since the parsed
+  // One streaming pass over many fights with garrisons on. It keeps two snapshots at a time, since the parsed
   // history of four fights does not fit in memory. Each rule collects its violations, and each test reads its own.
   const pass = memo(() => {
     const bad: Record<string, string[]> = {}
     const seen: Record<string, number> = { listed: 0, entered: 0, ownerChanged: 0, held: 0, burned: 0, exitOwner: 0, exitFlee: 0, counted: 0 }
     const rule = (name: string, ok: boolean, info: () => string) => { if (!ok) (bad[name] ??= []).push(info()) }
-    for (const seed of [SCENARIOS.skirmish.seed, 11, 13, 21]) {
-      const sc = { ...SCENARIOS.skirmish, seed }
+    for (const seed of [SMALL.seed, 11, 13, 21, 5, 7, 9, 17, 19, 23, 29, 31, 37, 41, 43, 47]) {
+      const sc = { ...SMALL, seed }
       const sim = createSim(sc, kernel)
       const tickOf = () => { for (const ph of PHASES) sim.phases[ph](); return parse(sim.snapshot()) }
       let p = tickOf()
@@ -1238,7 +1238,7 @@ describe('Garrison', () => {
 })
 
 describe('Commander orders', () => {
-  const dense = { ...SCENARIOS.skirmish, targetPop: 300, maxSquadsPerWave: 30, garrisonCap: 0, ordersPerTeam: 40, ticks: 700 }
+  const dense = { ...SMALL, targetPop: 300, maxSquadsPerWave: 30, garrisonCap: 0, ordersPerTeam: 40, ticks: 700 }
   const idsOf = (s: Parsed) => [...s.shrines.map((x) => x.gameId), ...s.units.flatMap((u) => [u.gameId, ...u.items.map((i) => i.gameId)]), ...s.projectiles.map((q) => q.gameId), ...s.ground.map((g) => g.gameId)]
 
   // The key range n is the gameId counter at the start of ai/target. A snapshot only shows the ids that exist, so n is
@@ -1337,7 +1337,7 @@ describe('Render extraction', () => {
   })
 
   it('folds the garrison fights too: units that hold garrison and order flags are in the buffer', () => {
-    const h = run({ ...SCENARIOS.skirmish, ticks: 600 })
+    const h = run({ ...SMALL, ticks: 600 })
     let chain = 0x811c9dc5 | 0
     for (const s of h) { chain = fold(chain, bufferOf(s)); expect(s.renderChain).toBe(chain) }
     expect(h.some((s) => s.units.some((u) => (u.flags & GARRISONED) !== 0))).toBe(true)
