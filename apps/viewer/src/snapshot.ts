@@ -39,9 +39,10 @@ export const parseSnapshot = (s: ArrayLike<number>): Snapshot => {
   let i = 0
   const [tick, alive0, alive1, kills0, kills1, damage0, damage1, winner, shrines0, shrines1] = Array.from({ length: 10 }, () => s[i++])
   const world = { tick, alive0, alive1, kills0, kills1, damage0, damage1, winner, shrines0, shrines1 }
+  i += 3 // orders0, orders1, renderChain
 
   const shrines: Shrine[] = []
-  for (let n = s[i++]; n > 0; n--, i += 3) shrines.push({ gameId: s[i], owner: s[i + 1], progress: s[i + 2] })
+  for (let n = s[i++]; n > 0; n--, i += 4 + s[i + 3]) shrines.push({ gameId: s[i], owner: s[i + 1], progress: s[i + 2] }) // then the garrison list
 
   const units: Unit[] = []
   for (let n = s[i++]; n > 0; n--) {

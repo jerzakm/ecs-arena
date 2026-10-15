@@ -1,6 +1,7 @@
 import { Not, type Entity } from 'koota'
 import type { Context } from '../context.ts'
-import { Dead, Fleeing, Morale, Routed } from '../components.ts'
+import { Dead, Fleeing, Garrisoned, Morale, Routed } from '../components.ts'
+import { leaveGarrison } from '../garrison.ts'
 import { MemberOf, Targets, Threat } from '../relations.ts'
 
 export const moraleSystem = (ctx: Context) => {
@@ -37,6 +38,7 @@ export const moraleSystem = (ctx: Context) => {
     }
 
     for (const e of world.query(q.newlyFleeing)) {
+      if (e.has(Garrisoned)) leaveGarrison(ctx, e)
       e.remove(Targets('*'))
       e.remove(Threat('*'))
       if (e.has(Morale)) e.remove(MemberOf('*'))

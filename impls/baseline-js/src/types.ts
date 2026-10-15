@@ -18,6 +18,7 @@ export interface Unit {
   fleeing: boolean; routed: boolean; veteran: boolean
   overwhelmed: boolean // set at the start of combat
   bannered: boolean // the root of its MemberOf and ChildOf chain is a warlord and it is not the root
+  garrison: Shrine | null // GarrisonOf: the shrine that holds the unit. The Garrisoned tag is garrison !== null
   killCount: number
   lastHitBy: number
   chronicle: number[]
@@ -33,7 +34,7 @@ export interface Projectile {
   ownerTeam: number; ownerKind: number; attack: number; crit: boolean; spent: boolean // fixed at fire time
 }
 export interface GroundItem { gameId: number; kind: number; quality: number; x: number; y: number; age: number }
-export interface Shrine { gameId: number; y: number; owner: number; progress: number }
+export interface Shrine { gameId: number; y: number; owner: number; progress: number; garrison: Unit[] }
 export interface DamageIntent { victim: Unit; attacker: number; team: number; value: number }
 
 /**

@@ -28,6 +28,7 @@ export const Routed = trait()
 export const Veteran = trait()
 export const Overwhelmed = trait()
 export const Bannered = trait()
+export const Garrisoned = trait()
 
 // One tag per item kind (SPEC 3.1), indexed by item kind. A unit carries the tag while it holds an item of that kind.
 export const Sword = trait()
@@ -46,5 +47,5 @@ export const Haste = trait({ ticksLeft: 0 })
 
 export const Clock = trait({ tick: -1 })
 export const NextId = trait({ value: 1 })
-export const Metrics = trait({ alive0: 0, alive1: 0, kills0: 0, kills1: 0, damage0: 0, damage1: 0, winner: -1 })
+export const Metrics = trait({ alive0: 0, alive1: 0, kills0: 0, kills1: 0, damage0: 0, damage1: 0, orders0: 0, orders1: 0, renderChain: 0x811c9dc5 | 0, winner: -1 })
 export const Score = trait({ shrines0: 0, shrines1: 0 })

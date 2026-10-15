@@ -1,4 +1,5 @@
 import type { Context } from '../context.ts'
+import { leaveGarrison } from '../garrison.ts'
 import { memberIndex } from '../hierarchy.ts'
 import type { Unit } from '../types.ts'
 
@@ -51,6 +52,7 @@ export const moraleSystem = (ctx: Context) => {
       add('rel.Threat.dropOnFlee', u.threat.length)
       u.threat = []
       if (u.morale && u.memberOf !== -1) { u.memberOf = -1; u.offX = 0; u.offY = 0; add('rel.MemberOf.remove') }
+      if (u.garrison) { begin('garrison'); leaveGarrison(ctx, u); end('garrison') }
     }
     end('morale.onFlee')
   }

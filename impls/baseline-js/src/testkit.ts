@@ -6,6 +6,7 @@ export const VETERAN = 2
 export const ROUTED = 4
 export const OVERWHELMED = 8
 export const BANNERED = 16
+export const GARRISONED = 32
 
 export interface PUnit {
   gameId: number; team: number; kind: number; x: number; y: number
@@ -18,11 +19,11 @@ export interface PUnit {
   threat: { attacker: number; amount: number }[]
   chronicle: number[]
 }
-export interface PShrine { gameId: number; owner: number; progress: number }
+export interface PShrine { gameId: number; owner: number; progress: number; garrison: number[] }
 export interface PProjectile { gameId: number; owner: number; target: number; x: number; y: number; age: number; speed: number; volley: number }
 export interface PGround { gameId: number; kind: number; quality: number; x: number; y: number; age: number }
 export interface Parsed {
-  tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[]
+  tick: number; alive: number[]; kills: number[]; damage: number[]; winner: number; score: number[]; orders: number[]; renderChain: number
   shrines: PShrine[]; units: PUnit[]; projectiles: PProjectile[]; ground: PGround[]
 }
 
@@ -37,8 +38,14 @@ export const parse = (s: CanonicalState): Parsed => {
   const damage = [next(), next()]
   const winner = next()
   const score = [next(), next()]
+  const orders = [next(), next()]
+  const renderChain = next()
   const shrines: PShrine[] = []
-  for (let n = next(); n > 0; n--) shrines.push({ gameId: next(), owner: next(), progress: next() })
+  for (let n = next(); n > 0; n--) {
+    const sh: PShrine = { gameId: next(), owner: next(), progress: next(), garrison: [] }
+    for (let c = next(); c > 0; c--) sh.garrison.push(next())
+    shrines.push(sh)
+  }
   const units: PUnit[] = []
   for (let n = next(); n > 0; n--) {
     const u: PUnit = {
@@ -59,11 +66,11 @@ export const parse = (s: CanonicalState): Parsed => {
   const ground: PGround[] = []
   for (let n = next(); n > 0; n--) ground.push({ gameId: next(), kind: next(), quality: next(), x: next(), y: next(), age: next() })
   if (i !== s.length) throw new Error(`snapshot has ${s.length} values, parser read ${i}`)
-  return { tick, alive, kills, damage, winner, score, shrines, units, projectiles, ground }
+  return { tick, alive, kills, damage, winner, score, orders, renderChain, shrines, units, projectiles, ground }
 }
 
 /** One squad of one warband per team, no repeat waves, no surge. Override what a test needs. */
 export const scenario = (o: Partial<Scenario> = {}): Scenario => ({
   ...SCENARIOS.skirmish, name: 'test', targetPop: 1, wavePeriod: 1_000_000, maxSquadsPerWave: 1,
-  surgePeriod: 1_000_000, surgeBase: 1, surgeCap: 1, ticks: 1, ...o,
+  surgePeriod: 1_000_000, surgeBase: 1, surgeCap: 1, garrisonCap: 0, ordersPerTeam: 0, ticks: 1, ...o,
 })

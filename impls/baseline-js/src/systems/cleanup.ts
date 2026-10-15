@@ -6,8 +6,8 @@ export const cleanupSystem = (ctx: Context) => {
   const { k, add, begin, end, dirty, unitById, world, homeX, kindName } = ctx
   const { KIND } = k
   const naiveChurn = ctx.isNaive('churn'), naiveUnlink = ctx.isNaive('cleanup.unlink'), naiveCascade = ctx.isNaive('cleanup.cascade')
-  const naiveCredit = ctx.isNaive('cleanup.credit'), naiveThreat = ctx.isNaive('threat')
-  const hasRoom = (h: number) => ctx.slots[h].items.length < k.MAX_ITEMS
+  const naiveCredit = ctx.isNaive('cleanup.credit'), naiveThreat = ctx.isNaive('threat'), naiveGarrison = ctx.isNaive('garrison')
+  const hasRoom = (h: number) => { const v = ctx.slots[h]; return v.items.length < k.MAX_ITEMS && !v.garrison }
 
   const destroy = (u: Unit) => {
     if (ctx.counters) {
@@ -90,7 +90,9 @@ export const cleanupSystem = (ctx: Context) => {
     begin('churn')
     let alive = before
     for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.destroyed) {
-      unitById.delete(u.gameId); ctx.grid.remove(u.h); ctx.freeSlots.push(u.h)
+      unitById.delete(u.gameId); ctx.freeSlots.push(u.h)
+      if (!u.garrison || naiveGarrison) ctx.grid.remove(u.h)
+      if (u.garrison) { const list = u.garrison.garrison; list.splice(list.indexOf(u), 1); add('rel.GarrisonOf.destroyDrop') }
       ctx.buffed.delete(u); ctx.threatened.delete(u)
       if (u.childOf !== -1) {
         const list = ctx.minionsOf.get(u.childOf)

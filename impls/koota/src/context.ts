@@ -13,6 +13,9 @@ export interface Context {
   grid: SpatialGrid // handle: entity id
   unitAt: Entity[] // grid handle -> unit
   teamAt: number[] // grid handle -> team
+  inGrid: boolean[] // grid handle -> the unit is in the grid (a garrisoned unit is not)
+  unitById: Map<number, Entity> // gameId -> unit, for the keys of commander orders (SPEC 6.12)
+  idAt: number[] // grid handle -> gameId
   // State
   world: World
   q: Queries
@@ -37,7 +40,13 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
   const dirty = new Set<Entity>()
   observeDirty(world, dirty)
   const grid = new SpatialGrid()
-  world.onRemove(Unit, (e) => grid.remove(e.id()))
+  const inGrid: boolean[] = []
+  const unitById = new Map<number, Entity>()
+  const idAt: number[] = []
+  world.onRemove(Unit, (e) => {
+    if (inGrid[e.id()]) grid.remove(e.id())
+    unitById.delete(idAt[e.id()])
+  })
 
   return {
     k,
@@ -48,6 +57,9 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
     grid,
     unitAt: [],
     teamAt: [],
+    inGrid,
+    unitById,
+    idAt,
     tickNow: () => world.get(Clock)!.tick,
     nextId: () => {
       const id = world.get(NextId)!.value

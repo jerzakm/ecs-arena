@@ -13,7 +13,7 @@ The spec states behaviour, not a mechanism. A rule of the form "when `T` is Adde
 - Intermediate values can be plain JS numbers, but they must stay integers below 2^53.
 - Rules must not use `Math.sqrt`, `Math.hypot`, `Math.atan2`, or any other float function. Use the kernel helpers. The kernel itself is exempt from this ban. For example, `isqrt` can use `Math.sqrt` and then correct the result.
 - Integer division truncates toward zero: `fx.div(a, b) = Math.trunc(a / b)`. This is exact when `a` and `b` are integers, `b != 0`, and `|a| < 2^53`. Every division in this spec is in that bound.
-- A world total that can grow without limit wraps mod 2^32 into int32: `total = (total + value) | 0`. This applies to `damage0` and `damage1`.
+- A world total that can grow without limit wraps mod 2^32 into int32: `total = (total + value) | 0`. This applies to `damage0`, `damage1`, `orders0` and `orders1`.
 - The only distance measure is **squared distance**. A range `r` in tiles compares as `distSq <= (r * FX)^2`.
 
 ### Kernel math
@@ -462,6 +462,7 @@ Units can go into a shrine that their team owns. A unit in a garrison has the `G
 - **On entry.** Remove the `Targets` relation from the unit, and every `Targets` relation to it from units and projectiles. The unit leaves the kernel grid.
 - **While garrisoned.** The unit does not move, does not choose a target, does not attack and does not pick up items. It is not a valid target and not a heal target. A grid search does not find it, so a mage splash does not hit it. Its buffs, burn damage, `Threat` decay, summons and lifetime continue as normal. Its `Threat` edges stay. Burn can kill it.
 - **Exit.** The unit loses `Garrisoned` and `GarrisonOf` when its shrine changes owner (§6.8 step 4) or when it gets `Fleeing` (§6.6 step 4). It goes back into the kernel grid at its position, and it stays at that position. A destroyed unit leaves the garrison with all its relations.
+- **Projectiles.** A projectile that targeted the unit has no target after the entry. It does not move and cannot hit, and `cleanup` destroys it (§6.7 step 7).
 
 ### 6.15 Render extraction
 
