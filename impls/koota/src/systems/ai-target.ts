@@ -31,19 +31,23 @@ export const aiTargetSystem = (ctx: Context) => {
       return best
     }
 
-    // SPEC 6.12. koota has no lookup by key, so ctx.unitById finds the subject and the object of each order.
+    // SPEC 6.12. koota has no lookup by key, so ctx.unitById finds the unit of each probe key.
     ordered.clear()
     const n = world.get(NextId)!.value
     if (tick % k.ORDER_PERIOD === 0 && n > 1) {
       const given = [0, 0]
+      const pick = (team: number, role: number, o: number, own: boolean): Entity | undefined => {
+        for (let p = 0; p < k.ORDER_PROBES; p++) {
+          const u = ctx.unitById.get(k.orderKey(n, ctx.scenario.seed, tick, team, role, o, p))
+          if (u && (u.get(Team)!.value === team) === own) return u
+        }
+        return undefined
+      }
       for (let team = 0; team < 2; team++) for (let o = 0; o < ctx.scenario.ordersPerTeam; o++) {
-        const [sk, ok] = k.orderKeys(n, ctx.scenario.seed, tick, team, o)
-        const s = ctx.unitById.get(sk), t = ctx.unitById.get(ok)
+        const s = pick(team, k.PURPOSE.ORDER_SUBJECT, o, true), t = pick(team, k.PURPOSE.ORDER_OBJECT, o, false)
         if (!s || !t) continue
         const kind = s.get(Kind)!.value
-        if (s.get(Team)!.value !== team || s.has(Stun) || s.has(Fleeing) || s.has(Garrisoned) || kind === KIND.HEALER || kind === KIND.SUMMONER) continue
-        const sp = s.get(Position)!
-        if (!validTarget(team, sp.x, sp.y, UNIT_STATS[kind].sight, t)) continue
+        if (s.has(Stun) || s.has(Fleeing) || s.has(Garrisoned) || kind === KIND.HEALER || kind === KIND.SUMMONER || t.has(Fleeing) || t.has(Garrisoned)) continue
         s.add(Targets(t))
         ordered.add(s)
         given[team]++

@@ -60,7 +60,7 @@ A rule that does not change the hash can be skipped. Each new rule changes it.
 - C: the multiplier changes damage, `lastHitBy`, `Threat` and `damageN`. Flag bit 3 shows the tag.
 - D: the banner changes `armor`. Flag bit 4 shows it.
 - E: garrison units are in the shrine part of the snapshot and in flag bit 5.
-- F: `orders0` and `orders1` count the orders that took effect. A wrong dead-key result changes them.
+- F: `orders0` and `orders1` count the orders that took effect. A wrong dead-key result changes them. Most gameIds name items and projectiles, and sight is short, so a single draw per key took effect in no scenario (`orders0` and `orders1` stayed 0). Each order now probes up to 6 keys for a unit of the right team and has no sight limit. In every scenario about 10 to 30% of the orders take effect and about 70 to 80% are dead-key orders, so both paths stay loaded. `pnpm run profile` and a smoke test fail when either count is 0.
 - G: `renderChain` folds each buffer. A skipped tick changes the last hash.
 - Snapshot: the replayed ticks must give the golden hashes again.
 
