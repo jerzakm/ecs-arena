@@ -312,13 +312,13 @@ A think tick for a unit is a tick where `(gameId + tick) % 16 == 0` _(tune)_.
 ### 6.4 `combat`
 
 1. **Hits.** A projectile hits when its position is equal to the position of its target. It makes a damage intent and gets the `Spent` tag. A new projectile from step 2 cannot hit in the tick that creates it.
-   - A projectile stores the attack value and the crit result of its owner at fire time. The crit uses the draw of §7.1 for the owner and the firing tick. The damage uses the armor of the target at hit time.
-   - A mage projectile deals `damage(attack, armor, crit)`. Every unit of the other team within 2 tiles of the hit point gets the damage intent and `Burn`. This includes the target and minions.
+   - A projectile stores the attack value and the crit result of its owner at fire time. The crit uses the draw of §7.1 for the owner and the firing tick. The damage uses the armor of the victim at hit time.
+   - A mage projectile hits every unit of the other team within 2 tiles of the hit point. Each of these units gets the damage intent `damage(attack, armor, crit)` with its own armor, and gets `Burn`. This includes the target and minions.
    - A volley projectile deals `max(1, fx.div(damage(attack, armor, crit), 2))` _(tune)_ to its target only.
    - The attacker of a projectile intent is the projectile owner, as a gameId.
 2. **Attacks.** A unit that is not stunned, is not `Fleeing`, has cooldown 0, and has a target in range attacks:
    - Warrior, Minion, Warlord: a damage intent. If the hit is a crit and the attacker is a warrior or a warlord, the target gets `Stun`.
-   - Mage: one projectile spawn intent, at speed 512.
+   - Mage: one projectile spawn intent, at the projectile speed of §4 (2048).
    - Archer: a **volley** of 3 projectile spawn intents, `j = 0, 1, 2`. Each one starts at the archer position after `move`, has age 0, targets the archer target, and has no offset. Projectile `j` has speed `2048 - 256 * j` _(tune)_. The 3 projectiles share one crit draw.
    - Each projectile starts at the owner position after `move` and has age 0.
    - The phase sorts projectile spawn intents by (attacker gameId, `j`), then assigns gameIds. A mage intent has `j = 0`.
@@ -372,10 +372,10 @@ Handle the dead units and the leaving units together, in gameId order:
 
 1. **Kill credit** (dead units only).
    - If the unit is not a minion, `kills[enemyTeam] += 1`.
-   - If `lastHitBy` of the unit is a unit that exists at the start of `cleanup`, that unit gets `killCount += 1`. A unit that dies in this tick still exists at the start of `cleanup`, so it gets the credit. A minion victim also gives credit.
+   - If `lastHitBy` of the unit is a unit that exists at the start of `cleanup`, that unit gets `killCount += 1`. A unit that dies in this tick still exists at the start of `cleanup`, so it gets the credit. A dead minion also gives credit, but only when it gets its own turn (see step 3).
    - If the credited unit has `Veteran` at the start of `cleanup`, append the victim kind to its `chronicle`. If the chronicle then has more than 4 entries _(tune)_, remove the oldest. Victims are handled in gameId order, so the chronicle order is fixed.
 2. **Drop** (dead units only). The equipped item with the lowest gameId becomes a ground item at the unit position, with age 0. It keeps its gameId and quality. Destroy the other items. A leaving unit drops nothing, and all its items are destroyed.
-3. Destroy all minions with `ChildOf` this unit. Minions destroyed this way give no kill.
+3. Destroy all minions with `ChildOf` this unit. Minions destroyed this way give no kill. A destroyed minion gets no turn of its own, also when it is dead. So the killer of a dead minion gets no `killCount` credit when the summoner has a lower gameId.
 4. **Promotion.** If units have `MemberOf` this unit, the one with the lowest gameId that is not destroyed yet becomes the new head. A dead or leaving unit that waits in the list can be promoted. It is then handled in its turn, and the same rule applies again. A unit that lost its `MemberOf` in `morale` (§6.6 step 4) is not a member here.
    - The new head loses its `MemberOf` to this unit.
    - If this unit has a `MemberOf` parent and the new head is not `Fleeing`, the new head gets the same parent and the same offset. A `Fleeing` head gets no parent. A `Fleeing` unit that has `Morale` never has a `MemberOf` parent.
@@ -498,13 +498,13 @@ The **snapshot** is one flat int32 array in this order:
 2. `shrineCount`, then each shrine in gameId order: `gameId, owner, progress, garrisonCount, (unitGameId)…`. The garrison units are in gameId order.
 3. `unitCount`, then each unit in gameId order:
    `gameId, team, kind, x, y, hp, maxHp, attack, armor, speed, cooldown, targetGameId, leaderGameId, parentGameId, buffCount, (kind, ticksLeft)…, itemCount, (itemGameId, itemKind, quality)…, flags, killCount, lastHitByGameId, moraleSize0, moraleLost, threatCount, (attackerGameId, amount)…, chronicleCount, (entry)…, trailCount, (x, y)…`
-   - A missing relation is `-1`. `leaderGameId` is the `MemberOf` parent. Buffs are in kind order. Items are in gameId order.
+   - A missing relation is `-1`. `leaderGameId` is the `MemberOf` parent. `parentGameId` is the `ChildOf` summoner. Buffs are in kind order. Items are in gameId order.
    - `flags`: bit 0 `Fleeing`, bit 1 `Veteran`, bit 2 `Routed`, bit 3 `Overwhelmed`, bit 4 `bannered`, bit 5 `Garrisoned`.
    - `lastHitByGameId` is `-1` when there is no `lastHitBy`, or when that unit does not exist now.
    - `moraleSize0` and `moraleLost` are `-1` for a unit without `Morale`.
    - `Threat` edges are in attacker gameId order.
    - The chronicle is oldest first. `chronicleCount` is 0 for a unit without `Veteran`.
-- The trail is oldest first. `trailCount` is the number of points, so the trail has `2 * trailCount` ints.
+   - The trail is oldest first. `trailCount` is the number of points, so the trail has `2 * trailCount` ints.
 4. `projectileCount`, then each in gameId order: `gameId, ownerGameId, targetGameId, x, y, age, speed, volley` (`volley` is 1 for an archer projectile, else 0).
 5. `groundItemCount`, then each in gameId order: `gameId, itemKind, quality, x, y, age`.
 

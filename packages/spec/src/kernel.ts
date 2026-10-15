@@ -121,7 +121,7 @@ export const VETERAN_KILLS = 3
 export const VETERAN_ATTACK_STEP = 2
 export const VETERAN_MAX_STEPS = 3
 export const CHRONICLE_MAX = 4
-/** SPEC §6.16: the most points in the trail of a unit. */
+/** SPEC §6.3: the most points in the trail of a unit. */
 export const TRAIL_POINTS = 12
 export const PROMOTION_MARK = -1
 

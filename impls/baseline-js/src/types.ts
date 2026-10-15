@@ -24,7 +24,7 @@ export interface Unit {
   killCount: number
   lastHitBy: number
   chronicle: number[]
-  /** x, y pairs, oldest first, at most TRAIL_POINTS points (SPEC §6.16). */
+  /** x, y pairs, oldest first, at most TRAIL_POINTS points (SPEC §6.3). */
   trail: number[]
   lastSummon: number
   age: number
