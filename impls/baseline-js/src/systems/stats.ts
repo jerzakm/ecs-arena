@@ -5,13 +5,14 @@ import { flagsOf } from '../snapshot.ts'
 import type { Unit } from '../types.ts'
 
 export const statsSystem = (ctx: Context) => {
-  const { k, add, begin, end, dirty, world, parentOf, depthOf } = ctx
+  const { k, add, begin, end, dirty, world, parentOf, parentById, depthOf } = ctx
   const naive = ctx.isNaive('stats.recompute'), naiveSet = ctx.isNaive('stats.setBonus'), naiveBanner = ctx.isNaive('stats.banner'), naiveRender = ctx.isNaive('stats.render')
   let buf = new Int32Array(0)
 
   const refresh = (u: Unit) => {
     if (u.killCount >= k.VETERAN_KILLS && !u.veteran) {
       u.veteran = true
+      ctx.veterans.add(u)
       u.chronicle = [k.PROMOTION_MARK]
       add('tag.add.veteran')
     }
@@ -26,7 +27,7 @@ export const statsSystem = (ctx: Context) => {
       let banner: boolean
       if (naiveBanner) {
         let root = u
-        for (let p = parentOf(root); p; p = parentOf(root)) root = p
+        for (let p = parentById(root); p; p = parentById(root)) root = p
         banner = root !== u && root.kind === k.KIND.WARLORD
       } else {
         const p = parentOf(u)
@@ -73,17 +74,17 @@ export const statsSystem = (ctx: Context) => {
     buf[0] = units.length
     let at = 1
     if (naiveRender) {
-      const rows = units.map((u) => ({ gameId: u.gameId, kind: u.kind, team: u.team, x: u.x, y: u.y, hp: k.fx.div(u.hp * 255, u.maxHp), flags: flagsOf(u) }))
-      for (let r_i = 0, r = rows[0]; r_i < rows.length; r = rows[++r_i]) { buf[at++] = r.gameId; buf[at++] = r.kind; buf[at++] = r.team; buf[at++] = r.x; buf[at++] = r.y; buf[at++] = r.hp; buf[at++] = r.flags }
+      const rows = units.map((u) => ({ ...u })) // one object for each unit, like a copy of the entity that a renderer would take
+      for (let r_i = 0, r = rows[0]; r_i < rows.length; r = rows[++r_i]) { buf[at++] = r.gameId; buf[at++] = r.kind; buf[at++] = r.team; buf[at++] = r.x; buf[at++] = r.y; buf[at++] = k.fx.div(r.hp * 255, r.maxHp); buf[at++] = flagsOf(r) }
     } else {
       for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
         buf[at++] = u.gameId; buf[at++] = u.kind; buf[at++] = u.team; buf[at++] = u.x; buf[at++] = u.y; buf[at++] = k.fx.div(u.hp * 255, u.maxHp); buf[at++] = flagsOf(u)
       }
     }
+    end('stats.render') // the fold is the kernel's hash of the buffer, not extraction work
     const chain = k.foldRender(world.renderChain, buf, size)
     if (chain !== world.renderChain) add('rule.renderChain')
     world.renderChain = chain
-    end('stats.render')
     world.tick = ctx.tick
     ctx.tick++
   }

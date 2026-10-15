@@ -27,6 +27,8 @@ export interface Context {
   threatened: Set<Unit> // units that may hold Threat edges, emptied lazily
   targeters: Map<number, Set<Unit>> // gameId -> units that target it (inverse of Targets)
   minionsOf: Map<number, Unit[]> // summoner gameId -> minions in gameId order (inverse of ChildOf)
+  members: Map<number, Unit[]> // parent gameId -> units with MemberOf to it in gameId order (inverse of MemberOf), kept by the normal links code
+  veterans: Set<Unit> // units with the Veteran tag
   overwhelmed: Set<Unit> // units with the Overwhelmed tag, kept by the normal combat.fanIn
   prevFleeing: Set<Unit> // only kept by the naive morale.onFlee
   dirty: Set<Unit> // units whose items, buffs, kills or Veteran changed since the last stats phase
@@ -35,6 +37,8 @@ export interface Context {
   begin(region: string): void
   end(region: string): void
   isNaive(region: string): boolean
+  /** The naive grid.update code sends every unit to the kernel grid again before each search. The normal code needs no call. */
+  resendGrid(): void
   retarget(u: Unit, t: number): void
   kindName(kind: number): string
   isStunned(u: Unit): boolean
@@ -42,14 +46,16 @@ export interface Context {
   inRange(ax: number, ay: number, bx: number, by: number, r: number): boolean
   targetOf(u: Unit): Unit | undefined
   parentOf(u: Unit): Unit | undefined
+  /** The same parent found through the gameId map. Only the naive code and the profile counters use it. */
+  parentById(u: Unit): Unit | undefined
   depthOf(u: Unit): number
 }
 
 export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters, regions?: Regions): Context => {
   const { distSq, KIND, BUFF } = k
+  const begin = regions ? regions.begin : () => {}, end = regions ? regions.end : () => {}
   const unitById = new Map<number, Unit>()
   const targeters = new Map<number, Set<Unit>>()
-  const noop = () => {}
   const ctx: Context = {
     k, scenario, counters,
     units: [],
@@ -66,20 +72,29 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     threatened: new Set<Unit>(),
     targeters,
     minionsOf: new Map(),
+    members: new Map(),
+    veterans: new Set<Unit>(),
     overwhelmed: new Set<Unit>(),
     prevFleeing: new Set(),
     dirty: new Set<Unit>(),
     grid: new SpatialGrid(counters),
     add: (name, n = 1) => counters?.add(name, n),
-    begin: regions ? regions.begin : noop,
-    end: regions ? regions.end : noop,
+    begin,
+    end,
     isNaive: (region) => regions?.naive.has(region) ?? false,
+    resendGrid: () => {
+      if (!regions?.naive.has('grid.update')) return
+      begin('grid.update')
+      for (let u_i = 0, u = ctx.units[0]; u_i < ctx.units.length; u = ctx.units[++u_i]) if (!u.garrison) ctx.grid.update(u.h, u.x, u.y)
+      end('grid.update')
+    },
     retarget: (u, t) => {
       if (u.target !== -1) {
         const s = targeters.get(u.target)
         if (s) { s.delete(u); if (s.size === 0) targeters.delete(u.target) }
       }
       u.target = t
+      u.tref = t === -1 ? undefined : unitById.get(t)
       if (t === -1) return
       const s = targeters.get(t)
       if (s) s.add(u)
@@ -89,11 +104,12 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     isStunned: (u) => u.buffs[BUFF.STUN] > 0,
     homeX: (team) => (team === 0 ? 0 : k.MAX_COORD),
     inRange: (ax, ay, bx, by, r) => distSq(ax, ay, bx, by) <= r * r,
-    targetOf: (u) => (u.target === -1 ? undefined : unitById.get(u.target)),
-    parentOf: (u) => unitById.get(u.memberOf !== -1 ? u.memberOf : u.childOf),
+    targetOf: (u) => u.tref,
+    parentOf: (u) => u.pref,
+    parentById: (u) => unitById.get(u.memberOf !== -1 ? u.memberOf : u.childOf),
     depthOf: (u) => {
       let d = 0
-      for (let p = ctx.parentOf(u); p; p = ctx.parentOf(p)) d++
+      for (let p = ctx.parentById(u); p; p = ctx.parentById(p)) d++
       return d
     },
   }

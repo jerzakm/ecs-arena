@@ -75,16 +75,16 @@ _Avoid_: grudge, aggro
 A unit with a large enough threat targets its worst attacker in sight.
 
 **Think tick**:
-A tick on which a unit can search the area for a new target. Each unit has one think tick in 4.
+A tick on which a unit can search the area for a new target. Each unit has one think tick in 16.
 
 **lastHitBy**:
 The unit that dealt the most damage to a unit in the last tick it took damage from units. It gets the kill credit.
 
 **Veteran**:
-A unit with 3 or more kills. It gets more attack and a chronicle.
+A unit with 1 or more kills. It gets more attack and a chronicle.
 
 **Chronicle**:
-The list of the last 4 victim kinds of a veteran, oldest first.
+The log of a veteran, oldest first: the kind of each victim and the hp of the veteran at the end of each tick, at most 384 entries.
 
 **Volley**:
 The 3 projectiles of one archer attack.

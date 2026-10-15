@@ -18,6 +18,7 @@ export const aiTargetSystem = (ctx: Context) => {
 
   return () => {
     const units = ctx.units
+    ctx.resendGrid()
     const setTarget = (u: Unit, t: number) => {
       if (u.target !== t) {
         add(u.target === -1 ? 'rel.Targets.add' : t === -1 ? 'rel.Targets.remove' : 'rel.Targets.retarget')

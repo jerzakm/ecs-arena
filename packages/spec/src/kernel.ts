@@ -86,13 +86,13 @@ const u = (maxHp: number, attack: number, armor: number, rangeTiles: number, sig
 
 /** Indexed by unit KIND: 0-5 and 8. The summoner has no range, so 0. */
 export const UNIT_STATS: Readonly<Record<number, UnitStats>> = {
-  [KIND.WARRIOR]: u(200, 14, 4, 1.5, 8, 20, 448),
-  [KIND.ARCHER]: u(80, 10, 1, 8, 10, 30, 416),
-  [KIND.MAGE]: u(70, 9, 0, 7, 10, 45, 416),
-  [KIND.HEALER]: u(90, 15, 1, 6, 8, 40, 416),
-  [KIND.SUMMONER]: u(100, 0, 2, 0, 8, 120, 352),
-  [KIND.MINION]: u(30, 5, 0, 1.5, 8, 20, 512),
-  [KIND.WARLORD]: u(400, 20, 6, 1.5, 10, 25, 416),
+  [KIND.WARRIOR]: u(200, 14, 4, 1.5, 6, 20, 448),
+  [KIND.ARCHER]: u(80, 10, 1, 8, 8, 30, 416),
+  [KIND.MAGE]: u(70, 9, 0, 7, 7.5, 45, 416),
+  [KIND.HEALER]: u(90, 15, 1, 6, 6, 40, 416),
+  [KIND.SUMMONER]: u(100, 0, 2, 0, 6, 120, 352),
+  [KIND.MINION]: u(30, 5, 0, 1.5, 6, 20, 512),
+  [KIND.WARLORD]: u(400, 20, 6, 1.5, 7.5, 25, 416),
 }
 
 export const PROJECTILE_SPEED = 2048
@@ -107,7 +107,7 @@ export const GROUND_ITEM_LIFETIME = 300
 export const PICKUP_RANGE = 1.5 * FX
 export const MAX_ITEMS = 3
 export const CRIT_PERCENT = 10
-export const THINK_INTERVAL = 4
+export const THINK_INTERVAL = 16
 
 export const THREAT_MAX_EDGES = 4
 export const THREAT_RETALIATE = 20
@@ -117,10 +117,10 @@ export const THREAT_CLAMP = 1_000_000
 export const WARLORD_LOSS = 2
 export const ROUT_LOST_PER_SIZE = [2, 3] as const
 
-export const VETERAN_KILLS = 3
+export const VETERAN_KILLS = 1
 export const VETERAN_ATTACK_STEP = 2
 export const VETERAN_MAX_STEPS = 3
-export const CHRONICLE_MAX = 4
+export const CHRONICLE_MAX = 384
 export const PROMOTION_MARK = -1
 
 export const SHRINE_COUNT = 7

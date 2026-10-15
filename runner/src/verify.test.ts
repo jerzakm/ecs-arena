@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SCENARIOS, PHASES, type CreateSim } from '@ecs-arena/spec'
+import { SAVE_INTERVAL, SCENARIOS, PHASES, type CreateSim } from '@ecs-arena/spec'
 import { firstDivergence, runTrace } from './verify.ts'
 
 // Fake impl: state is [tick, counter]; `bugAt` makes the counter skip a tick from then on.
@@ -20,7 +20,7 @@ describe('runTrace / firstDivergence', () => {
   const sc = SCENARIOS['skirmish-smoke']
   it('has one hash per tick and is deterministic', () => {
     const a = runTrace(fake(Infinity), sc)
-    expect(a).toHaveLength(sc.ticks + (sc.loadTick % 100))
+    expect(a).toHaveLength(sc.ticks + (sc.loadTick % SAVE_INTERVAL))
     expect(runTrace(fake(Infinity), sc)).toEqual(a)
     expect(runTrace(fake(Infinity), sc, 7)).toEqual(a.slice(0, 7))
   })

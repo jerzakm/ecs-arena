@@ -17,7 +17,7 @@ const HASH_EVERY = 25
 interface Run { total: number; self: Map<string, number>; hashes: string[] }
 
 /** One run. A region's time excludes the regions nested in it. Hashing happens outside the timed part of a tick. */
-const timeRun = (scenario: Scenario, naive: string | null): Run => {
+export const timeRun =(scenario: Scenario, naive: string | null): Run => {
   const self = new Map<string, number>()
   const stack: { name: string; t0: number; child: number }[] = []
   const regions = {

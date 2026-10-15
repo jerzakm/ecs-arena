@@ -1,12 +1,12 @@
 import { byGameId, type Context } from '../context.ts'
-import { memberIndex } from '../hierarchy.ts'
-import type { Unit } from '../types.ts'
+import { dropMember } from '../hierarchy.ts'
+import type { Projectile, Unit } from '../types.ts'
 
 export const cleanupSystem = (ctx: Context) => {
   const { k, add, begin, end, dirty, unitById, world, homeX, kindName } = ctx
   const { KIND } = k
   const naiveChurn = ctx.isNaive('churn'), naiveUnlink = ctx.isNaive('cleanup.unlink'), naiveCascade = ctx.isNaive('cleanup.cascade')
-  const naiveCredit = ctx.isNaive('cleanup.credit'), naiveThreat = ctx.isNaive('threat'), naiveGarrison = ctx.isNaive('garrison')
+  const naiveLinks = ctx.isNaive('links'), naiveCredit = ctx.isNaive('cleanup.credit'), naiveThreat = ctx.isNaive('threat'), naiveGarrison = ctx.isNaive('garrison')
   const hasRoom = (h: number) => { const v = ctx.slots[h]; return v.items.length < k.MAX_ITEMS && !v.garrison }
 
   const destroy = (u: Unit) => {
@@ -24,27 +24,27 @@ export const cleanupSystem = (ctx: Context) => {
 
   return () => {
     const before = ctx.units
-    begin('links')
-    const members = memberIndex(ctx)
-    end('links')
+    // The members of a unit, in gameId order. The normal code reads the inverse index, the naive code scans every unit.
+    const membersOf = (id: number): Unit[] => (naiveLinks ? before.filter((m) => m.memberOf === id) : ctx.members.get(id) ?? [])
 
+    const members = ctx.members
     const promote = (old: Unit) => {
-      const live = (members.get(old.gameId) ?? []).filter((m) => !m.destroyed)
+      const live = membersOf(old.gameId).filter((m) => !m.destroyed)
       members.delete(old.gameId)
       if (live.length === 0) return
       const [head, ...rest] = live
       const { offX, offY } = head
       const siblings = (members.get(old.memberOf) ?? []).filter((m) => m !== old)
       if (old.memberOf !== -1 && !head.fleeing) {
-        members.set(old.memberOf, siblings.concat(head).sort(byGameId))
-        head.memberOf = old.memberOf; head.offX = old.offX; head.offY = old.offY
+        if (!naiveLinks) members.set(old.memberOf, siblings.concat(head).sort(byGameId))
+        head.memberOf = old.memberOf; head.pref = old.pref; head.offX = old.offX; head.offY = old.offY
       } else {
-        if (old.memberOf !== -1) members.set(old.memberOf, siblings)
-        head.memberOf = -1; head.offX = 0; head.offY = 0
+        if (old.memberOf !== -1 && !naiveLinks) members.set(old.memberOf, siblings)
+        head.memberOf = -1; head.pref = undefined; head.offX = 0; head.offY = 0
       }
       if (!head.morale && old.morale) { head.morale = { ...old.morale }; head.routed = old.routed }
-      for (let m_i = 0, m = rest[0]; m_i < rest.length; m = rest[++m_i]) { m.memberOf = head.gameId; m.offX -= offX; m.offY -= offY }
-      members.set(head.gameId, [...(members.get(head.gameId) ?? []), ...rest].sort(byGameId))
+      for (let m_i = 0, m = rest[0]; m_i < rest.length; m = rest[++m_i]) { m.memberOf = head.gameId; m.pref = head; m.offX -= offX; m.offY -= offY }
+      if (!naiveLinks) members.set(head.gameId, [...(members.get(head.gameId) ?? []), ...rest].sort(byGameId))
       add('promote'); add('rel.MemberOf.remove'); add('rel.MemberOf.retarget', rest.length)
     }
 
@@ -85,15 +85,37 @@ export const cleanupSystem = (ctx: Context) => {
       destroy(u)
     }
 
-    for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.kind === KIND.MINION && u.age >= k.MINION_LIFETIME && !u.destroyed) destroy(u)
+    // The chronicle of a Veteran also logs its hp once each tick, oldest first, at most CHRONICLE_MAX entries.
+    begin('cleanup.credit')
+    for (const u of ctx.veterans) if (!u.destroyed) {
+      if (naiveCredit) {
+        u.chronicle = [...u.chronicle, u.hp]
+        if (u.chronicle.length > k.CHRONICLE_MAX) u.chronicle = u.chronicle.slice(1)
+      } else {
+        u.chronicle.push(u.hp)
+        if (u.chronicle.length > k.CHRONICLE_MAX) u.chronicle.shift()
+      }
+    }
+    end('cleanup.credit')
+
+    for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.kind === KIND.MINION && u.age >= k.MINION_LIFETIME && !u.destroyed) {
+      begin('cleanup.cascade')
+      // Without the inverse index, every destroyed unit needs the scan, also an old minion that has no minions.
+      if (naiveCascade) for (const m of before.filter((x) => x.childOf === u.gameId)) if (!m.destroyed) destroy(m)
+      end('cleanup.cascade')
+      destroy(u)
+    }
 
     begin('churn')
     let alive = before
+    let gone = 0
     for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.destroyed) {
+      gone++
       unitById.delete(u.gameId); ctx.freeSlots.push(u.h)
+      dropMember(ctx, u)
       if (!u.garrison || naiveGarrison) ctx.grid.remove(u.h)
       if (u.garrison) { const list = u.garrison.garrison; list.splice(list.indexOf(u), 1); add('rel.GarrisonOf.destroyDrop') }
-      ctx.buffed.delete(u); ctx.threatened.delete(u)
+      ctx.buffed.delete(u); ctx.threatened.delete(u); ctx.veterans.delete(u)
       if (u.childOf !== -1) {
         const list = ctx.minionsOf.get(u.childOf)
         const i = list ? list.indexOf(u) : -1
@@ -102,7 +124,7 @@ export const cleanupSystem = (ctx: Context) => {
       ctx.minionsOf.delete(u.gameId)
       if (naiveChurn) alive = alive.filter((x) => x !== u)
     }
-    ctx.units = naiveChurn ? alive : before.filter((u) => !u.destroyed)
+    ctx.units = naiveChurn ? alive : gone === 0 ? before : before.filter((u) => !u.destroyed)
     end('churn')
     alive = ctx.units
 
@@ -115,7 +137,7 @@ export const cleanupSystem = (ctx: Context) => {
       for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.destroyed) {
         const inbound = ctx.targeters.get(u.gameId)
         if (inbound) {
-          for (const s of inbound) if (!s.destroyed && s.target === u.gameId) { s.target = -1; add('rel.Targets.remove') }
+          for (const s of inbound) if (!s.destroyed && s.target === u.gameId) { s.target = -1; s.tref = undefined; add('rel.Targets.remove') }
           ctx.targeters.delete(u.gameId)
         }
         if (u.target !== -1) ctx.retarget(u, -1)
@@ -127,23 +149,42 @@ export const cleanupSystem = (ctx: Context) => {
     const purge = (u: Unit) => {
       if (u.threat.length > 0) {
         const kept = u.threat.filter((e) => unitById.has(e.attacker))
+        if (kept.length === u.threat.length) return
         add('rel.Threat.remove', u.threat.length - kept.length)
         u.threat = kept
       }
     }
-    if (naiveThreat) for (let u_i = 0, u = alive[0]; u_i < alive.length; u = alive[++u_i]) purge(u)
-    else for (const u of ctx.threatened) { purge(u); if (u.threat.length === 0) ctx.threatened.delete(u) }
+    if (naiveThreat) {
+      // Scan every unit for the edges of each destroyed attacker.
+      for (let d_i = 0, d = before[0]; d_i < before.length; d = before[++d_i]) if (d.destroyed) {
+        for (let u_i = 0, u = alive[0]; u_i < alive.length; u = alive[++u_i]) if (u.threat.length > 0 && u.threat.some((e) => e.attacker === d.gameId)) {
+          add('rel.Threat.remove')
+          u.threat = u.threat.filter((e) => e.attacker !== d.gameId)
+        }
+      }
+    }
+    else if (gone > 0) for (const u of ctx.threatened) { purge(u); if (u.threat.length === 0) ctx.threatened.delete(u) } // edges only go stale when a unit was destroyed
     end('threat')
 
     begin('churn')
+    const isDone = (p: Projectile) => p.spent || !unitById.has(p.target) || p.age >= k.PROJECTILE_LIFETIME
     const projBefore = ctx.projectiles.length
-    ctx.projectiles = ctx.projectiles.filter((p) => !p.spent && unitById.has(p.target) && p.age < k.PROJECTILE_LIFETIME)
+    if (naiveChurn) {
+      for (const p of ctx.projectiles.filter(isDone)) ctx.projectiles = ctx.projectiles.filter((x) => x !== p)
+    } else {
+      // Compact in place, nothing is allocated.
+      const ps = ctx.projectiles
+      let w = 0
+      for (let p_i = 0, p = ps[0]; p_i < ps.length; p = ps[++p_i]) if (!isDone(p)) ps[w++] = p
+      ps.length = w
+    }
     add('destroy.projectile', projBefore - ctx.projectiles.length)
     end('churn')
 
     // Pickup, in gameId order. Items taken here count toward the cap of later items.
     add('q.cleanup.groundItems', ctx.groundItems.length)
     if (ctx.groundItems.length > 0) {
+      ctx.resendGrid()
       ctx.groundItems.sort(byGameId)
       ctx.groundItems = ctx.groundItems.filter((g) => {
         const h = ctx.grid.nearest(g.x, g.y, k.PICKUP_RANGE, hasRoom, 'pickup')

@@ -8,16 +8,18 @@ export const moveSystem = (ctx: Context) => {
   const farX = (team: number) => (team === 0 ? k.MAX_COORD : 0)
   const moved: Unit[] = []
 
-  // Where the unit steps this tick, or null when it stays. Targets are read at their start-of-phase position.
-  const moveGoal = (u: Unit): [number, number] | null => {
-    if (isStunned(u) || u.garrison) return null
-    if (u.fleeing) return [homeX(u.team), u.y]
-    const t = targetOf(u)
-    if (t && inRange(u.x, u.y, t.sx, t.sy, UNIT_STATS[u.kind].range)) return null
-    if (u.memberOf !== -1) { const p = unitById.get(u.memberOf)!; return [p.x + u.offX, p.y + u.offY] }
-    if (t) return [t.sx, t.sy]
-    if (u.kind === KIND.MINION) { const s = unitById.get(u.childOf)!; return [s.x, s.y] }
-    return [farX(u.team), u.y]
+  // Where the unit steps this tick goes to gx, gy. False when it stays. Targets are read at their start-of-phase position.
+  let gx = 0, gy = 0
+  const moveGoal = (u: Unit): boolean => {
+    if (isStunned(u) || u.garrison) return false
+    if (u.fleeing) { gx = homeX(u.team); gy = u.y; return true }
+    const t = naiveStep ? (u.target === -1 ? undefined : unitById.get(u.target)) : targetOf(u)
+    if (t && inRange(u.x, u.y, t.sx, t.sy, UNIT_STATS[u.kind].range)) return false
+    if (u.memberOf !== -1) { const p = naiveStep ? unitById.get(u.memberOf)! : u.pref!; gx = p.x + u.offX; gy = p.y + u.offY; return true }
+    if (t) { gx = t.sx; gy = t.sy; return true }
+    if (u.kind === KIND.MINION) { const s = naiveStep ? unitById.get(u.childOf)! : u.pref!; gx = s.x; gy = s.y; return true }
+    gx = farX(u.team); gy = u.y
+    return true
   }
 
   return () => {
@@ -31,13 +33,16 @@ export const moveSystem = (ctx: Context) => {
     end('move.depthOrder')
 
     begin('move.step')
-    for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) { u.sx = u.x; u.sy = u.y }
+    for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
+      if (naiveStep) u = unitById.get(u.gameId)!
+      u.sx = u.x; u.sy = u.y
+    }
     for (let level_i = 0, level = levels[0]; level_i < levels.length; level = levels[++level_i]) for (let u_i = 0, u = level[0]; u_i < level.length; u = level[++u_i]) {
       if (naiveStep) u = unitById.get(u.gameId)!
-      const goal = moveGoal(u)
-      if (!goal) continue
+      if (!moveGoal(u)) continue
       add('q.move.units')
-      ;[u.x, u.y] = stepToward(u.x, u.y, goal[0], goal[1], u.speed)
+      ;[u.x, u.y] = stepToward(u.x, u.y, gx, gy, u.speed)
+      if (naiveStep) { const w = unitById.get(u.gameId)!; w.x = u.x; w.y = u.y } // the write goes through the key too
       moved.push(u)
     }
     add('q.move.projectiles', projectiles.length)
