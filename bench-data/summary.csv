@@ -1,1 +1,3 @@
-date,commit,target,scenario,runs,total_ms,total_lo,total_hi,p99_ms,max_ms,over_16ms,run_totals,spawn_ms,ai/target_ms,move_ms,combat_ms,effects_ms,morale_ms,cleanup_ms,objectives_ms,stats_ms,gc_ms,alloc_mb,peak_heap_mb
+date,commit,target,scenario,runs,total_ms,total_lo,total_hi,p99_ms,max_ms,over_16ms,run_totals,spawn_ms,ai/target_ms,move.start_ms,move_ms,combat_ms,effects_ms,morale_ms,cleanup_ms,objectives_ms,stats_ms,gc_ms,alloc_mb,peak_heap_mb
+2026-10-15,938bef3,baseline-js,battle,10,6350.88,6338.42,6371.51,6.15,8.65,0,6434.44;6343.15;6350.72;6347.88;6392.29;6314.69;6351.04;6326.13;6359.72;6361.82,209.56,1943.02,0.27,1428.01,604.1,37.44,124.77,741.13,44.96,1115.9,107.14,4090.67,269.01
+2026-10-15,938bef3,koota,battle,10,56120.45,55951.48,56643.74,85.44,792.93,1890,56201.5;57971.82;55521.61;56480.93;56683.58;56039.41;55717.48;55953.35;55982.88;56643.74,2535.9,5605.62,1775.78,12443.01,8748.31,238.96,460.96,2999.2,145.8,10646.46,870.26,40410.26,1177.41
