@@ -14,7 +14,7 @@ interface Saved {
 const copyUnit = (u: Unit | SavedUnit): SavedUnit => ({
   ...u, garrison: typeof u.garrison === 'number' ? u.garrison : (u.garrison?.gameId ?? -1),
   tref: undefined, pref: undefined, items: u.items.map((i) => ({ ...i })), buffs: [...u.buffs], threat: u.threat.map((e) => ({ ...e })),
-  morale: u.morale && { ...u.morale }, chronicle: [...u.chronicle],
+  morale: u.morale && { ...u.morale }, chronicle: [...u.chronicle], trail: [...u.trail],
 })
 
 const copyWorld = (w: Context['world']): Context['world'] => ({ ...w, alive: [...w.alive], kills: [...w.kills], damage: [...w.damage], score: [...w.score], orders: [...w.orders] })

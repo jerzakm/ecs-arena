@@ -921,6 +921,27 @@ describe('Threat', () => {
   })
 })
 
+describe('Trail', () => {
+  it('appends the new position of each unit that moved, drops the oldest point at TRAIL_POINTS, and leaves a unit that stayed alone', () => {
+    let grew = 0, capped = 0, stayed = 0
+    for (const s of steps()) for (const u of s.c.units) {
+      const old = s.pm.get(u.gameId)
+      if (!old) { expect(u.trailCount).toBeLessThanOrEqual(1); continue }
+      if (u.x === old.x && u.y === old.y) {
+        expect(u.trailCount).toBe(old.trailCount); expect([u.trailNewestX, u.trailNewestY]).toEqual([old.trailNewestX, old.trailNewestY]); stayed++
+      } else {
+        expect(u.trailCount).toBe(Math.min(kernel.TRAIL_POINTS, old.trailCount + 1))
+        expect([u.trailNewestX, u.trailNewestY]).toEqual([u.x, u.y])
+        grew++
+        if (old.trailCount === kernel.TRAIL_POINTS) capped++
+      }
+    }
+    expect(grew).toBeGreaterThan(0)
+    expect(capped).toBeGreaterThan(0)
+    expect(stayed).toBeGreaterThan(0)
+  })
+})
+
 describe('Veteran and chronicle', () => {
   it('makes a unit a Veteran at VETERAN_KILLS kills and gives it a chronicle with the promotion mark', () => {
     let promoted = 0
@@ -934,7 +955,7 @@ describe('Veteran and chronicle', () => {
     expect(promoted).toBeGreaterThan(0)
   })
 
-  it('appends one victim kind for each kill and then its hp, oldest first, and keeps the last CHRONICLE_MAX entries', () => {
+  it('appends one victim kind for each kill, oldest first, and keeps the last CHRONICLE_MAX entries', () => {
     let appended = 0, capped = 0
     for (const s of veteranFight()) {
       const kinds = vanished(s).filter((v) => !leaves(v)).map((v) => v.kind)
@@ -943,13 +964,12 @@ describe('Veteran and chronicle', () => {
         if (!now || !(u.flags & VETERAN)) continue
         const gained = now.killCount - u.killCount
         expect(gained).toBeGreaterThanOrEqual(0)
-        expect(now.chronicleCount).toBe(Math.min(kernel.CHRONICLE_MAX, u.chronicleCount + gained + 1)) // the kills, then one hp entry from the veteran log
-        const old = Math.max(0, now.chronicle.length - gained - 1) // the entries of the tick before that are still in the tail
+        expect(now.chronicleCount).toBe(Math.min(kernel.CHRONICLE_MAX, u.chronicleCount + gained))
+        const old = Math.max(0, now.chronicle.length - gained) // the entries of the tick before that are still in the tail
         expect(now.chronicle.slice(0, old)).toEqual(u.chronicle.slice(u.chronicle.length - old))
-        for (const k of now.chronicle.slice(old, now.chronicle.length - 1)) expect(kinds).toContain(k)
-        expect(now.chronicle[now.chronicle.length - 1]).toBe(now.hp)
+        for (const k of now.chronicle.slice(old)) expect(kinds).toContain(k)
         appended += gained
-        if (u.chronicleCount + gained + 1 > kernel.CHRONICLE_MAX) capped++
+        if (u.chronicleCount + gained > kernel.CHRONICLE_MAX) capped++
       }
     }
     expect(appended).toBeGreaterThan(0)
@@ -1138,7 +1158,7 @@ describe('Garrison', () => {
     const bad: Record<string, string[]> = {}
     const seen: Record<string, number> = { listed: 0, entered: 0, ownerChanged: 0, held: 0, burned: 0, exitOwner: 0, exitFlee: 0, counted: 0 }
     const rule = (name: string, ok: boolean, info: () => string) => { if (!ok) (bad[name] ??= []).push(info()) }
-    for (const seed of [SMALL.seed, 11, 13, 21, 5, 7, 9, 17, 19, 23, 29, 31, 37, 41, 43, 47]) {
+    for (const seed of [SMALL.seed, 11, 13, 21, 5, 7, 9, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61]) {
       const sc = { ...SMALL, seed }
       const sim = createSim(sc, kernel)
       const tickOf = () => { for (const ph of PHASES) sim.phases[ph](); return parse(sim.snapshot()) }
@@ -1321,7 +1341,7 @@ describe('Render extraction', () => {
     for (let i = 0; i < 4 * ints.length; i++) h = Math.imul(h ^ bytes.getUint8(i), 0x01000193) >>> 0
     return h | 0
   }
-  const bufferOf = (s: Parsed) => [s.units.length, ...s.units.flatMap((u) => [u.gameId, u.kind, u.team, u.x, u.y, Math.trunc((u.hp * 255) / u.maxHp), u.flags])]
+  const bufferOf = (s: Parsed) => [s.units.length, ...s.units.flatMap((u) => [u.gameId, u.kind, u.team, u.x, u.y, Math.trunc((u.hp * 255) / u.maxHp), u.flags, u.trailCount, u.trailOldestX, u.trailOldestY])]
 
   it('starts renderChain at 0x811c9dc5 and folds the buffer of every tick into it, flags included', () => {
     const sim = createSim(scenario(), kernel)

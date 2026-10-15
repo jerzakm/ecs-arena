@@ -98,6 +98,7 @@ When a unit is destroyed, every `Targets` and `Threat` relation to it or from it
 | `Routed` | squad leader | tag | §6.6 |
 | `Fleeing` | unit | tag | §6.6 |
 | `Veteran` | unit | tag, with `chronicle` | §6.10 |
+| `trail` | every unit | list of x, y pairs, at most 12 points _(tune)_ | §6.3 |
 | `killCount` | every unit | int | §6.7 |
 | `lastHitBy` | every unit | a reference to a unit, or none | §6.4 |
 
@@ -306,6 +307,8 @@ A think tick for a unit is a tick where `(gameId + tick) % 16 == 0` _(tune)_.
 - Any other unit moves toward its target. With no target, it moves toward the far edge at its own `y`. The far edge is `x = 262143` for team 0 and `x = 0` for team 1.
 - A projectile moves toward the position that its target has after the unit moves, at the projectile speed.
 
+**Trail** _(tune)_. Each unit has a `trail`: its last positions, oldest first, as `x, y` pairs in fixed point. After all units have moved, each unit whose position differs from its start-of-phase position appends its new position to its `trail`. If the trail then has more than 12 points _(tune)_, remove the oldest point. A unit that does not move keeps its trail. The trail has no effect on game rules. It exists so that a renderer can draw a line behind each unit (§6.15), and so that the array-data facet has a list that many units extend each tick.
+
 ### 6.4 `combat`
 
 1. **Hits.** A projectile hits when its position is equal to the position of its target. It makes a damage intent and gets the `Spent` tag. A new projectile from step 2 cannot hit in the tick that creates it.
@@ -370,7 +373,7 @@ Handle the dead units and the leaving units together, in gameId order:
 1. **Kill credit** (dead units only).
    - If the unit is not a minion, `kills[enemyTeam] += 1`.
    - If `lastHitBy` of the unit is a unit that exists at the start of `cleanup`, that unit gets `killCount += 1`. A unit that dies in this tick still exists at the start of `cleanup`, so it gets the credit. A minion victim also gives credit.
-   - If the credited unit has `Veteran` at the start of `cleanup`, append the victim kind to its `chronicle`. If the chronicle then has more than 384 entries, remove the oldest. Victims are handled in gameId order, so the chronicle order is fixed.
+   - If the credited unit has `Veteran` at the start of `cleanup`, append the victim kind to its `chronicle`. If the chronicle then has more than 4 entries _(tune)_, remove the oldest. Victims are handled in gameId order, so the chronicle order is fixed.
 2. **Drop** (dead units only). The equipped item with the lowest gameId becomes a ground item at the unit position, with age 0. It keeps its gameId and quality. Destroy the other items. A leaving unit drops nothing, and all its items are destroyed.
 3. Destroy all minions with `ChildOf` this unit. Minions destroyed this way give no kill.
 4. **Promotion.** If units have `MemberOf` this unit, the one with the lowest gameId that is not destroyed yet becomes the new head. A dead or leaving unit that waits in the list can be promoted. It is then handled in its turn, and the same rule applies again. A unit that lost its `MemberOf` in `morale` (§6.6 step 4) is not a member here.
@@ -381,8 +384,6 @@ Handle the dead units and the leaving units together, in gameId order:
 5. Destroy the unit.
 
 Then:
-
-5a. **Veteran log** _(tune)_. After all dead and leaving units of steps 1 to 5 are handled, each unit that has `Veteran` and is not destroyed appends its current `hp` to its `chronicle`. If the chronicle then has more than 384 entries, remove the oldest. This rule exists for the array-data facet: a veteran appends once each tick, so the array is long and its change is frequent.
 
 6. Destroy minions that are 90 ticks old. They give no kill and drop nothing.
 
@@ -417,9 +418,9 @@ Then set `Score.shrines0` and `Score.shrines1` to the number of shrines that eac
 ### 6.10 `Veteran`
 
 - `killCount` grows in §6.7 step 1.
-- In `stats`, a unit with `killCount >= 1` _(tune)_ and no `Veteran` gets `Veteran`.
+- In `stats`, a unit with `killCount >= 3` _(tune)_ and no `Veteran` gets `Veteran`.
 - When `Veteran` is Added in this tick, the unit gets a `chronicle` with one entry, `-1`. The entry marks the promotion.
-- The `chronicle` holds at most 384 entries _(tune)_, oldest first. §6.7 step 1 appends a victim kind to it, and the veteran log of §6.7 appends the `hp` of the unit once each tick.
+- The `chronicle` holds the kinds of the last 4 victims _(tune)_, oldest first. §6.7 step 1 appends a victim kind to it.
 - `Veteran` is never removed.
 
 ### 6.11 `stats`
@@ -473,7 +474,7 @@ Units can go into a shrine that their team owns. A unit in a garrison has the `G
 At the end of `stats`, the implementation writes a flat int32 **render buffer** for a renderer:
 
 1. `unitCount`.
-2. Each unit in `gameId` order: `gameId, kind, team, x, y, fx.div(hp * 255, maxHp), flags`. `flags` is the snapshot flags of §8.
+2. Each unit in `gameId` order: `gameId, kind, team, x, y, fx.div(hp * 255, maxHp), flags, trailCount, trailX, trailY`. `flags` is the snapshot flags of §8. `trailCount` is the number of points in the `trail` of §6.3. `trailX` and `trailY` are the oldest point of the trail, or 0 and 0 for an empty trail.
 
 Then it folds the buffer into the world value `renderChain`. Start with `h = renderChain >>> 0`. For each int32 of the buffer, for each of its 4 bytes in little-endian order: `h ^= byte`, then `h = imul(h, 0x01000193) >>> 0`. Then `renderChain = h | 0`. Before tick 0, `renderChain = 0x811c9dc5 | 0`.
 
@@ -496,13 +497,14 @@ The **snapshot** is one flat int32 array in this order:
 1. World: `tick, alive0, alive1, kills0, kills1, damage0, damage1, winner, shrines0, shrines1, orders0, orders1, renderChain` (`winner = -1` while there is none).
 2. `shrineCount`, then each shrine in gameId order: `gameId, owner, progress, garrisonCount, (unitGameId)…`. The garrison units are in gameId order.
 3. `unitCount`, then each unit in gameId order:
-   `gameId, team, kind, x, y, hp, maxHp, attack, armor, speed, cooldown, targetGameId, leaderGameId, parentGameId, buffCount, (kind, ticksLeft)…, itemCount, (itemGameId, itemKind, quality)…, flags, killCount, lastHitByGameId, moraleSize0, moraleLost, threatCount, (attackerGameId, amount)…, chronicleCount, (entry)…`
+   `gameId, team, kind, x, y, hp, maxHp, attack, armor, speed, cooldown, targetGameId, leaderGameId, parentGameId, buffCount, (kind, ticksLeft)…, itemCount, (itemGameId, itemKind, quality)…, flags, killCount, lastHitByGameId, moraleSize0, moraleLost, threatCount, (attackerGameId, amount)…, chronicleCount, (entry)…, trailCount, (x, y)…`
    - A missing relation is `-1`. `leaderGameId` is the `MemberOf` parent. Buffs are in kind order. Items are in gameId order.
    - `flags`: bit 0 `Fleeing`, bit 1 `Veteran`, bit 2 `Routed`, bit 3 `Overwhelmed`, bit 4 `bannered`, bit 5 `Garrisoned`.
    - `lastHitByGameId` is `-1` when there is no `lastHitBy`, or when that unit does not exist now.
    - `moraleSize0` and `moraleLost` are `-1` for a unit without `Morale`.
    - `Threat` edges are in attacker gameId order.
    - The chronicle is oldest first. `chronicleCount` is 0 for a unit without `Veteran`.
+- The trail is oldest first. `trailCount` is the number of points, so the trail has `2 * trailCount` ints.
 4. `projectileCount`, then each in gameId order: `gameId, ownerGameId, targetGameId, x, y, age, speed, volley` (`volley` is 1 for an archer projectile, else 0).
 5. `groundItemCount`, then each in gameId order: `gameId, itemKind, quality, x, y, age`.
 

@@ -20,6 +20,9 @@ export interface PUnit {
   /** The last CHRONICLE_TAIL entries. A veteran holds up to hundreds, and a whole fight of them does not fit in memory. */
   chronicle: number[]
   chronicleCount: number
+  /** Number of trail points, and the oldest and the newest point as x, y. The whole trail does not fit in memory for a whole fight. */
+  trailCount: number
+  trailOldestX: number; trailOldestY: number; trailNewestX: number; trailNewestY: number
 }
 export const CHRONICLE_TAIL = 8
 export interface PShrine { gameId: number; owner: number; progress: number; garrison: number[] }
@@ -54,7 +57,7 @@ export const parse = (s: CanonicalState): Parsed => {
     const u: PUnit = {
       gameId: next(), team: next(), kind: next(), x: next(), y: next(), hp: next(), maxHp: next(), attack: next(), armor: next(),
       speed: next(), cooldown: next(), target: next(), leader: next(), parent: next(), buffs: [], items: [],
-      flags: 0, killCount: 0, lastHitBy: -1, moraleSize0: -1, moraleLost: -1, threat: [], chronicle: [], chronicleCount: 0,
+      flags: 0, killCount: 0, lastHitBy: -1, moraleSize0: -1, moraleLost: -1, threat: [], chronicle: [], chronicleCount: 0, trailCount: 0, trailOldestX: 0, trailOldestY: 0, trailNewestX: 0, trailNewestY: 0,
     }
     for (let b = next(); b > 0; b--) u.buffs.push({ kind: next(), ticksLeft: next() })
     for (let c = next(); c > 0; c--) u.items.push({ gameId: next(), kind: next(), quality: next() })
@@ -63,6 +66,8 @@ export const parse = (s: CanonicalState): Parsed => {
     for (let c = next(); c > 0; c--) u.threat.push({ attacker: next(), amount: next() })
     u.chronicleCount = next()
     for (let c = 0; c < u.chronicleCount; c++) { const v = next(); if (c >= u.chronicleCount - CHRONICLE_TAIL) u.chronicle.push(v) }
+    u.trailCount = next()
+    for (let c = 0; c < u.trailCount; c++) { const x = next(), y = next(); if (c === 0) { u.trailOldestX = x; u.trailOldestY = y } u.trailNewestX = x; u.trailNewestY = y }
     units.push(u)
   }
   const projectiles: PProjectile[] = []

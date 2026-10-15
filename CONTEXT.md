@@ -81,10 +81,13 @@ A tick on which a unit can search the area for a new target. Each unit has one t
 The unit that dealt the most damage to a unit in the last tick it took damage from units. It gets the kill credit.
 
 **Veteran**:
-A unit with 1 or more kills. It gets more attack and a chronicle.
+A unit with 3 or more kills. It gets more attack and a chronicle.
 
 **Chronicle**:
-The log of a veteran, oldest first: the kind of each victim and the hp of the veteran at the end of each tick, at most 384 entries.
+The log of a veteran, oldest first: the kind of each of its last 4 victims.
+
+**Trail**:
+The last 12 positions of a unit, oldest first. A renderer draws it as a line behind the unit. The render buffer reads it, so the render hash covers it.
 
 **Volley**:
 The 3 projectiles of one archer attack.

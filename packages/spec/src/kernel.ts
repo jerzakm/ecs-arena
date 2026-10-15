@@ -117,10 +117,12 @@ export const THREAT_CLAMP = 1_000_000
 export const WARLORD_LOSS = 2
 export const ROUT_LOST_PER_SIZE = [2, 3] as const
 
-export const VETERAN_KILLS = 1
+export const VETERAN_KILLS = 3
 export const VETERAN_ATTACK_STEP = 2
 export const VETERAN_MAX_STEPS = 3
-export const CHRONICLE_MAX = 384
+export const CHRONICLE_MAX = 4
+/** SPEC §6.16: the most points in the trail of a unit. */
+export const TRAIL_POINTS = 12
 export const PROMOTION_MARK = -1
 
 export const SHRINE_COUNT = 7
@@ -207,8 +209,8 @@ export const orderKey = (n: number, seed: number, tick: number, team: number, ro
 
 /** SPEC §6.15: `renderChain` before tick 0. */
 export const RENDER_SEED = 0x811c9dc5 | 0
-/** Ints that each unit takes in the render buffer: gameId, kind, team, x, y, hp byte, flags. */
-export const RENDER_STRIDE = 7
+/** Ints that each unit takes in the render buffer: gameId, kind, team, x, y, hp byte, flags, trail point count, oldest trail x, oldest trail y. */
+export const RENDER_STRIDE = 10
 
 /** SPEC §6.15: folds the first `n` int32 of `buf` into `chain` (FNV-1a over little-endian bytes) and returns the new chain. */
 export const foldRender = (chain: number, buf: ArrayLike<number>, n: number): number => {

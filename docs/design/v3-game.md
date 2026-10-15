@@ -41,7 +41,7 @@ Region names are proposals. The unit that adds the regions (U4) can change them 
 | Rules on `Added` | Drop target and threat on flee | `morale` | Compare the full `Fleeing` set with the set of the last tick | `morale.onFlee` |
 | Change-driven recompute | Stats on a change of items, buffs, kills, `Veteran`, `bannered` | `stats` | Recompute every unit | `stats.recompute` |
 | Many-to-many with data | `Threat` with write, evict, decay | `combat`, `effects` | Scan all units for decay, and scan all units for the edges of each destroyed attacker, instead of the set of threatened units (covers add, evict, decay and purge) | `threat` |
-| Array data | Veteran chronicle | `cleanup` | Copy the full array on each append. A veteran appends its hp once each tick, so the array is long (`CHRONICLE_MAX` 384) | `cleanup.credit` |
+| Array data | Unit trail (path history) | `move` | Copy the full array on each append. Each unit that moved appends its position, so many arrays change each tick (`TRAIL_POINTS` 12) | `move.trail` |
 | A. Fragmentation | Item tags and buff tags, set bonuses | `stats`, `effects`, `cleanup` | Rebuild the item tags of every unit by a scan of its item list each tick (normal code keeps the tags and reads a bonus table) | `stats.setBonus` |
 | B. Dense change | The library reports moved units to the kernel grid | after `spawn`, `move`, `cleanup` | Send every unit again before each search (`ai/target`, `combat`, `objectives`, pickup) and after `move` | `grid.update` |
 | C. High fan-in | Overwhelmed: 6 or more attackers give more damage | `combat` | Count the enemy `Targets` of every victim in one pass over all units each tick (normal code reads the inverse index of `Targets` and counts only the victims with 6 or more) | `combat.fanIn` |
@@ -61,6 +61,7 @@ A rule that does not change the hash can be skipped. Each new rule changes it.
 - D: the banner changes `armor`. Flag bit 4 shows it.
 - E: garrison units are in the shrine part of the snapshot and in flag bit 5.
 - F: `orders0` and `orders1` count the orders that took effect. A wrong dead-key result changes them. Most gameIds name items and projectiles, and sight is short, so a single draw per key took effect in no scenario (`orders0` and `orders1` stayed 0). Each order now probes up to 6 keys for a unit of the right team and has no sight limit. In every scenario about 10 to 30% of the orders take effect and about 70 to 80% are dead-key orders, so both paths stay loaded. `pnpm run profile` and a smoke test fail when either count is 0.
+- Array data: the trail has no game effect, but the render buffer reads its count and its oldest point (G) and the snapshot holds it. A run that skips the append gets a different `renderChain` and a different hash.
 - G: `renderChain` folds each buffer. A skipped tick changes the last hash.
 - Snapshot: the replayed ticks must give the golden hashes again.
 
@@ -89,6 +90,6 @@ The README lists these items.
 
 - `targetPop` is 800, 3,200 and 9,200 for `skirmish`, `battle` and `war`. The peak entities are about 5.1k, 21.7k and 54.1k with seed 1 (`pnpm run profile`).
 - Think interval 16 and sight 6 to 8 tiles. The shared target search was 76% of a `war` tick, so every facet share was small. Now it is about 40%.
-- `VETERAN_KILLS` 1, `CHRONICLE_MAX` 384, and the veteran log of SPEC §6.7 step 5a, which is the one rule change.
+- The v2 chronicle is back (`VETERAN_KILLS` 3, `CHRONICLE_MAX` 4), and the per-unit trail of SPEC §6.3 (`TRAIL_POINTS` 12) replaces the U7 veteran log (decision D22). The trail is the one rule change.
 - `SAVE_INTERVAL` 25 and `loadEvery` 200 (decision D21). A run loads after ticks 199, 399 and so on, and replays 24 ticks each time. That gives 10 loads in `skirmish` and `battle` and 5 in `war`. One load per run was too small for the `load` floor. See `v3-tuning.md`.
 - Unchanged: Overwhelmed threshold and multiplier, banner armor, set bonuses, `garrisonCap` and `ordersPerTeam` for each scenario, the order period.

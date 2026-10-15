@@ -4,14 +4,14 @@
 import type { Entity, Relation, Trait } from 'koota'
 import type { Context } from './context.ts'
 import {
-  Age, Bannered, Burn, Chronicle, Clock, Cooldown, Dead, Fleeing, GameId, Garrisoned, Ground, Haste, Health, Item, ItemKind, ItemTags, KillCount, Kind, Metrics, Minion, Morale,
+  Age, Bannered, Burn, Chronicle, Trail, Clock, Cooldown, Dead, Fleeing, GameId, Garrisoned, Ground, Haste, Health, Item, ItemKind, ItemTags, KillCount, Kind, Metrics, Minion, Morale,
   NextId, Overwhelmed, Position, Projectile, Routed, Score, Shrine, Spent, Start, Stats, Stun, Summoner, Team, Unit, Veteran,
 } from './components.ts'
 import { ChildOf, Equips, FiredBy, GarrisonOf, LastHitBy, MemberOf, Targets, Threat } from './relations.ts'
 
 // Every trait an entity can carry. A trait missing here is lost by a load, and the replay hashes catch that.
 const TRAITS: Trait[] = [
-  GameId, Position, Start, Team, Kind, Health, Stats, Cooldown, Age, KillCount, Morale, Chronicle, Shrine, Summoner, ItemKind, Ground, Projectile,
+  GameId, Position, Start, Team, Kind, Health, Stats, Cooldown, Age, KillCount, Morale, Chronicle, Trail, Shrine, Summoner, ItemKind, Ground, Projectile,
   Unit, Minion, Item, Dead, Spent, Fleeing, Routed, Veteran, Overwhelmed, Bannered, Garrisoned, ...ItemTags, Stun, Burn, Haste,
 ]
 const WORLD_TRAITS: Trait[] = [Clock, NextId, Metrics, Score]

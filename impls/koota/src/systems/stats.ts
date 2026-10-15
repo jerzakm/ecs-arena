@@ -7,7 +7,7 @@ import { flagsOf } from '../snapshot.ts'
 
 export const statsSystem = (ctx: Context) => {
   const { k, world, q, dirty } = ctx
-  const rows: number[] = [] // gameId, kind, team, x, y, hp byte, flags for each unit, in query order
+  const rows: number[] = [] // gameId, kind, team, x, y, hp byte, flags for each unit, in query order, then the trail count and the oldest trail point
   let buf = new Int32Array(0)
 
   return () => {
@@ -52,8 +52,8 @@ export const statsSystem = (ctx: Context) => {
 
     // SPEC 6.15: one pass reads the traits of every unit. The tags come from `has`, and the rows go out in gameId order.
     rows.length = 0
-    world.query(q.renderables).readEach(([g, kind, team, p, h], e) => {
-      rows.push(g.id, kind.value, team.value, p.x, p.y, k.fx.div(h.hp * 255, h.maxHp), flagsOf(e))
+    world.query(q.renderables).readEach(([g, kind, team, p, h, t], e) => {
+      rows.push(g.id, kind.value, team.value, p.x, p.y, k.fx.div(h.hp * 255, h.maxHp), flagsOf(e), t.pts.length >> 1, t.pts[0] ?? 0, t.pts[1] ?? 0)
     })
     const n = rows.length / k.RENDER_STRIDE
     const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => rows[a * k.RENDER_STRIDE] - rows[b * k.RENDER_STRIDE])

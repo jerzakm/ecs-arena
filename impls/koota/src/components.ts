@@ -12,6 +12,8 @@ export const Age = trait({ value: 0 })
 export const KillCount = trait({ value: 0 })
 export const Morale = trait({ size0: 0, lost: 0 })
 export const Chronicle = trait({ kinds: () => [] as number[] })
+/** Path history, x and y pairs, oldest first (SPEC §6.16). An AoS trait: the array lives in the trait value. */
+export const Trail = trait({ pts: () => [] as number[] })
 export const Shrine = trait({ owner: -1, progress: 0 })
 export const Summoner = trait({ lastSummon: 0 })
 export const ItemKind = trait({ value: 0 })

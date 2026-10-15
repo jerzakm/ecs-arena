@@ -9,15 +9,15 @@ describe('parseSnapshot', () => {
       7, 1, 1, 0, 0, 0, 0, -1, 0, 0, 3, 4, 77,
       1, 5, 1, 300, 0,
       2,
-      // unit 1: two buffs, one item, flags=2, one threat, chronicle of two
+      // unit 1: two buffs, one item, flags=2, one threat, chronicle of two, trail of one point
       10, 0, 0, 100, 200, 50, 60, 1, 2, 3, 4, -1, -1, -1,
       2, 1, 9, 2, 8,
       1, 20, 3, 1,
-      2, 0, 11, 5, 1, 1, 6, 2, 2, 1, 2,
+      2, 0, 11, 5, 1, 1, 6, 2, 2, 1, 2, 1, 7, 8,
       11, 1, 8, 5, 6, 70, 80, 1, 2, 3, 0, -1, -1, -1,
       0,
       0,
-      0, 0, -1, -1, -1, 0, 0,
+      0, 0, -1, -1, -1, 0, 0, 0,
       1,
       30, 10, 11, 7, 8, 0, 9, 1,
       1,

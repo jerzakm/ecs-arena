@@ -1,6 +1,6 @@
 import type { Entity } from 'koota'
 import type { Context } from '../context.ts'
-import { Fleeing, Position, Start } from '../components.ts'
+import { Fleeing, Position, Start, Trail } from '../components.ts'
 import { ChildOf, MemberOf, Targets } from '../relations.ts'
 
 /** The `Sim.moveStart` step: koota has no double-buffered stores, so `Start` copies `Position` before `move`. */
@@ -48,8 +48,14 @@ export const moveSystem = (ctx: Context) => {
           else if (kind === KIND.MINION) { const sp = e.targetFor(ChildOf)!.get(Position)!; tx = sp.x; ty = sp.y }
           else { tx = team === 0 ? k.MAX_COORD : 0; ty = p.y }
         }
-        const [x, y] = stepToward(p.x, p.y, tx, ty, speed)
+        const ox = p.x, oy = p.y
+        const [x, y] = stepToward(ox, oy, tx, ty, speed)
         e.set(Position, { x, y })
+        if (x !== ox || y !== oy) {
+          const pts = e.get(Trail)!.pts
+          pts.push(x, y)
+          if (pts.length > 2 * k.TRAIL_POINTS) pts.splice(0, 2)
+        }
         ctx.grid.update(e.id(), x, y)
       }
     }

@@ -2,7 +2,7 @@ import type { Entity } from 'koota'
 import type { CanonicalState } from '@ecs-arena/spec'
 import { byGameId, type Context } from './context.ts'
 import {
-  Age, Bannered, Burn, Chronicle, Cooldown, Fleeing, Garrisoned, Ground, Haste, Health, ItemKind, KillCount, Kind, Metrics, Morale, Overwhelmed, Position, Projectile,
+  Age, Bannered, Burn, Chronicle, Trail, Cooldown, Fleeing, Garrisoned, Ground, Haste, Health, ItemKind, KillCount, Kind, Metrics, Morale, Overwhelmed, Position, Projectile,
   Routed, Score, Shrine, Stats, Stun, Team, Unit, Veteran,
 } from './components.ts'
 import { ChildOf, Equips, GarrisonOf, LastHitBy, MemberOf, Targets, Threat } from './relations.ts'
@@ -52,6 +52,8 @@ export const snapshot = (ctx: Context): CanonicalState => {
     for (const edge of edges) s.push(edge.id, edge.amount)
     const chronicle = e.get(Chronicle)?.kinds ?? []
     s.push(chronicle.length, ...chronicle)
+    const trail = e.get(Trail)?.pts ?? []
+    s.push(trail.length >> 1, ...trail)
   }
 
   const projectiles = sortedByGameId(Projectile)

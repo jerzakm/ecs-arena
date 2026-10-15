@@ -1,6 +1,6 @@
 import { Not, createAdded, createChanged, createQuery } from 'koota'
 import {
-  Cooldown, Fleeing, GameId, Garrisoned, Health, KillCount, Kind, Position, Projectile, Routed, Start, Stats, Stun, Team, Unit, Veteran,
+  Cooldown, Fleeing, GameId, Garrisoned, Health, KillCount, Kind, Position, Projectile, Routed, Start, Stats, Stun, Team, Trail, Unit, Veteran,
 } from './components.ts'
 
 export const createQueries = () => {
@@ -12,7 +12,7 @@ export const createQueries = () => {
     newlyFleeing: createQuery(Unit, Added(Fleeing)),
     newlyVeteran: createQuery(Unit, Added(Veteran)),
     killsChanged: createQuery(Unit, Changed(KillCount), Not(Veteran)),
-    renderables: createQuery(Unit, GameId, Kind, Team, Position, Health),
+    renderables: createQuery(Unit, GameId, Kind, Team, Position, Health, Trail),
     unitsQuery: createQuery(Unit, GameId, Team, Position, Health),
     teamQuery: createQuery(Unit, Team),
     thinkers: createQuery(Unit, GameId, Kind, Position, Team, Not(Stun), Not(Fleeing), Not(Garrisoned)),
