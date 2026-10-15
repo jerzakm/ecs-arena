@@ -1132,13 +1132,13 @@ describe('Garrison', () => {
   const shrinePos = (i: number) => ({ x: 128 * FX, y: (16 + 32 * i) * FX })
   const d2 = (u: PUnit, i: number) => distSq(u.x, u.y, shrinePos(i).x, shrinePos(i).y)
 
-  // One streaming pass over eight fights with garrisons on. It keeps two snapshots at a time, since the parsed
+  // One streaming pass over many fights with garrisons on. It keeps two snapshots at a time, since the parsed
   // history of four fights does not fit in memory. Each rule collects its violations, and each test reads its own.
   const pass = memo(() => {
     const bad: Record<string, string[]> = {}
     const seen: Record<string, number> = { listed: 0, entered: 0, ownerChanged: 0, held: 0, burned: 0, exitOwner: 0, exitFlee: 0, counted: 0 }
     const rule = (name: string, ok: boolean, info: () => string) => { if (!ok) (bad[name] ??= []).push(info()) }
-    for (const seed of [SMALL.seed, 11, 13, 21, 5, 7, 9, 17]) {
+    for (const seed of [SMALL.seed, 11, 13, 21, 5, 7, 9, 17, 19, 23, 29, 31, 37, 41, 43, 47]) {
       const sc = { ...SMALL, seed }
       const sim = createSim(sc, kernel)
       const tickOf = () => { for (const ph of PHASES) sim.phases[ph](); return parse(sim.snapshot()) }

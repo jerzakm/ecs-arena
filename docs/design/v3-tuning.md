@@ -40,6 +40,7 @@ First budget, skirmish seed 1, before any change (`--runs 3`):
 | 13 | `stats.banner` ratio fell to 1.5 in `war` after attempt 12, and `stats.render` to 1.47 | The normal banner pass reads `pref`. The naive banner walks the chain through the map. The naive render copies each unit with `{ ...u }` | 1.47 and 1.47 | 4.1 to 5.4 | kept |
 | 14 | `save` naive share 1.77% (skirmish) and 0.98% (war) | `SAVE_INTERVAL` 100 to 25, `loadTick` 1,562, 1,562, 762 (S is a multiple of 25, 12 ticks replayed) | 1.8% and 1% | 9 to 12% and 4.3% | kept |
 | 15 | `cleanup.cascade` naive share 1.40% in the budget (skirmish), 2.4% in the inner loop | The naive code also scans for each expired minion (an old minion is destroyed without a cascade, so the scan finds nothing, but a library without the index cannot know) | 1.4% | see Final | kept |
+| 17 | Attempt 15 gave only 1.6 to 1.9% in the budget (fresh process), because a skirmish has 1.8 departures and expiries a tick. More destroyed units a tick lift every scan-per-destroy naive code | `SUMMON_PERIOD` 120 to 30, `MINION_LIFETIME` 300 to 90 (SPEC §4, §6.6). Destroyed minions 0.7 to 3.1 a tick | cascade naive share 1.4 to 1.9%, churn ratio 1.48 to 1.8 | see Final | kept |
 | 16 | `war` peaks 44.9k and 44.4k with seeds 2 and 3 (limit 42.5k) | `war` `targetPop` 8,000 to 9,200 | 49.7k, 44.9k, 44.4k | 54.1k, 48.6k, 46.6k | kept |
 
 ## Table changes

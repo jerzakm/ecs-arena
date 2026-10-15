@@ -157,7 +157,7 @@ Speeds are in fixed point units per tick. Ranges and sight are in tiles.
 - Crit chance is 10%. Pickup range is 1.5 tiles. Use 1.5 tiles = 1536 units.
 - Projectile speed: 2048 units per tick for a mage. A projectile must be faster than every unit, or a unit can outrun it. A volley uses the speeds in §6.4. Projectile lifetime: 60 ticks.
 - Mage splash radius: 2 tiles.
-- Summoner: one minion each 120 ticks, at most 3 alive minions. Minion lifetime: 300 ticks.
+- Summoner: one minion each 30 ticks _(tune)_, at most 3 alive minions. Minion lifetime: 90 ticks _(tune)_.
 - **Think interval:** 16 ticks. A unit makes a new spatial search only on a tick where `(gameId + tick) % 16 == 0`. See §6.2.
 
 ### Derived stats
@@ -273,7 +273,7 @@ A read of another entity sees its **start-of-phase value**, except for the **hie
 
 ### 6.1 `spawn`
 
-Grow the ages (§3). Then do the shrines, waves, surges and summons from §5. A summoner spawns a minion at its own position and team when `tick - lastSummon >= 120` and it has fewer than 3 alive minions. A stunned or fleeing summoner also spawns. A spawn sets `lastSummon = tick`.
+Grow the ages (§3). Then do the shrines, waves, surges and summons from §5. A summoner spawns a minion at its own position and team when `tick - lastSummon >= 30` and it has fewer than 3 alive minions. A stunned or fleeing summoner also spawns. A spawn sets `lastSummon = tick`.
 
 ### 6.2 `ai/target`
 
@@ -384,7 +384,7 @@ Then:
 
 5a. **Veteran log** _(tune)_. After all dead and leaving units of steps 1 to 5 are handled, each unit that has `Veteran` and is not destroyed appends its current `hp` to its `chronicle`. If the chronicle then has more than 384 entries, remove the oldest. This rule exists for the array-data facet: a veteran appends once each tick, so the array is long and its change is frequent.
 
-6. Destroy minions that are 300 ticks old. They give no kill and drop nothing.
+6. Destroy minions that are 90 ticks old. They give no kill and drop nothing.
 
 Then remove all `Targets` and `Threat` relations to or from every unit destroyed so far.
 
