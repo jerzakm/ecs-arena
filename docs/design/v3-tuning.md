@@ -9,7 +9,7 @@ This file is the decision log of the load-budget tuning. Each attempt has a hypo
 - The inner loop used an in-process variant of the check that runs each region once after one warmup. It agrees with the budget within about 20% on a share, so it only ranked ideas. Every accepted state was confirmed with the budget.
 - A koota run must match the goldens at every step. `pnpm verify koota ...` was green at the end, and a comparison of the `baseline-js` and `koota` traces was green after each rule change.
 
-Skirmish tick total drops from 1.46 s to 1.0 s and `war` from 18.3 s to 9.4 s over the attempts below, with a higher load on every facet.
+Skirmish tick total drops from 1.46 s to about 1.15 s and `war` from 18.3 s to about 10 s over the attempts below, with a higher load on every facet.
 
 ## Starting point
 
@@ -39,9 +39,9 @@ First budget, skirmish seed 1, before any change (`--runs 3`):
 | 12 | `move.step` ratio 1.43 to 1.51: the normal code also does map lookups (parent, target) | `Unit.tref` and `Unit.pref` hold direct references to the target and the parent. The naive code resolves every access through the `gameId` map, four times | 1.51 | 1.73 to 2.3 | kept |
 | 13 | `stats.banner` ratio fell to 1.5 in `war` after attempt 12, and `stats.render` to 1.47 | The normal banner pass reads `pref`. The naive banner walks the chain through the map. The naive render copies each unit with `{ ...u }` | 1.47 and 1.47 | 4.1 to 5.4 | kept |
 | 14 | `save` naive share 1.77% (skirmish) and 0.98% (war) | `SAVE_INTERVAL` 100 to 25, `loadTick` 1,562, 1,562, 762 (S is a multiple of 25, 12 ticks replayed) | 1.8% and 1% | 9 to 12% and 4.3% | kept |
-| 15 | `cleanup.cascade` naive share 1.40% in the budget (skirmish), 2.4% in the inner loop | The naive code also scans for each expired minion (an old minion is destroyed without a cascade, so the scan finds nothing, but a library without the index cannot know) | 1.4% | see Final | kept |
-| 17 | Attempt 15 gave only 1.6 to 1.9% in the budget (fresh process), because a skirmish has 1.8 departures and expiries a tick. More destroyed units a tick lift every scan-per-destroy naive code | `SUMMON_PERIOD` 120 to 30, `MINION_LIFETIME` 300 to 90 (SPEC §4, §6.6). Destroyed minions 0.7 to 3.1 a tick | cascade naive share 1.4 to 1.9%, churn ratio 1.48 to 1.8 | see Final | kept |
+| 15 | `cleanup.cascade` naive share 1.40% in the budget (skirmish), 2.4% in the inner loop (a fresh process is faster than a warm loop) | The naive code also scans for each expired minion (an old minion is destroyed without a cascade, so the scan finds nothing, but a library without the index cannot know) | 1.4% | 1.6 to 1.9%, not enough (attempt 17) | kept |
 | 16 | `war` peaks 44.9k and 44.4k with seeds 2 and 3 (limit 42.5k) | `war` `targetPop` 8,000 to 9,200 | 49.7k, 44.9k, 44.4k | 54.1k, 48.6k, 46.6k | kept |
+| 17 | Attempt 15 gave only 1.6 to 1.9% in the budget (fresh process), because a skirmish has 1.8 departures and expiries a tick. More destroyed units a tick lift every scan-per-destroy naive code | `SUMMON_PERIOD` 120 to 30, `MINION_LIFETIME` 300 to 90 (SPEC §4, §6.6). Destroyed minions 0.7 to 3.1 a tick | cascade naive share 1.4 to 1.9%, churn ratio 1.48 to 1.8 | cascade 4.5 to 5.5%, churn ratio 2.25 to 2.47 | kept |
 
 ## Table changes
 
@@ -57,22 +57,70 @@ SPEC §6.7 step 5a (the veteran log). Each tick, each Veteran that is still aliv
 
 ## Open failure: the `load` floor
 
-The naive load runs once in a run (D5: one load), and its time is about 4 to 6 ticks of work. A floor of 2% of 2,000 ticks is 40 ticks of work.
+The naive load runs once in a run (D5: one load). Its time is about 4 to 6 ticks of work, and a floor of 2% of a 2,000 tick run is 40 ticks of work. All other 21 regions pass in all 3 scenarios and all 3 seeds.
 
-| Scenario | Naive load share (budget, seed 1) | Needed |
-|---|---|---|
-| `skirmish` | 0.67% | 2% |
-| `battle` | about 0.5% | 2% |
-| `war` | about 0.6% | 2% |
+| Scenario | Naive load share, seeds 1, 2, 3 (budget) | Normal load share | Needed |
+|---|---|---|---|
+| `skirmish` | 0.61%, 0.52%, 0.66% | 0.14% to 0.16% | 2% |
+| `battle` | 0.50%, 0.44%, 0.43% | 0.13% to 0.16% | 2% |
+| `war` | 0.56%, 1.05%, 0.73% | 0.17% to 0.20% | 2% |
 
 What was tried and why it stops here:
 
-- The state size grows with the chronicle (attempt 8), and that already counts in the numbers above.
-- A shorter run raises the share in inverse proportion to the ticks, so 2% needs about 300 ticks, which is shorter than the smoke run and has no fights.
-- A chronicle of 1,500 entries would reach about 2% in `skirmish`, but the veterans of a 1,000 tick run never fill it, and the hash input would grow tenfold.
+- The state grows with the chronicle (attempt 8), and that already counts in the numbers above.
+- A shorter run raises the share in inverse proportion to the ticks, so 2% needs a run of about 300 ticks, which is shorter than the smoke run and has no real fight.
+- A chronicle of 1,500 entries would reach about 2% in `skirmish`, but the veterans of a 1,000 tick run never fill it, and the hash input would grow four times.
+- The load cost is about the cost of one save, and a save is cheap per tick. A run has 80 saves and 1 load.
 
-Proposed decision change (the smallest one): D5 says "loads one save". Change it to "loads the newest save after every 250th tick" (`loadEvery` 250 instead of `loadTick`, with the replay of the ticks since the last save). That gives `skirmish` and `battle` 8 loads, `war` 4, and the naive load share reaches about 4% and 2.4%. A load costs about 5% of the ticks it replays, so the run gets 5% longer. The change is in the runner schedule and in SPEC §10 and §11. No implementation code changes, because `Sim.load` already replaces the live state.
+Proposed decision change (the smallest one): D5 says "loads one save". Change it to "loads the newest save after every 200th tick" (a `loadEvery` of 200 instead of `loadTick`, with the replay of the ticks since the last save). That gives `skirmish` and `battle` 10 loads and `war` 5. The naive load share becomes about 6% (skirmish), 4.5% (battle) and 2.8 to 5% (war), and the normal share about 1.5%. The run gets about 6% longer, because each load replays 12 ticks. The change is in `runner/src/schedule.ts`, SPEC §10 and §11 and the goldens. No implementation code changes, because `Sim.load` already replaces the live state.
 
 ## Final state
 
-See the end of this file.
+Commits: `eba6fcf` (tuning, naive variants, veteran log, `SAVE_INTERVAL` 25) and `058f947` (minion life and summon period). The goldens are regenerated for all scenarios and seeds in both.
+
+Peak entities, `pnpm run profile`, seeds 1, 2, 3:
+
+| Scenario | Target | Peak, seed 1 | seed 2 | seed 3 |
+|---|---|---:|---:|---:|
+| `skirmish` | 5k, 4,250 to 5,750 | 4,987 | 4,929 | 4,838 |
+| `battle` | 20k, 17,000 to 23,000 | 19,493 | 19,434 | 19,826 |
+| `war` | 50k, 42,500 to 57,500 | 50,831 | 49,998 | 49,452 |
+
+`pnpm run profile skirmish battle war` says "liveness ok: no zero counter" for all 3 seeds.
+
+Load budget, `pnpm budget <scenario> --seeds --report-only`, all 3 seeds. `skirmish` has 3 runs for each variant, `battle` 2 runs and `war` 1 run (about 25 min for `war` with 3 seeds and 1 run). Each cell is the worst of the 3 seeds: the highest normal share (cap 25), the lowest naive share (floor 2) and the lowest naive/normal ratio (1.5). Every hash is the same as the normal run.
+
+| Region | skirmish max share % | skirmish min naive share % | skirmish min ratio | battle max share % | battle min naive share % | battle min ratio | war max share % | war min naive share % | war min ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| move.step | 13.77 | 26.73 | 1.97 | 12.99 | 26.49 | 2.06 | 10.89 | 20.63 | 1.97 |
+| churn | 5.83 | 11.99 | 2.25 | 5.38 | 25.58 | 4.76 | 3.97 | 29.35 | 8.09 |
+| effects.buffs | 0.55 | 5.15 | 9.31 | 0.50 | 3.91 | 8.30 | 0.60 | 6.08 | 10.62 |
+| cleanup.unlink | 1.28 | 3.43 | 2.70 | 0.78 | 3.19 | 4.22 | 0.57 | 2.96 | 5.52 |
+| move.depthOrder | 0.01 | 14.38 | 984.29 | 0.01 | 15.49 | 2598.04 | 0.00 | 13.80 | 4726.65 |
+| cleanup.cascade | 0.08 | 4.49 | 53.81 | 0.08 | 9.15 | 119.38 | 0.04 | 13.52 | 304.76 |
+| links | 0.71 | 4.14 | 6.61 | 0.56 | 13.55 | 27.74 | 0.27 | 21.16 | 77.86 |
+| objectives.capture | 0.69 | 12.97 | 16.98 | 0.56 | 10.73 | 19.19 | 0.40 | 11.13 | 27.59 |
+| morale.rout | 0.23 | 3.43 | 15.40 | 0.10 | 4.66 | 47.89 | 0.05 | 7.40 | 155.15 |
+| morale.onFlee | 0.06 | 4.76 | 89.30 | 0.05 | 4.85 | 104.64 | 0.05 | 4.99 | 101.79 |
+| stats.recompute | 0.39 | 34.24 | 92.01 | 0.33 | 31.24 | 101.03 | 0.20 | 18.63 | 92.68 |
+| stats.setBonus | 0.11 | 3.76 | 33.76 | 0.07 | 5.56 | 81.22 | 0.04 | 5.34 | 138.85 |
+| stats.banner | 3.28 | 13.87 | 4.19 | 3.34 | 13.70 | 4.25 | 3.67 | 11.83 | 3.41 |
+| combat.fanIn | 1.22 | 5.19 | 4.40 | 1.36 | 4.20 | 3.07 | 1.07 | 4.68 | 4.40 |
+| threat | 3.05 | 11.79 | 3.70 | 3.08 | 26.42 | 8.73 | 2.63 | 51.38 | 19.86 |
+| cleanup.credit | 3.24 | 27.75 | 10.08 | 2.82 | 16.64 | 6.15 | 0.62 | 4.52 | 8.13 |
+| grid.update | 2.36 | 11.15 | 4.95 | 2.22 | 10.74 | 5.09 | 3.60 | 14.28 | 4.35 |
+| garrison | 0.54 | 5.15 | 9.59 | 0.29 | 4.43 | 15.98 | 0.32 | 4.30 | 15.39 |
+| orders.lookup | 0.46 | 7.28 | 16.59 | 0.39 | 22.06 | 60.35 | 0.38 | 40.34 | 134.77 |
+| stats.render | 3.42 | 31.70 | 9.49 | 3.50 | 23.89 | 6.82 | 3.40 | 17.17 | 5.20 |
+| save | 2.87 | 10.23 | 3.36 | 2.70 | 7.98 | 3.10 | 1.40 | 3.79 | 3.12 |
+| load | 0.16 | 0.52 | 3.30 | 0.16 | 0.43 | 2.74 | 0.20 | 0.56 | 3.23 |
+
+Every cell passes except the naive share of `load` (0.43% to 0.56% against 2%). `war` has one run for each variant, so its cells have more noise than the others. The thinnest margins are the naive share of `cleanup.unlink` in `war` (2.96%), `stats.banner` in `war` (ratio 3.4), and `churn` in `skirmish` (ratio 2.25).
+
+Koota headline (`pnpm bench baseline-js koota skirmish battle war --runs 5`): 7.087, 95% interval 6.903 to 7.382. Totals: `skirmish` 7.4 s, `battle` 33.7 s, `war` 42.0 s.
+
+## How to repeat
+
+1. `pnpm run profile skirmish battle war` for the peaks and the liveness.
+2. `pnpm budget skirmish --seeds --runs 3 --report-only` (add `battle` and `war`, with fewer runs).
+3. `pnpm verify koota skirmish battle war` and `pnpm verify:all` after any change to a constant or a rule. Regenerate the goldens first with `pnpm verify baseline-js <scenarios> --write`.
