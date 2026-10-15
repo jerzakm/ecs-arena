@@ -1238,7 +1238,7 @@ describe('Garrison', () => {
 })
 
 describe('Commander orders', () => {
-  const dense = { ...SCENARIOS.skirmish, targetPop: 300, maxSquadsPerWave: 30, garrisonCap: 0, ordersPerTeam: 8000, ticks: 700 }
+  const dense = { ...SCENARIOS.skirmish, targetPop: 300, maxSquadsPerWave: 30, garrisonCap: 0, ordersPerTeam: 40, ticks: 700 }
   const idsOf = (s: Parsed) => [...s.shrines.map((x) => x.gameId), ...s.units.flatMap((u) => [u.gameId, ...u.items.map((i) => i.gameId)]), ...s.projectiles.map((q) => q.gameId), ...s.ground.map((g) => g.gameId)]
 
   // The key range n is the gameId counter at the start of ai/target. A snapshot only shows the ids that exist, so n is
@@ -1262,12 +1262,16 @@ describe('Commander orders', () => {
         for (let n = top + 1; n <= top + 400 && !found; n++) {
           const targets = new Map<number, number>()
           const count = [0, 0]
+          const pick = (team: number, role: number, k: number, own: boolean) => {
+            for (let p = 0; p < kernel.ORDER_PROBES; p++) {
+              const u = units.get(kernel.orderKey(n, dense.seed, t, team, role, k, p))
+              if (u && (u.team === team) === own) return u
+            }
+          }
           for (const team of [0, 1]) for (let k = 0; k < dense.ordersPerTeam; k++) {
-            const [sk, ok] = kernel.orderKeys(n, dense.seed, t, team, k)
-            const subj = units.get(sk), obj = units.get(ok)
-            if (!subj || !obj || subj.team !== team || stunned(subj) || fleeing(subj) || subj.kind === KIND.HEALER || subj.kind === KIND.SUMMONER) continue
-            if (obj.team === team || fleeing(obj) || !inRange(subj, obj, UNIT_STATS[subj.kind].sight)) continue
-            targets.set(sk, ok)
+            const subj = pick(team, PURPOSE.ORDER_SUBJECT, k, true), obj = pick(team, PURPOSE.ORDER_OBJECT, k, false)
+            if (!subj || !obj || stunned(subj) || fleeing(subj) || subj.kind === KIND.HEALER || subj.kind === KIND.SUMMONER || fleeing(obj)) continue
+            targets.set(subj.gameId, obj.gameId)
             count[team]++
           }
           if (count[0] !== delta[0] || count[1] !== delta[1]) continue

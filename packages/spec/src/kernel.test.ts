@@ -114,18 +114,21 @@ describe('tables', () => {
     expect(Object.keys(SCENARIOS)).toHaveLength(6)
   })
 
-describe('orderKeys', () => {
-  it('draws the subject and object of order k as 1 + randInt(n - 1, ..., ORDER_SUBJECT or ORDER_OBJECT, k)', () => {
-    for (const [n, tick, team, k] of [[2, 0, 0, 0], [40, 10, 1, 3], [100_000, 1990, 0, 127]]) {
-      expect(kernel.orderKeys(n, S, tick, team, k)).toEqual([
-        1 + randInt(n - 1, S, tick, teamGameId(team), PURPOSE.ORDER_SUBJECT, k),
-        1 + randInt(n - 1, S, tick, teamGameId(team), PURPOSE.ORDER_OBJECT, k),
-      ])
+describe('orderKey', () => {
+  it('draws probe p of order k as 1 + randInt(n - 1, ..., role, k * ORDER_PROBES + p)', () => {
+    for (const [n, tick, team, k, p] of [[2, 0, 0, 0, 0], [40, 10, 1, 3, 5], [100_000, 1990, 0, 127, 2]]) {
+      for (const role of [PURPOSE.ORDER_SUBJECT, PURPOSE.ORDER_OBJECT]) {
+        expect(kernel.orderKey(n, S, tick, team, role, k, p)).toBe(1 + randInt(n - 1, S, tick, teamGameId(team), role, k * kernel.ORDER_PROBES + p))
+      }
     }
+    expect(kernel.ORDER_PROBES).toBe(6)
   })
   it('stays in [1, n - 1] and is not constant', () => {
     const seen = new Set<number>()
-    for (let k = 0; k < 200; k++) for (const key of kernel.orderKeys(50, S, 10, 0, k)) { expect(key).toBeGreaterThanOrEqual(1); expect(key).toBeLessThanOrEqual(49); seen.add(key) }
+    for (let k = 0; k < 40; k++) for (let p = 0; p < kernel.ORDER_PROBES; p++) {
+      const key = kernel.orderKey(50, S, 10, 0, PURPOSE.ORDER_SUBJECT, k, p)
+      expect(key).toBeGreaterThanOrEqual(1); expect(key).toBeLessThanOrEqual(49); seen.add(key)
+    }
     expect(seen.size).toBeGreaterThan(30)
   })
 })

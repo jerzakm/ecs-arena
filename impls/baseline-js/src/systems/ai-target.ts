@@ -65,19 +65,28 @@ export const aiTargetSystem = (ctx: Context) => {
       return h === -1 ? -1 : ctx.slots[h].gameId
     }
 
-    // SPEC §6.12. A key can name anything that ever had a gameId, so most orders find no unit or no valid target.
+    // SPEC §6.12. A probe key can name anything that ever had a gameId. An order whose probes find no unit of the right team is a dead-key order.
     ordered.clear()
     const n = ctx.nextId
     if (ctx.tick % k.ORDER_PERIOD === 0 && n > 1) {
       begin('orders.lookup')
+      const pick = (team: number, role: number, o: number, own: boolean): Unit | undefined => {
+        for (let p = 0; p < k.ORDER_PROBES; p++) {
+          const u = find(k.orderKey(n, ctx.scenario.seed, ctx.tick, team, role, o, p))
+          if (u && (u.team === team) === own) return u
+        }
+        return undefined
+      }
       for (let team = 0; team < 2; team++) for (let o = 0; o < ctx.scenario.ordersPerTeam; o++) {
-        const [sk, ok] = k.orderKeys(n, ctx.scenario.seed, ctx.tick, team, o)
-        const s = find(sk), t = find(ok)
-        if (!s || !t || s.team !== team || isStunned(s) || s.fleeing || s.garrison || s.kind === KIND.HEALER || s.kind === KIND.SUMMONER || !validTarget(s, t)) { add('q.ai.orderIgnored'); continue }
-        setTarget(s, t.gameId)
-        ordered.add(s)
-        ctx.world.orders[team] = (ctx.world.orders[team] + 1) | 0
-        add('q.ai.ordered')
+        const s = pick(team, k.PURPOSE.ORDER_SUBJECT, o, true), t = pick(team, k.PURPOSE.ORDER_OBJECT, o, false)
+        if (!s || !t) add('q.ai.orderDeadKey')
+        else if (isStunned(s) || s.fleeing || s.garrison || s.kind === KIND.HEALER || s.kind === KIND.SUMMONER || t.fleeing || t.garrison) add('q.ai.orderIgnored')
+        else {
+          setTarget(s, t.gameId)
+          ordered.add(s)
+          ctx.world.orders[team] = (ctx.world.orders[team] + 1) | 0
+          add('q.ai.ordered')
+        }
       }
       end('orders.lookup')
     }

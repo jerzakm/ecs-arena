@@ -431,19 +431,21 @@ Then set `Score.shrines0` and `Score.shrines1` to the number of shrines that eac
 
 ### 6.12 Commander orders
 
-Each team has a commander that names units by `gameId`. The keys come from draws. So a key can name a dead unit, an item, a projectile, a shrine, a unit of the other team, or a key that no entity has now.
+Each team has a commander that names units by `gameId`. The keys come from draws. So a key can name a dead unit, an item, a projectile, a shrine, or a key that no entity has now.
 
-On each tick where `tick % 10 == 0` _(tune)_, at the start of `ai/target`, team 0 and then team 1 give `ordersPerTeam` orders (§11). Let `n` be the value of the `gameId` counter at the start of `ai/target`. So every key that exists is in `[1, n - 1]`. Order `k` (from 0) of team `T` has:
+On each tick where `tick % 10 == 0` _(tune)_, at the start of `ai/target`, team 0 and then team 1 give `ordersPerTeam` orders (§11). Let `n` be the value of the `gameId` counter at the start of `ai/target`. So every key that exists is in `[1, n - 1]`. Order `k` (from 0) of team `T` draws `ORDER_PROBES = 6` keys for each of its two roles. Probe `p` (from 0) of a role is `1 + randInt(n - 1, seed, tick, teamGameId(T), role, k * 6 + p)`, with `role` equal to `ORDER_SUBJECT` or `ORDER_OBJECT`.
 
-- subject `= 1 + randInt(n - 1, seed, tick, teamGameId(T), ORDER_SUBJECT, k)`
-- object `= 1 + randInt(n - 1, seed, tick, teamGameId(T), ORDER_OBJECT, k)`
+- The **subject** is the unit of team `T` that the first probe names, taking the probes of `ORDER_SUBJECT` in `p` order. A probe that names no unit or a unit of the other team is skipped.
+- The **object** is the unit of the other team that the first probe of `ORDER_OBJECT` names, in the same way.
 
-An order **takes effect** when these conditions are true at the start of the phase:
+Most keys name items or projectiles, so one draw would almost never find a unit and the rule would never take effect. A commander that looks again is the reason for the probes, and the commander sees the whole field, so the order has no sight limit. An order with no subject or no object is a **dead-key order**. It changes nothing.
 
-- The subject is a unit of team `T` that exists. It is not stunned, not `Fleeing`, not `Garrisoned`, not a healer and not a summoner.
-- The object is a valid target of the subject (§6.2).
+An order **takes effect** when it has a subject and an object, and these are true at the start of the phase:
 
-When an order takes effect, the subject targets the object, `ordersT += 1` with the wrap of §1, and the subject skips the other steps of §6.2 in this tick. When an order does not take effect, it changes nothing. This is the **dead-key result**. Orders go in `k` order. A later order to the same subject replaces the target from an earlier one, and each order that takes effect counts. The checks read start-of-phase values, so an earlier order does not change them.
+- The subject is not stunned, not `Fleeing`, not `Garrisoned`, not a healer and not a summoner.
+- The object is not `Fleeing` and not `Garrisoned`.
+
+When an order takes effect, the subject targets the object, `ordersT += 1` with the wrap of §1, and the subject skips the other steps of §6.2 in this tick. When an order does not take effect, it changes nothing. Orders go in `k` order. A later order to the same subject replaces the target from an earlier one, and each order that takes effect counts. The checks read start-of-phase values, so an earlier order does not change them.
 
 ### 6.13 Banner
 

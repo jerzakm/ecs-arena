@@ -196,12 +196,14 @@ export const isCrit = (seed: number, tick: number, attackerGameId: number): bool
   randInt(100, seed, tick, attackerGameId, PURPOSE.CRIT) < CRIT_PERCENT
 
 export const ORDER_PERIOD = 10
+export const ORDER_PROBES = 6
 
-/** SPEC §6.12: the subject and object keys of order `k` of `team`. `n` is the gameId counter at the start of `ai/target`, at least 2. */
-export const orderKeys = (n: number, seed: number, tick: number, team: number, k: number): [number, number] => [
-  1 + randInt(n - 1, seed, tick, teamGameId(team), PURPOSE.ORDER_SUBJECT, k),
-  1 + randInt(n - 1, seed, tick, teamGameId(team), PURPOSE.ORDER_OBJECT, k),
-]
+/**
+ * SPEC §6.12: probe `probe` of order `k` of `team`, for the subject (`ORDER_SUBJECT`) or the object (`ORDER_OBJECT`).
+ * `n` is the gameId counter at the start of `ai/target`, at least 2.
+ */
+export const orderKey = (n: number, seed: number, tick: number, team: number, role: number, k: number, probe: number): number =>
+  1 + randInt(n - 1, seed, tick, teamGameId(team), role, k * ORDER_PROBES + probe)
 
 /** SPEC §6.15: `renderChain` before tick 0. */
 export const RENDER_SEED = 0x811c9dc5 | 0

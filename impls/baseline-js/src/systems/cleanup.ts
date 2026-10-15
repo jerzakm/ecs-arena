@@ -108,7 +108,9 @@ export const cleanupSystem = (ctx: Context) => {
 
     begin('cleanup.unlink')
     if (naiveUnlink) {
-      for (let u_i = 0, u = alive[0]; u_i < alive.length; u = alive[++u_i]) if (u.target !== -1 && !unitById.has(u.target)) { u.target = -1; add('rel.Targets.remove') }
+      // retarget keeps the inverse index (targeters) in step, which combat.fanIn reads
+      for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.destroyed && u.target !== -1) ctx.retarget(u, -1)
+      for (let u_i = 0, u = alive[0]; u_i < alive.length; u = alive[++u_i]) if (u.target !== -1 && !unitById.has(u.target)) { ctx.retarget(u, -1); add('rel.Targets.remove') }
     } else {
       for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.destroyed) {
         const inbound = ctx.targeters.get(u.gameId)
