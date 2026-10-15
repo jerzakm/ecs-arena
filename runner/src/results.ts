@@ -33,26 +33,42 @@ export const commit = () => {
   }
 }
 
-/** Writes the per-tick medians and upserts one summary row per target and scenario (same commit replaces). */
-export const recordReport = (report: BenchReport) => {
-  const sha = commit()
-  const date = new Date().toISOString().slice(0, 10)
+/** Writes one per-tick CSV. `lines` are the data rows, already formatted. */
+export const writeTicks = (scenario: string, target: string, lines: string[]) => {
+  const path = ticksPath(scenario, target)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, [TICK_COLS.join(','), ...lines].join('\n') + '\n')
+}
+
+/** Upserts summary rows keyed by SUMMARY_COLS names (same commit, target and scenario replaces). A number is rounded to 2 places and a missing value stays empty. */
+export const upsertSummary = (rows: Record<string, string | number | undefined>[], date: string, sha: string) => {
   const old = existsSync(SUMMARY) ? readCsv(SUMMARY) : []
-  const fresh: Record<string, string>[] = []
-  for (const [target, byScenario] of Object.entries(report))
-    for (const [scenario, a] of Object.entries(byScenario)) {
-      const d = a.deep!
-      const path = ticksPath(scenario, target)
-      mkdirSync(dirname(path), { recursive: true })
-      const rows = d.ticks.map((r) => r.map((v, i) => (i >= r.length - 2 ? Math.round(v) : +v.toFixed(4))).join(','))
-      writeFileSync(path, [TICK_COLS.join(','), ...rows].join('\n') + '\n')
-      const row = [date, sha, target, scenario, a.runs, a.totalMs.median, a.totalMs.lo, a.totalMs.hi, a.p99Ms.median, a.maxMs.median, a.over.median, a.samples.total.map((x) => +x.toFixed(2)).join(';'), ...TIMED_PHASES.map((p) => d.phasesMs[p].median), d.gcMs.median, d.allocBytes.median / MB, d.peakHeap.median / MB]
-      fresh.push(Object.fromEntries(SUMMARY_COLS.map((c, i) => [c, typeof row[i] === 'number' ? String(+(+row[i]).toFixed(2)) : String(row[i])])))
-    }
+  const fresh = rows.map((v) => Object.fromEntries(SUMMARY_COLS.map((c) => {
+    const x = ({ date, commit: sha, ...v } as Record<string, string | number | undefined>)[c]
+    return [c, typeof x === 'number' ? String(+x.toFixed(2)) : String(x ?? '')]
+  })))
   const key = (r: Record<string, string>) => `${r.commit}|${r.target}|${r.scenario}`
   const keep = old.filter((r) => !fresh.some((f) => key(f) === key(r)))
   mkdirSync(DATA, { recursive: true })
   writeFileSync(SUMMARY, [SUMMARY_COLS.join(','), ...[...keep, ...fresh].map((r) => SUMMARY_COLS.map((c) => r[c] ?? '').join(','))].join('\n') + '\n')
+}
+
+/** Writes the per-tick medians and upserts one summary row per target and scenario. */
+export const recordReport = (report: BenchReport) => {
+  const rows: Record<string, string | number>[] = []
+  for (const [target, byScenario] of Object.entries(report))
+    for (const [scenario, a] of Object.entries(byScenario)) {
+      const d = a.deep!
+      writeTicks(scenario, target, d.ticks.map((r) => r.map((v, i) => (i >= r.length - 2 ? Math.round(v) : +v.toFixed(4))).join(',')))
+      rows.push({
+        target, scenario, runs: a.runs, total_ms: a.totalMs.median, total_lo: a.totalMs.lo, total_hi: a.totalMs.hi,
+        p99_ms: a.p99Ms.median, max_ms: a.maxMs.median, over_16ms: a.over.median,
+        run_totals: a.samples.total.map((x) => +x.toFixed(2)).join(';'),
+        ...Object.fromEntries(TIMED_PHASES.map((p) => [`${p}_ms`, d.phasesMs[p].median])),
+        gc_ms: d.gcMs.median, alloc_mb: d.allocBytes.median / MB, peak_heap_mb: d.peakHeap.median / MB,
+      })
+    }
+  upsertSummary(rows, new Date().toISOString().slice(0, 10), commit())
 }
 
 // Categorical slots in fixed order (dataviz default palette). A target keeps its slot by sorted name.
@@ -101,8 +117,9 @@ ${legend.join('\n')}
 `
 }
 
+/** A row whose value cells are all empty is left out, so a metric nobody measured shows no row. */
 const table = (head: string[], rows: (string | number)[][]) =>
-  [`| ${head.join(' | ')} |`, `|${head.map((_, i) => (i ? '---:' : '---')).join('|')}|`, ...rows.map((r) => `| ${r.join(' | ')} |`)].join('\n')
+  [`| ${head.join(' | ')} |`, `|${head.map((_, i) => (i ? '---:' : '---')).join('|')}|`, ...rows.filter((r) => r.slice(1).some((c) => c !== '')).map((r) => `| ${r.join(' | ')} |`)].join('\n')
 
 /** Rebuilds docs/results.md and its SVG charts from bench-data. */
 export const writeResultsPage = () => {
@@ -143,14 +160,17 @@ export const writeResultsPage = () => {
       ['peak heap MB', ...rows.map((r) => r.peak_heap_mb)],
     ]))
     const ticks = rows.filter((r) => existsSync(ticksPath(sc, r.target))).map((r) => ({ name: r.target, slot: slot(r.target), rows: readCsv(ticksPath(sc, r.target)) }))
-    const col = (c: string, div = 1) => ticks.map((t) => ({ name: t.name, slot: t.slot, ys: smooth(t.rows.map((r) => +r[c] / div)) }))
-    const avg = (c: string, t: (typeof ticks)[number]) => t.rows.reduce((a, r) => a + +r[c], 0) / t.rows.length
+    // A column with empty cells (an imported run has no alloc or heap) gives no series and no mean.
+    const has = (c: string, t: (typeof ticks)[number]) => t.rows.length > 0 && t.rows.every((r) => r[c] !== '')
+    const col = (c: string, div = 1) => ticks.filter((t) => has(c, t)).map((t) => ({ name: t.name, slot: t.slot, ys: smooth(t.rows.map((r) => +r[c] / div)) }))
+    const avg = (c: string, t: (typeof ticks)[number]) => (has(c, t) ? t.rows.reduce((a, r) => a + +r[c], 0) / t.rows.length : '')
+    const mean = (c: string, f: (v: number) => string) => (t: (typeof ticks)[number]) => { const v = avg(c, t); return v === '' ? '' : f(v) }
     out.push('', '### Mean for each tick', '')
     out.push(table(['metric', ...ticks.map((t) => t.name)], [
-      ['tick ms', ...ticks.map((t) => avg('tick_ms', t).toFixed(3))],
-      ...TIMED_PHASES.map((p) => [`${p} ms`, ...ticks.map((t) => avg(p, t).toFixed(3))]),
-      ['gc ms', ...ticks.map((t) => avg('gc_ms', t).toFixed(3))],
-      ['alloc KB', ...ticks.map((t) => (avg('alloc_bytes', t) / 1024).toFixed(1))],
+      ['tick ms', ...ticks.map(mean('tick_ms', (v) => v.toFixed(3)))],
+      ...TIMED_PHASES.map((p) => [`${p} ms`, ...ticks.map(mean(p, (v) => v.toFixed(3)))]),
+      ['gc ms', ...ticks.map(mean('gc_ms', (v) => v.toFixed(3)))],
+      ['alloc KB', ...ticks.map(mean('alloc_bytes', (v) => (v / 1024).toFixed(1)))],
     ]))
     const charts: [string, string, string, number][] = [
       ['tick', 'Tick time (20-tick mean)', 'ms', 1],
@@ -162,7 +182,9 @@ export const writeResultsPage = () => {
     for (const [c, title, unit, div] of charts) {
       const file = `${sc}-${c.replace('/', '-')}.svg`
       const column = c === 'tick' ? 'tick_ms' : c === 'gc' ? 'gc_ms' : c === 'alloc' ? 'alloc_bytes' : c
-      writeFileSync(resolve(CHARTS, file), lineChart(`${sc}: ${title}`, unit, col(column, div)))
+      const series = col(column, div)
+      if (!series.length) continue
+      writeFileSync(resolve(CHARTS, file), lineChart(`${sc}: ${title}`, unit, series))
       out.push(`![${sc} ${title}](charts/${file})`)
     }
   }
