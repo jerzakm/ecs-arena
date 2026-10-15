@@ -3,13 +3,16 @@ import type { Context } from '../context.ts'
 import { Fleeing, Position, Start } from '../components.ts'
 import { ChildOf, MemberOf, Targets } from '../relations.ts'
 
+/** The `Sim.moveStart` step: koota has no double-buffered stores, so `Start` copies `Position` before `move`. */
+export const moveStartSystem = (ctx: Context) => () => {
+  ctx.world.query(ctx.q.starts).updateEach(([p, s]) => { s.x = p.x; s.y = p.y })
+}
+
 export const moveSystem = (ctx: Context) => {
   const { k, world, q, homeX, inRange } = ctx
   const { KIND, UNIT_STATS, stepToward } = k
 
   return () => {
-    world.query(q.starts).updateEach(([p, s]) => { s.x = p.x; s.y = p.y })
-
     // Depth is memoized for the phase, since siblings share their parent chain.
     const depth = new Map<Entity, number>()
     const depthOf = (e: Entity): number => {

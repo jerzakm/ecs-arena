@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { PHASES } from '@ecs-arena/spec'
+import { TIMED_PHASES } from '@ecs-arena/spec'
 import type { BenchReport } from './bench.ts'
 import { scoreTargets } from './stats.ts'
 
@@ -13,8 +13,8 @@ const PAGE = resolve(ROOT, 'docs/results.md')
 const CHARTS = resolve(ROOT, 'docs/charts')
 const MB = 1048576
 
-const TICK_COLS = [...PHASES, 'tick_ms', 'gc_ms', 'alloc_bytes', 'heap_bytes']
-const SUMMARY_COLS = ['date', 'commit', 'target', 'scenario', 'runs', 'total_ms', 'total_lo', 'total_hi', 'p99_ms', 'max_ms', 'over_16ms', 'run_totals', ...PHASES.map((p) => `${p}_ms`), 'gc_ms', 'alloc_mb', 'peak_heap_mb']
+const TICK_COLS = [...TIMED_PHASES, 'tick_ms', 'gc_ms', 'alloc_bytes', 'heap_bytes']
+const SUMMARY_COLS = ['date', 'commit', 'target', 'scenario', 'runs', 'total_ms', 'total_lo', 'total_hi', 'p99_ms', 'max_ms', 'over_16ms', 'run_totals', ...TIMED_PHASES.map((p) => `${p}_ms`), 'gc_ms', 'alloc_mb', 'peak_heap_mb']
 
 const fileName = (target: string) => target.replace(/[^\w.@-]/g, '_')
 const ticksPath = (scenario: string, target: string) => resolve(DATA, 'ticks', scenario, `${fileName(target)}.csv`)
@@ -46,7 +46,7 @@ export const recordReport = (report: BenchReport) => {
       mkdirSync(dirname(path), { recursive: true })
       const rows = d.ticks.map((r) => r.map((v, i) => (i >= r.length - 2 ? Math.round(v) : +v.toFixed(4))).join(','))
       writeFileSync(path, [TICK_COLS.join(','), ...rows].join('\n') + '\n')
-      const row = [date, sha, target, scenario, a.runs, a.totalMs.median, a.totalMs.lo, a.totalMs.hi, a.p99Ms.median, a.maxMs.median, a.over.median, a.samples.total.map((x) => +x.toFixed(2)).join(';'), ...PHASES.map((p) => d.phasesMs[p].median), d.gcMs.median, d.allocBytes.median / MB, d.peakHeap.median / MB]
+      const row = [date, sha, target, scenario, a.runs, a.totalMs.median, a.totalMs.lo, a.totalMs.hi, a.p99Ms.median, a.maxMs.median, a.over.median, a.samples.total.map((x) => +x.toFixed(2)).join(';'), ...TIMED_PHASES.map((p) => d.phasesMs[p].median), d.gcMs.median, d.allocBytes.median / MB, d.peakHeap.median / MB]
       fresh.push(Object.fromEntries(SUMMARY_COLS.map((c, i) => [c, typeof row[i] === 'number' ? String(+(+row[i]).toFixed(2)) : String(row[i])])))
     }
   const key = (r: Record<string, string>) => `${r.commit}|${r.target}|${r.scenario}`
@@ -137,7 +137,7 @@ export const writeResultsPage = () => {
       ['p99 tick ms', ...rows.map((r) => r.p99_ms ?? '')],
       ['max tick ms', ...rows.map((r) => r.max_ms ?? '')],
       ['ticks over 16.6 ms', ...rows.map((r) => r.over_16ms ?? '')],
-      ...PHASES.map((p) => [`${p} ms`, ...rows.map((r) => r[`${p}_ms`])]),
+      ...TIMED_PHASES.map((p) => [`${p} ms`, ...rows.map((r) => r[`${p}_ms`])]),
       ['gc ms', ...rows.map((r) => r.gc_ms)],
       ['alloc MB', ...rows.map((r) => r.alloc_mb)],
       ['peak heap MB', ...rows.map((r) => r.peak_heap_mb)],
@@ -148,7 +148,7 @@ export const writeResultsPage = () => {
     out.push('', '### Mean for each tick', '')
     out.push(table(['metric', ...ticks.map((t) => t.name)], [
       ['tick ms', ...ticks.map((t) => avg('tick_ms', t).toFixed(3))],
-      ...PHASES.map((p) => [`${p} ms`, ...ticks.map((t) => avg(p, t).toFixed(3))]),
+      ...TIMED_PHASES.map((p) => [`${p} ms`, ...ticks.map((t) => avg(p, t).toFixed(3))]),
       ['gc ms', ...ticks.map((t) => avg('gc_ms', t).toFixed(3))],
       ['alloc KB', ...ticks.map((t) => (avg('alloc_bytes', t) / 1024).toFixed(1))],
     ]))
@@ -156,7 +156,7 @@ export const writeResultsPage = () => {
       ['tick', 'Tick time (20-tick mean)', 'ms', 1],
       ['gc', 'GC time per tick (20-tick mean)', 'ms', 1],
       ['alloc', 'Allocation per tick (20-tick mean)', 'KB', 1024],
-      ...PHASES.map((p): [string, string, string, number] => [p, `${p} per tick (20-tick mean)`, 'ms', 1]),
+      ...TIMED_PHASES.map((p): [string, string, string, number] => [p, `${p} per tick (20-tick mean)`, 'ms', 1]),
     ]
     out.push('', '### Per tick', '')
     for (const [c, title, unit, div] of charts) {

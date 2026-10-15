@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PHASES, SCENARIOS, hashState, kernel, type CreateSim } from '@ecs-arena/spec'
+import { runPhases, SCENARIOS, hashState, kernel, type CreateSim } from '@ecs-arena/spec'
 import baseline from '../../impls/baseline-js/src/index.ts'
 import koota from '../../impls/koota/src/index.ts'
 import { runScheduled } from './schedule.ts'
@@ -7,7 +7,7 @@ import { runScheduled } from './schedule.ts'
 const sc = SCENARIOS['skirmish-smoke']
 const SAVE_AT = 150
 const run = (sim: ReturnType<CreateSim>, from: number, to: number) => {
-  for (let t = from; t < to; t++) for (const p of PHASES) sim.phases[p]()
+  for (let t = from; t < to; t++) runPhases(sim)
 }
 
 // A save must not change when the world changes after it (SPEC §10 "deep copy").

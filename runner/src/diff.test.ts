@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { PHASES, kernel } from '@ecs-arena/spec'
+import { runPhases, kernel } from '@ecs-arena/spec'
 import baseline from '../../impls/baseline-js/src/index.ts'
 import { parse, scenario } from '../../impls/baseline-js/src/testkit.ts'
 import { diffParsed } from './diff.ts'
 
 const snapshot = () => {
   const sim = baseline(scenario({ ticks: 1 }), kernel)
-  for (const p of PHASES) sim.phases[p]()
+  runPhases(sim)
   return parse(sim.snapshot())
 }
 

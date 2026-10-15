@@ -1,5 +1,7 @@
 export const PHASES = ['spawn', 'ai/target', 'move', 'combat', 'effects', 'morale', 'cleanup', 'objectives', 'stats'] as const
 export type PhaseName = (typeof PHASES)[number]
+/** The keys of a deep-dive run, in time order. `move.start` times the optional `Sim.moveStart` step. */
+export const TIMED_PHASES = ['spawn', 'ai/target', 'move.start', 'move', 'combat', 'effects', 'morale', 'cleanup', 'objectives', 'stats'] as const
 
 export interface Scenario {
   name: string
@@ -33,6 +35,11 @@ export type CanonicalState = number[]
 export interface Sim {
   phases: Record<PhaseName, () => void>
   tick?: () => void
+  /**
+   * Optional. Runs right before `phases.move` in every run kind, and a deep-dive run times it as its own `move.start` key.
+   * An implementation that has to copy start-of-phase values puts that copy here. When `tick()` is present it must call this step itself.
+   */
+  moveStart?: () => void
   snapshot(): CanonicalState
   /** SPEC §10: a deep copy of everything a later tick reads. The runner keeps the newest one and never looks inside. */
   save(): unknown
@@ -40,6 +47,14 @@ export interface Sim {
   load(state: unknown): void
   /** Frees library resources a process can run out of (a world limit). `pnpm verify` calls it after each trace. */
   dispose?(): void
+}
+
+/** One tick through the phases in spec order, with `moveStart` before `move`. Callers that have no `tick()` shortcut use this. */
+export const runPhases = (sim: Sim): void => {
+  for (const p of PHASES) {
+    if (p === 'move') sim.moveStart?.()
+    sim.phases[p]()
+  }
 }
 
 export type CreateSim = (scenario: Scenario, kernel: typeof import('./kernel.ts')) => Sim

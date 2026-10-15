@@ -118,7 +118,7 @@ The gap between the two numbers shows the cost of the idiomatic style.
 ## Known biases
 
 - **`baseline-js` under-prices structural change.** Plain arrays add and remove tags almost for free. The load budget measures shares in `baseline-js` time, so structural facets look cheaper than they are in an archetype library.
-- **Start-of-phase copy.** A library without double-buffered stores copies the positions at the top of `move`. Each such library pays this cost. `baseline-js` does not. The cost is part of the `move` time in the deep-dive report.
+- **Start-of-phase copy.** A library without double-buffered stores copies the positions before `move`, in the optional `Sim.moveStart` step. Each such library pays this cost. `baseline-js` does not. The deep-dive report shows the cost as its own `move.start` line, and `move` does not include it.
 - **The shared grid pulls ratios toward 1.** Every library uses the same kernel grid for spatial searches. That time is equal for all libraries, so it makes the ratios smaller.
 
 ## Add a library

@@ -1,7 +1,7 @@
 // Work-count profile of baseline-js. Counts ECS operations per tick, never time. Usage: pnpm run profile <scenario...>
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SCENARIOS, SEEDS, PHASES, kernel, withSeed, type Scenario } from '@ecs-arena/spec'
+import { SCENARIOS, SEEDS, runPhases, kernel, withSeed, type Scenario } from '@ecs-arena/spec'
 import { runScheduled } from './schedule.ts'
 import { LIVENESS } from './liveness.ts'
 import createSim, { type Counters } from '../../impls/baseline-js/src/index.ts'
@@ -21,7 +21,7 @@ export const profile = (scenario: Scenario): Profile => {
   const gauges = new Map<string, Stat>()
   const prev = new Map<string, number>()
   runScheduled(sim, scenario, {
-    tick: () => { gauge.clear(); for (const p of PHASES) sim.phases[p]() },
+    tick: () => { gauge.clear(); runPhases(sim) },
     after: () => {
       for (const [n, v] of cum) {
         const d = v - (prev.get(n) ?? 0)

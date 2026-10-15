@@ -3,7 +3,7 @@
 // interleaved across variants, and the verdicts use medians over --runs runs.
 // Usage: pnpm budget [scenario...] [--seeds] [--report-only] [--runs N]
 import { spawnSync } from 'node:child_process'
-import { SCENARIOS, SEEDS, PHASES, hashState, kernel, withSeed, type Scenario } from '@ecs-arena/spec'
+import { SCENARIOS, SEEDS, runPhases, hashState, kernel, withSeed, type Scenario } from '@ecs-arena/spec'
 import createSim from '../../impls/baseline-js/src/index.ts'
 import { runScheduled } from './schedule.ts'
 import { CAP, FLOOR, MIN_NAIVE_RATIO, exitCode, judge, summarize, type Verdict } from './budget-check.ts'
@@ -36,7 +36,7 @@ export const timeRun =(scenario: Scenario, naive: string | null): Run => {
   runScheduled(sim, scenario, {
     tick: () => {
       const t0 = performance.now()
-      for (const p of PHASES) sim.phases[p]()
+      runPhases(sim)
       total += performance.now() - t0
     },
     after: (t) => { if (t % HASH_EVERY === 0 || t === scenario.ticks - 1) hashes.push(hashState(sim.snapshot())) },

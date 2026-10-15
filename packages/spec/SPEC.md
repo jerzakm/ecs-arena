@@ -267,7 +267,7 @@ The runner calls the phases in this order each tick:
 | 8 | `objectives` | shrine capture, `Score` |
 | 9 | `stats` | `Veteran`, banner, derived stats, alive counts, winner, render |
 
-An implementation can give one `tick()` entry. `tick()` runs the 9 phases in this order, in the form that its library teaches. The result must be the same as 9 phase calls. Headline runs call `tick()` when it exists. Deep-dive runs call the phases one by one, so each phase must also exist as its own entry.
+An implementation can give one `tick()` entry. `tick()` runs the 9 phases in this order, in the form that its library teaches. The result must be the same as 9 phase calls. Headline runs call `tick()` when it exists. Deep-dive runs call the phases one by one, so each phase must also exist as its own entry. An implementation can also give a `moveStart()` entry for work that must finish before `move`, such as a copy of the start-of-phase positions. Every run kind calls it right before `move`, `tick()` must call it too, and a deep-dive run times it as its own `move.start` key.
 
 A read of another entity sees its **start-of-phase value**, except for the **hierarchy order** in `move`. Where a phase has numbered steps, a later step sees the writes of an earlier step only when the rule says so.
 

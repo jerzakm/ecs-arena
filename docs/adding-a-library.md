@@ -26,6 +26,7 @@ export default createSim
 
 - `phases` holds the 9 phases. Deep-dive runs, `pnpm verify` and the diff tool call them one by one in spec order.
 - `tick()` is optional. When it is there, headline runs call it once for each tick. It must run the 9 phases in spec order, the way your library teaches (for example a scheduler or a pipeline). Without it, headline runs call `phases` in order.
+- `moveStart()` is optional. The runner calls it right before the `move` phase. Put the start-of-phase copy there, and a deep-dive run times it as its own `move.start` line. When you give a `tick()`, it must call `moveStart()` before `move`. `baseline-js` has no `moveStart`, because it keeps start positions in the move loop.
 - `snapshot()` returns the flat int32 array from SPEC.md §8. The runner hashes it.
 - `save()` returns a deep copy of everything that a later tick reads. The runner keeps the newest save and never looks inside it.
 - `load(state)` replaces the live state of the same sim with a value from `save()`. Native ids can change. `gameId` values cannot. See SPEC.md §10.
@@ -132,7 +133,7 @@ Check this list before you write code, and again when a scenario fails.
 
 ### Ordering traps
 
-- **Start-of-phase reads.** Most libraries have no double-buffered stores. Copy the positions at the top of `move`.
+- **Start-of-phase reads.** Most libraries have no double-buffered stores. Copy the positions in `moveStart`, so that the deep-dive report shows the cost as `move.start`.
 - **Replay after load.** The replayed ticks must give the same hashes as the first time. Reset every counter, cache and memo that `load` makes stale.
 - **Hierarchy order by depth.** `move` visits leaders before members. Compute the depth of each unit through `MemberOf` and `ChildOf`, bucket by depth, then move in order. A query cannot filter by depth.
 - **Snapshot order.** Sort each snapshot section by `gameId`. Native iteration order is not part of the rules.
