@@ -2,6 +2,7 @@
 // Units, projectiles, items and shrines are koota entities. gameId is a trait, never the entity id.
 import type { CreateSim, Scenario } from '@ecs-arena/spec'
 import { createContext } from './context.ts'
+import { load, save, type Saved } from './save.ts'
 import { snapshot } from './snapshot.ts'
 import { aiTargetSystem } from './systems/ai-target.ts'
 import { cleanupSystem } from './systems/cleanup.ts'
@@ -28,6 +29,8 @@ const createSim: CreateSim = (scenario: Scenario, k) => {
       stats: statsSystem(ctx),
     },
     snapshot: () => snapshot(ctx),
+    save: () => save(ctx),
+    load: (state) => load(ctx, state as Saved),
     dispose: () => ctx.world.destroy(),
   }
 }
