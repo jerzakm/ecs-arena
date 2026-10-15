@@ -15,7 +15,12 @@ export interface Scenario {
   garrisonCap: number
   /** Commander orders that each team gives every ORDER_PERIOD ticks (SPEC §6.12). */
   ordersPerTeam: number
+  /** The run loads the newest save after this tick and replays from there (SPEC §10). */
+  loadTick: number
 }
+
+/** SPEC §10: the runner asks for a save after each tick `t > 0` with `t % SAVE_INTERVAL == 0`. */
+export const SAVE_INTERVAL = 100
 
 /** SPEC §8: one flat array of int32 values. */
 export type CanonicalState = number[]
@@ -29,6 +34,10 @@ export interface Sim {
   phases: Record<PhaseName, () => void>
   tick?: () => void
   snapshot(): CanonicalState
+  /** SPEC §10: a deep copy of everything a later tick reads. The runner keeps the newest one and never looks inside. */
+  save(): unknown
+  /** SPEC §10: replaces the live state of this same sim with a value from `save`. Native ids can change, gameIds cannot. */
+  load(state: unknown): void
   /** Frees library resources a process can run out of (a world limit). `pnpm verify` calls it after each trace. */
   dispose?(): void
 }

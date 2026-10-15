@@ -1,18 +1,19 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { runScheduled } from './schedule.ts'
 import { SCENARIOS, SEEDS, goldenFile, hashState, kernel, PHASES, withSeed, type CreateSim, type Scenario } from '@ecs-arena/spec'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
-/** Hash of the snapshot after each tick (SPEC §9 verify mode). */
+/** Hash of the snapshot after each tick, replayed ticks included (SPEC §9 and §10 verify mode). */
 export const runTrace = (createSim: CreateSim, scenario: Scenario, ticks = scenario.ticks): string[] => {
   const sim = createSim(scenario, kernel)
   const trace: string[] = []
-  for (let t = 0; t < ticks; t++) {
-    for (const p of PHASES) sim.phases[p]()
-    trace.push(hashState(sim.snapshot()))
-  }
+  runScheduled(sim, { ...scenario, ticks }, {
+    tick: () => { for (const p of PHASES) sim.phases[p]() },
+    after: () => void trace.push(hashState(sim.snapshot())),
+  })
   sim.dispose?.()
   return trace
 }

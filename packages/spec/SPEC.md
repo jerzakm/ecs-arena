@@ -519,6 +519,8 @@ The game saves the world at a fixed interval and loads one save. The hash trace 
 - **Load.** After tick `loadTick` (§11) and its hash, the implementation loads the newest save. Let `S` be the tick of that save. The run then continues from tick `S + 1` to the last tick. So ticks `S + 1` to `loadTick` run two times.
 - **Contents.** A save holds all state that a later tick reads: every entity with every field, tag, buff, age and cooldown, every relation with its data, `lastSummon`, `bannered`, the `gameId` counter, and every world value (§8 item 1 and `Score`). A save is a deep copy. Ticks after the save do not change it. The form is free: a native world clone, bytes or another form.
 - **After load.** Native entity ids can change, but each `gameId` stays the same. The kernel grid must match §3.2 before the next search, so a full re-send is valid. No `Added`, `Removed` or `Changed` state from the discarded ticks can reach a later tick.
+- **Driver.** The runner drives the schedule from the scenario (`SAVE_INTERVAL` and `loadTick`) through `Sim.save()` and `Sim.load(state)`. Every run kind uses it, and a headline or deep run counts the save and load time in its total. The state that `save` returns is opaque to the runner. A load replaces the live state of the same sim.
+- **Trace length.** A full run has `ticks + (loadTick - S)` hashes, with `S = floor(loadTick / 100) * 100` (50 more in every scenario of §11). A run with `ticks` below `loadTick` never loads.
 - **Check.** In verify mode the trace holds one hash for each tick in run order. Each hash must equal the golden hash of its tick. So the replayed ticks must give the same hashes as the first time.
 
 ## 11. Scenarios _(tune)_

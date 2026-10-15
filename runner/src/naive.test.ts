@@ -1,18 +1,19 @@
 import { describe, it, expect } from 'vitest'
 import { PHASES, SCENARIOS, hashState, kernel } from '@ecs-arena/spec'
 import createSim from '../../impls/baseline-js/src/index.ts'
+import { runScheduled } from './schedule.ts'
 import { REGIONS } from './budget.ts'
 
 const TICKS = 500 // past tick 417, where cleanup.unlink once changed the hash
 const hashes = (naive: string | null): string[] => {
-  const sc = SCENARIOS.skirmish
+  const sc = { ...SCENARIOS.skirmish, ticks: TICKS, loadTick: 350 } // one save at 300, one load, a replay
   const regions = { begin() {}, end() {}, naive: new Set(naive ? [naive] : []) }
   const sim = createSim(sc, kernel, undefined, regions)
   const out: string[] = []
-  for (let t = 0; t < TICKS; t++) {
-    for (const p of PHASES) sim.phases[p]()
-    if (t % 5 === 0) out.push(hashState(sim.snapshot()))
-  }
+  runScheduled(sim, sc, {
+    tick: () => { for (const p of PHASES) sim.phases[p]() },
+    after: (t) => { if (t % 5 === 0) out.push(hashState(sim.snapshot())) },
+  })
   return out
 }
 

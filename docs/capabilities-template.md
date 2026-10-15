@@ -38,6 +38,7 @@ The reviewer judges each `Support` value. `pnpm verify` checks the result of the
 | Veteran chronicle | Array data per entity | | |
 | Queries that exclude or combine | Match entities that lack a flag, or have any of several | | |
 | Metrics and tick | One shared value per world | | |
+| Snapshot and restore (save each 100 ticks, load one save, replay) | Enumerate all entities, traits and relations, and rebuild them in the same world with relations relinked by `gameId` | | |
 | Phases | One system function for each spec phase | | |
 
 ## Notes
