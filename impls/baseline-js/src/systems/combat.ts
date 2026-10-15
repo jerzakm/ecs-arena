@@ -68,7 +68,7 @@ export const combatSystem = (ctx: Context) => {
     end('combat.fanIn')
 
     const addDamage = (victim: Unit, attacker: number, team: number, value: number) => {
-      if (victim.overwhelmed) value = k.overwhelmDamage(value)
+      if (victim.overwhelmed) { value = k.overwhelmDamage(value); add('rule.overwhelmed') }
       victim.dmgIn += value
       intents.push({ victim, attacker, team, value })
     }

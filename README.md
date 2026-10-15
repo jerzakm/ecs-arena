@@ -20,7 +20,7 @@ pnpm test                                   # unit and behaviour tests
 pnpm verify koota skirmish-smoke            # compare the per-tick hash trace with the golden
 pnpm verify:all                             # every implementation, every smoke scenario
 pnpm run diff koota skirmish 120 7 9        # find the first differing record against baseline-js
-pnpm run profile skirmish battle war        # count ECS operations per tick (baseline-js)
+pnpm run profile skirmish battle war        # count ECS operations per tick (baseline-js); fails when a rule never activates (all seeds)
 pnpm run check:caps                         # check the links in every CAPABILITIES.md
 pnpm bench koota battle --runs 5            # timed runs, one child process for each run
 pnpm compare koota@main koota@fresh-perf battle

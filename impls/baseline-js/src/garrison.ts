@@ -8,7 +8,7 @@ export const enterGarrison = (ctx: Context, u: Unit, s: Shrine) => {
   u.garrison = s
   if (u.target !== -1) { ctx.retarget(u, -1); ctx.add('rel.Targets.remove') }
   if (!ctx.isNaive('garrison')) ctx.grid.remove(u.h)
-  ctx.add('tag.add.garrisoned'); ctx.add('rel.GarrisonOf.add')
+  ctx.add('tag.add.garrisoned'); ctx.add('rel.GarrisonOf.add'); ctx.add('rule.garrison')
 }
 
 export const leaveGarrison = (ctx: Context, u: Unit) => {

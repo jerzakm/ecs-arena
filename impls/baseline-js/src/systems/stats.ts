@@ -80,7 +80,9 @@ export const statsSystem = (ctx: Context) => {
         buf[at++] = u.gameId; buf[at++] = u.kind; buf[at++] = u.team; buf[at++] = u.x; buf[at++] = u.y; buf[at++] = k.fx.div(u.hp * 255, u.maxHp); buf[at++] = flagsOf(u)
       }
     }
-    world.renderChain = k.foldRender(world.renderChain, buf, size)
+    const chain = k.foldRender(world.renderChain, buf, size)
+    if (chain !== world.renderChain) add('rule.renderChain')
+    world.renderChain = chain
     end('stats.render')
     world.tick = ctx.tick
     ctx.tick++
