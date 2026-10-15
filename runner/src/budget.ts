@@ -107,5 +107,7 @@ const main = (): number => {
   return exitCode(verdicts, reportOnly)
 }
 
-if (process.argv[2] === '--child') child(process.argv[3], Number(process.argv[4]), process.argv[5])
-else process.exit(main())
+if (process.argv[1] === import.meta.filename) {
+  if (process.argv[2] === '--child') child(process.argv[3], Number(process.argv[4]), process.argv[5])
+  else process.exit(main())
+}
