@@ -34,7 +34,7 @@ export default createSim
 
 ### Save and load
 
-The runner asks for a save after each 100th tick. After the load tick of the scenario, it calls `load` with the newest save and replays the ticks after it. The hash trace must match a run without the load. A wrong `load` fails `pnpm verify` at the first replayed tick.
+The runner asks for a save after each 25th tick. After every 200th tick (199, 399 and so on), it calls `load` with the newest save and replays the 24 ticks after it. The hash trace must match a run without the loads. A wrong `load` fails `pnpm verify` at the first replayed tick.
 
 - Use the library API to list the entities and their data. If the library has a serialize API, use it.
 - Keep relation targets as `gameId` values in the save. Relink them by `gameId` in `load`.

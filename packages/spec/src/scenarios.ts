@@ -1,17 +1,17 @@
 import type { Scenario } from './contract.ts'
 
 const SEED = 0xec5a7e7a // SEEDS[0]
-const SMOKE_TICKS = 400; const SMOKE_LOAD_TICK = 362
+const SMOKE_TICKS = 400
 const base = [
-  { name: 'skirmish', targetPop: 800, wavePeriod: 200, maxSquadsPerWave: 70, surgePeriod: 120, surgeBase: 14, surgeCap: 1200, garrisonCap: 8, ordersPerTeam: 8, ticks: 2000, loadTick: 1562 },
-  { name: 'battle', targetPop: 3200, wavePeriod: 200, maxSquadsPerWave: 200, surgePeriod: 120, surgeBase: 40, surgeCap: 4800, garrisonCap: 32, ordersPerTeam: 32, ticks: 2000, loadTick: 1562 },
-  { name: 'war', targetPop: 9200, wavePeriod: 200, maxSquadsPerWave: 420, surgePeriod: 120, surgeBase: 100, surgeCap: 12000, garrisonCap: 128, ordersPerTeam: 128, ticks: 1000, loadTick: 762 },
+  { name: 'skirmish', targetPop: 800, wavePeriod: 200, maxSquadsPerWave: 70, surgePeriod: 120, surgeBase: 14, surgeCap: 1200, garrisonCap: 8, ordersPerTeam: 8, ticks: 2000, loadEvery: 200 },
+  { name: 'battle', targetPop: 3200, wavePeriod: 200, maxSquadsPerWave: 200, surgePeriod: 120, surgeBase: 40, surgeCap: 4800, garrisonCap: 32, ordersPerTeam: 32, ticks: 2000, loadEvery: 200 },
+  { name: 'war', targetPop: 9200, wavePeriod: 200, maxSquadsPerWave: 420, surgePeriod: 120, surgeBase: 100, surgeCap: 12000, garrisonCap: 128, ordersPerTeam: 128, ticks: 1000, loadEvery: 200 },
 ]
 
 export const SCENARIOS: Record<string, Scenario> = {}
 for (const b of base) {
   SCENARIOS[b.name] = { ...b, seed: SEED }
-  SCENARIOS[`${b.name}-smoke`] = { ...b, name: `${b.name}-smoke`, seed: SEED, ticks: SMOKE_TICKS, loadTick: SMOKE_LOAD_TICK }
+  SCENARIOS[`${b.name}-smoke`] = { ...b, name: `${b.name}-smoke`, seed: SEED, ticks: SMOKE_TICKS }
 }
 
 /** SPEC §11: timing uses `SEEDS[0]` (the seed of every `SCENARIOS` entry). Verify and the load budget use all of them. */

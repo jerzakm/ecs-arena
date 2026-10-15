@@ -42,6 +42,7 @@ First budget, skirmish seed 1, before any change (`--runs 3`):
 | 15 | `cleanup.cascade` naive share 1.40% in the budget (skirmish), 2.4% in the inner loop (a fresh process is faster than a warm loop) | The naive code also scans for each expired minion (an old minion is destroyed without a cascade, so the scan finds nothing, but a library without the index cannot know) | 1.4% | 1.6 to 1.9%, not enough (attempt 17) | kept |
 | 16 | `war` peaks 44.9k and 44.4k with seeds 2 and 3 (limit 42.5k) | `war` `targetPop` 8,000 to 9,200 | 49.7k, 44.9k, 44.4k | 54.1k, 48.6k, 46.6k | kept |
 | 17 | Attempt 15 gave only 1.6 to 1.9% in the budget (fresh process), because a skirmish has 1.8 departures and expiries a tick. More destroyed units a tick lift every scan-per-destroy naive code | `SUMMON_PERIOD` 120 to 30, `MINION_LIFETIME` 300 to 90 (SPEC §4, §6.6). Destroyed minions 0.7 to 3.1 a tick | cascade naive share 1.4 to 1.9%, churn ratio 1.48 to 1.8 | cascade 4.5 to 5.5%, churn ratio 2.25 to 2.47 | kept |
+| 18 | One load per run gives a naive `load` share of 0.43% to 0.56% (floor 2%) | Decision D21: `loadEvery` 200 replaces `loadTick`. The run loads the newest save after ticks 199, 399 and so on, and replays 24 ticks each time (10 loads in `skirmish` and `battle`, 5 in `war`) | `load` naive 0.6%, 0.5%, 0.6% | `load` naive 3.70%, 3.36%, 2.01%. `save` naive 9.90%, 7.35%, 4.19% (skirmish, battle, war) | kept |
 
 ## Table changes
 
@@ -55,24 +56,22 @@ First budget, skirmish seed 1, before any change (`--runs 3`):
 
 SPEC §6.7 step 5a (the veteran log). Each tick, each Veteran that is still alive appends its hp to its chronicle, at most 384 entries (`CHRONICLE_MAX`). Why constants could not do it: the kill rate of the game is 0.2 to 3 a tick, and the naive copy of an array of up to 384 numbers costs less than a hundredth of a tick, so a rate of kills never gave 2%. `baseline-js` keeps the set `veterans`. `koota` queries `Veteran, Chronicle, Health`. Both traces agree on all seeds.
 
-## Open failure: the `load` floor
+## The `load` floor (closed by D21)
 
-The naive load runs once in a run (D5: one load). Its time is about 4 to 6 ticks of work, and a floor of 2% of a 2,000 tick run is 40 ticks of work. All other 21 regions pass in all 3 scenarios and all 3 seeds.
+One load per run made the naive load about 0.5% of the total, against a floor of 2%. Attempts to raise it by changing the game (a bigger chronicle, a shorter run) did not work. The decision change D21 loads the newest save after every 200th tick. The run is about 12% longer because each load replays 24 ticks.
 
-| Scenario | Naive load share, seeds 1, 2, 3 (budget) | Normal load share | Needed |
-|---|---|---|---|
-| `skirmish` | 0.61%, 0.52%, 0.66% | 0.14% to 0.16% | 2% |
-| `battle` | 0.50%, 0.44%, 0.43% | 0.13% to 0.16% | 2% |
-| `war` | 0.56%, 1.05%, 0.73% | 0.17% to 0.20% | 2% |
+Budget after D21 (`pnpm budget skirmish battle war --runs 3 --report-only`, seed 1, share of the tick total):
 
-What was tried and why it stops here:
+| Region | Scenario | Normal share | Naive share | Naive over normal |
+|---|---|---|---|---|
+| `save` | `skirmish` | 2.16% | 9.90% | 4.76x |
+| `save` | `battle` | 1.97% | 7.35% | 3.73x |
+| `save` | `war` | 1.34% | 4.19% | 3.39x |
+| `load` | `skirmish` | 0.84% | 3.70% | 4.69x |
+| `load` | `battle` | 0.62% | 3.36% | 5.44x |
+| `load` | `war` | 0.41% | 2.01% | 4.55x |
 
-- The state grows with the chronicle (attempt 8), and that already counts in the numbers above.
-- A shorter run raises the share in inverse proportion to the ticks, so 2% needs a run of about 300 ticks, which is shorter than the smoke run and has no real fight.
-- A chronicle of 1,500 entries would reach about 2% in `skirmish`, but the veterans of a 1,000 tick run never fill it, and the hash input would grow four times.
-- The load cost is about the cost of one save, and a save is cheap per tick. A run has 80 saves and 1 load.
-
-Proposed decision change (the smallest one): D5 says "loads one save". Change it to "loads the newest save after every 200th tick" (a `loadEvery` of 200 instead of `loadTick`, with the replay of the ticks since the last save). That gives `skirmish` and `battle` 10 loads and `war` 5. The naive load share becomes about 6% (skirmish), 4.5% (battle) and 2.8 to 5% (war), and the normal share about 1.5%. The run gets about 6% longer, because each load replays 12 ticks. The change is in `runner/src/schedule.ts`, SPEC §10 and §11 and the goldens. No implementation code changes, because `Sim.load` already replaces the live state.
+All 22 regions pass in all 3 scenarios. The `war` load naive share has the thinnest margin (2.01%, spread 0.38% to 0.65% normal). The goldens are regenerated for all scenarios and seeds. No implementation code changed, because `Sim.load` already replaces the live state.
 
 ## Final state
 

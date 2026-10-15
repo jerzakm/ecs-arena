@@ -515,23 +515,23 @@ FNV-1a 32-bit over the snapshot. Feed each int32 as 4 bytes, little-endian.
 
 ## 10. Save and load
 
-The game saves the world at a fixed interval and loads one save. The hash trace must match a run without the load.
+The game saves the world at a fixed interval and loads the newest save at a fixed period. The hash trace must match a run without the loads.
 
-- **Save.** After each tick `t` with `t > 0` and `t % 25 == 0` _(tune)_, after the hash, the implementation saves the world. A new save replaces the old one.
-- **Load.** After tick `loadTick` (§11) and its hash, the implementation loads the newest save. Let `S` be the tick of that save. The run then continues from tick `S + 1` to the last tick. So ticks `S + 1` to `loadTick` run two times.
+- **Save.** After each tick `t` with `t > 0` and `t % 25 == 0` _(tune)_, after the hash, the implementation saves the world. A new save replaces the old one. A tick that loads (see Load) does not save.
+- **Load.** After each tick `t` with `(t + 1) % loadEvery == 0` (`loadEvery` is 200 _(tune)_, so `t` is 199, 399, and so on) and its hash, the implementation loads the newest save. Let `S` be the tick of that save: the last multiple of 25 below `t`, so `t - S` is 24. The run then continues from tick `S + 1`. Ticks `S + 1` to `t` run two times. The second pass over tick `t` does not load again. A scenario has `floor(ticks / loadEvery)` loads (10 in `skirmish` and `battle`, 5 in `war`, 2 in each smoke run).
 - **Contents.** A save holds all state that a later tick reads: every entity with every field, tag, buff, age and cooldown, every relation with its data, `lastSummon`, `bannered`, the `gameId` counter, and every world value (§8 item 1 and `Score`). A save is a deep copy. Ticks after the save do not change it. The form is free: a native world clone, bytes or another form.
 - **After load.** Native entity ids can change, but each `gameId` stays the same. The kernel grid must match §3.2 before the next search, so a full re-send is valid. No `Added`, `Removed` or `Changed` state from the discarded ticks can reach a later tick.
-- **Driver.** The runner drives the schedule from the scenario (`SAVE_INTERVAL` and `loadTick`) through `Sim.save()` and `Sim.load(state)`. Every run kind uses it, and a headline or deep run counts the save and load time in its total. The state that `save` returns is opaque to the runner. A load replaces the live state of the same sim.
-- **Trace length.** A full run has `ticks + (loadTick - S)` hashes, with `S = floor(loadTick / 25) * 25` (12 more in every scenario of §11). A run with `ticks` below `loadTick` never loads.
+- **Driver.** The runner drives the schedule from the scenario (`SAVE_INTERVAL` and `loadEvery`) through `Sim.save()` and `Sim.load(state)`. Every run kind uses it, and a headline or deep run counts the save and load time in its total. The state that `save` returns is opaque to the runner. A load replaces the live state of the same sim.
+- **Trace length.** A full run has `ticks + 24 * floor(ticks / loadEvery)` hashes: 2,240 in `skirmish` and `battle`, 1,120 in `war` and 448 in each smoke run.
 - **Check.** In verify mode the trace holds one hash for each tick in run order. Each hash must equal the golden hash of its tick. So the replayed ticks must give the same hashes as the first time.
 
 ## 11. Scenarios _(tune)_
 
-| Scenario | targetPop each team | wavePeriod | maxSquadsPerWave | surgePeriod | surgeBase | surgeCap each team | garrisonCap | ordersPerTeam | Ticks | loadTick | Smoke ticks | Smoke loadTick |
+| Scenario | targetPop each team | wavePeriod | maxSquadsPerWave | surgePeriod | surgeBase | surgeCap each team | garrisonCap | ordersPerTeam | Ticks | loadEvery | Smoke ticks | Smoke loadEvery |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `skirmish` | 800 | 200 | 70 | 120 | 14 | 1,200 | 8 | 8 | 2,000 | 1,562 | 400 | 362 |
-| `battle` | 3,200 | 200 | 200 | 120 | 40 | 4,800 | 32 | 32 | 2,000 | 1,562 | 400 | 362 |
-| `war` | 9,200 | 200 | 420 | 120 | 100 | 12,000 | 128 | 128 | 1,000 | 762 | 400 | 362 |
+| `skirmish` | 800 | 200 | 70 | 120 | 14 | 1,200 | 8 | 8 | 2,000 | 200 | 400 | 200 |
+| `battle` | 3,200 | 200 | 200 | 120 | 40 | 4,800 | 32 | 32 | 2,000 | 200 | 400 | 200 |
+| `war` | 9,200 | 200 | 420 | 120 | 100 | 12,000 | 128 | 128 | 1,000 | 200 | 400 | 200 |
 
 Every number in this table is _(tune)_. The `targetPop` values are first guesses for the peak targets below.
 

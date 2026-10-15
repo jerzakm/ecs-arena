@@ -49,7 +49,7 @@ An implementation is correct when its hash trace matches the golden for every ti
 - **Headline runs** time whole ticks only. When an implementation has a `tick()` function, the runner calls it. Otherwise the runner calls the phases in spec order.
 - **Deep-dive runs** call the phases one by one. They record the phase times, GC time, allocation and heap for each tick. `--deep` and `--record` add them. The report shows the overhead of the extra timers.
 - **Warmup.** Each run is a fresh child process. It does one full throwaway run of the same scenario before the timed run.
-- **Snapshot and restore.** The runner asks for a save after each 100th tick. After the load tick of the scenario, it loads the newest save and replays the ticks after it. The hash trace must match a run without the load. Every run kind uses this schedule (`runner/src/schedule.ts`), and the time of each save and load is in the total.
+- **Snapshot and restore.** The runner asks for a save after each 25th tick. After every 200th tick it loads the newest save and replays the 24 ticks after it. The hash trace must match a run without the loads. Every run kind uses this schedule (`runner/src/schedule.ts`), and the time of each save and load is in the total.
 
 ## Commands
 

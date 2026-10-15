@@ -34,8 +34,8 @@ describe.each([['baseline-js', baseline], ['koota', koota]] as const)('%s save',
   })
 
   it('runScheduled replays to the same final hash as a run without the load', () => {
-    const plain = createSim({ ...sc, loadTick: Infinity }, kernel)
-    runScheduled(plain, { ...sc, loadTick: Infinity }, { tick: () => run(plain, 0, 1) })
+    const plain = createSim({ ...sc, loadEvery: Infinity }, kernel)
+    runScheduled(plain, { ...sc, loadEvery: Infinity }, { tick: () => run(plain, 0, 1) })
     const sim = createSim(sc, kernel)
     runScheduled(sim, sc, { tick: () => run(sim, 0, 1) })
     expect(hashState(sim.snapshot())).toBe(hashState(plain.snapshot()))

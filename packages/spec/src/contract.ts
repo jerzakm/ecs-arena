@@ -15,8 +15,8 @@ export interface Scenario {
   garrisonCap: number
   /** Commander orders that each team gives every ORDER_PERIOD ticks (SPEC §6.12). */
   ordersPerTeam: number
-  /** The run loads the newest save after this tick and replays from there (SPEC §10). */
-  loadTick: number
+  /** The run loads the newest save after each tick `t` with `(t + 1) % loadEvery == 0` and replays from there (SPEC §10). */
+  loadEvery: number
 }
 
 /** SPEC §10: the runner asks for a save after each tick `t > 0` with `t % SAVE_INTERVAL == 0`. */
