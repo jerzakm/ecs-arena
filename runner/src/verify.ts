@@ -1,18 +1,20 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { SCENARIOS, hashState, kernel, PHASES, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { runScheduled } from './schedule.ts'
+import { SCENARIOS, SEEDS, goldenFile, hashState, kernel, runPhases, withSeed, type CreateSim, type Scenario } from '@ecs-arena/spec'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
-/** Hash of the snapshot after each tick (SPEC §9 verify mode). */
+/** Hash of the snapshot after each tick, replayed ticks included (SPEC §9 and §10 verify mode). */
 export const runTrace = (createSim: CreateSim, scenario: Scenario, ticks = scenario.ticks): string[] => {
   const sim = createSim(scenario, kernel)
   const trace: string[] = []
-  for (let t = 0; t < ticks; t++) {
-    for (const p of PHASES) sim.phases[p]()
-    trace.push(hashState(sim.snapshot()))
-  }
+  runScheduled(sim, { ...scenario, ticks }, {
+    tick: () => runPhases(sim),
+    after: () => void trace.push(hashState(sim.snapshot())),
+  })
+  sim.dispose?.()
   return trace
 }
 
@@ -39,25 +41,28 @@ const main = async (): Promise<number> => {
       console.error(`unknown scenario ${name}`)
       return 2
     }
-    const trace = runTrace(createSim, scenario)
-    const file = resolve(ROOT, 'goldens', `${name}.json`)
-    if (write) {
-      mkdirSync(dirname(file), { recursive: true })
-      writeFileSync(file, JSON.stringify(trace))
-      console.log(`wrote ${file} (${trace.length} ticks)`)
-      continue
-    }
-    if (!existsSync(file)) {
-      console.error(`FAIL ${impl} ${name}: no golden at ${file}`)
-      failed = true
-      continue
-    }
-    const golden = JSON.parse(readFileSync(file, 'utf8')) as string[]
-    const d = firstDivergence(trace, golden)
-    if (d < 0) console.log(`ok   ${impl} ${name} (${trace.length} ticks)`)
-    else {
-      console.error(`FAIL ${impl} ${name}: first divergent tick ${d} (got ${trace[d]}, golden ${golden[d]})`)
-      failed = true
+    for (let i = 0; i < SEEDS.length; i++) {
+      const trace = runTrace(createSim, withSeed(scenario, i))
+      const label = `${impl} ${name} seed ${i + 1}`
+      const file = resolve(ROOT, 'goldens', goldenFile(name, i))
+      if (write) {
+        mkdirSync(dirname(file), { recursive: true })
+        writeFileSync(file, JSON.stringify(trace))
+        console.log(`wrote ${file} (${trace.length} ticks)`)
+        continue
+      }
+      if (!existsSync(file)) {
+        console.error(`FAIL ${label}: no golden at ${file}`)
+        failed = true
+        continue
+      }
+      const golden = JSON.parse(readFileSync(file, 'utf8')) as string[]
+      const d = firstDivergence(trace, golden)
+      if (d < 0) console.log(`ok   ${label} (${trace.length} ticks)`)
+      else {
+        console.error(`FAIL ${label}: first divergent tick ${d} (got ${trace[d]}, golden ${golden[d]})`)
+        failed = true
+      }
     }
   }
   return failed ? 1 : 0

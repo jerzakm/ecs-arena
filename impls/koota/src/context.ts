@@ -1,7 +1,6 @@
 import { createWorld, type Entity, type QueryParameter, type World } from 'koota'
-import type { CreateSim, Scenario } from '@ecs-arena/spec'
-import { CELL } from './spatial.ts'
-import { Clock, GameId, Metrics, NextId, Score } from './components.ts'
+import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { Clock, GameId, Metrics, NextId, Score, Unit } from './components.ts'
 import { observeDirty } from './derived-stats.ts'
 import { createQueries, type Queries } from './queries.ts'
 
@@ -11,7 +10,12 @@ export interface Context {
   // Config
   k: Kernel
   scenario: Scenario
-  gridN: number
+  grid: SpatialGrid // handle: entity id
+  unitAt: Entity[] // grid handle -> unit
+  teamAt: number[] // grid handle -> team
+  inGrid: boolean[] // grid handle -> the unit is in the grid (a garrisoned unit is not)
+  unitById: Map<number, Entity> // gameId -> unit, for the keys of commander orders (SPEC 6.12)
+  idAt: number[] // grid handle -> gameId
   // State
   world: World
   q: Queries
@@ -35,6 +39,14 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
   const q = createQueries()
   const dirty = new Set<Entity>()
   observeDirty(world, dirty)
+  const grid = new SpatialGrid()
+  const inGrid: boolean[] = []
+  const unitById = new Map<number, Entity>()
+  const idAt: number[] = []
+  world.onRemove(Unit, (e) => {
+    if (inGrid[e.id()]) grid.remove(e.id())
+    unitById.delete(idAt[e.id()])
+  })
 
   return {
     k,
@@ -42,7 +54,12 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
     world,
     q,
     dirty,
-    gridN: Math.ceil(k.ARENA / CELL),
+    grid,
+    unitAt: [],
+    teamAt: [],
+    inGrid,
+    unitById,
+    idAt,
     tickNow: () => world.get(Clock)!.tick,
     nextId: () => {
       const id = world.get(NextId)!.value

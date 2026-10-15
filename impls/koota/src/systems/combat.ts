@@ -1,8 +1,7 @@
 import type { Entity } from 'koota'
 import type { Context } from '../context.ts'
-import { Age, Burn, Dead, Fleeing, GameId, Haste, Health, Metrics, Position, Projectile, Spent, Stats, Stun } from '../components.ts'
+import { Age, Burn, Dead, Fleeing, GameId, Haste, Health, Metrics, Overwhelmed, Position, Projectile, Spent, Stats, Stun, Team, Unit } from '../components.ts'
 import { FiredBy, LastHitBy, Targets, Threat } from '../relations.ts'
-import { buildGrid, forNear } from '../spatial.ts'
 
 interface Damage { victim: Entity; victimId: number; attacker: Entity | undefined; attackerId: number; team: number; value: number }
 interface Incoming { damage: number; heal: number; stun: boolean; burn: boolean; haste: boolean }
@@ -20,7 +19,6 @@ export const combatSystem = (ctx: Context) => {
 
   return () => {
     const tick = ctx.tickNow()
-    const grid = buildGrid(ctx)
     const damages: Damage[] = []
     const incoming = new Map<Entity, Incoming>()
     const incomingOf = (e: Entity) => {
@@ -28,7 +26,19 @@ export const combatSystem = (ctx: Context) => {
       if (!i) incoming.set(e, i = { damage: 0, heal: 0, stun: false, burn: false, haste: false })
       return i
     }
+    // Overwhelmed: 6 or more enemy units target the victim at the start of combat.
+    const fanIn = new Map<Entity, number>()
+    for (const a of world.query(Unit, Targets('*'))) {
+      const v = a.targetFor(Targets)!
+      if (a.get(Team)!.value !== v.get(Team)!.value) fanIn.set(v, (fanIn.get(v) ?? 0) + 1)
+    }
+    const over = new Set<Entity>()
+    for (const [v, n] of fanIn) if (n >= k.OVERWHELM_ATTACKERS) over.add(v)
+    for (const e of world.query(Overwhelmed)) if (!over.has(e)) e.remove(Overwhelmed)
+    for (const e of over) if (!e.has(Overwhelmed)) e.add(Overwhelmed)
+
     const hurt = (victim: Entity, attacker: Entity | undefined, attackerId: number, team: number, value: number) => {
+      if (over.has(victim)) value = k.overwhelmDamage(value)
       incomingOf(victim).damage += value
       damages.push({ victim, victimId: gid(victim), attacker, attackerId, team, value })
     }
@@ -43,10 +53,11 @@ export const combatSystem = (ctx: Context) => {
       const crit = pr.crit === 1
       const shooter = e.targetFor(FiredBy)
       if (pr.ownerKind === KIND.MAGE) {
-        forNear(ctx, grid, p.x, p.y, k.SPLASH_RADIUS, (v) => {
-          if (v.team === pr.ownerTeam || !inRange(p.x, p.y, v.x, v.y, k.SPLASH_RADIUS)) return
-          hurt(v.e, shooter, pr.owner, pr.ownerTeam, k.damage(pr.attack, v.e.get(Stats)!.armor, crit))
-          incomingOf(v.e).burn = true
+        ctx.grid.forNear(p.x, p.y, k.SPLASH_RADIUS, (h) => {
+          if (ctx.teamAt[h] === pr.ownerTeam) return
+          const v = ctx.unitAt[h]
+          hurt(v, shooter, pr.owner, pr.ownerTeam, k.damage(pr.attack, v.get(Stats)!.armor, crit))
+          incomingOf(v).burn = true
         })
       } else {
         const armor = t.get(Stats)!.armor

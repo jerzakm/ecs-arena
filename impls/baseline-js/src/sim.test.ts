@@ -2,9 +2,9 @@
 // Rules that need a fight run the skirmish scenario once, then check every tick against the tick before it.
 // "p" is the snapshot at the start of a tick, "c" the snapshot at its end.
 import { describe, it } from 'vitest'
-import { PHASES, SCENARIOS, kernel, type Scenario } from '@ecs-arena/spec'
+import { PHASES, kernel, type Scenario } from '@ecs-arena/spec'
 import { expect } from './fast-expect.ts'
-import { FLEEING, ROUTED, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
+import { BANNERED, FLEEING, GARRISONED, OVERWHELMED, ROUTED, SMALL, VETERAN, parse, scenario, type Parsed, type PProjectile, type PUnit } from './testkit.ts'
 import createSim from './index.ts'
 
 /** Runs `sc.ticks` ticks and returns the parsed snapshot after each one. */
@@ -20,9 +20,9 @@ const { KIND, BUFF, UNIT_STATS, ITEMS, FX, SQUADS, PURPOSE, distSq, stepToward, 
 
 const memo = <T>(f: () => T) => { let v: T | undefined; return () => (v ??= f()) }
 
-const SEEDS = [SCENARIOS.skirmish.seed, 5]
+const SEEDS = [SMALL.seed, 5]
 const fights = memo(() => SEEDS.map((seed) => {
-  const sc = { ...SCENARIOS.skirmish, seed }
+  const sc = { ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed }
   return { sc, h: run(sc) }
 }))
 
@@ -35,7 +35,7 @@ const stepsOf = (seed: number, h: Parsed[]): Step[] => {
 const steps = memo(() => fights().flatMap(({ sc, h }) => stepsOf(sc.seed, h)))
 /** A bigger fight with a different seed, for rules that need many kills by one unit. */
 const veteranFight = memo(() => {
-  const sc = { ...SCENARIOS.skirmish, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
+  const sc = { ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
   return stepsOf(sc.seed, run(sc))
 })
 
@@ -44,6 +44,8 @@ const fleeing = (u: PUnit) => (u.flags & FLEEING) !== 0
 const homeX = (team: number) => (team === 0 ? 0 : kernel.MAX_COORD)
 const inRange = (a: { x: number; y: number }, b: { x: number; y: number }, r: number) => distSq(a.x, a.y, b.x, b.y) <= r * r
 const vanished = (s: Step) => s.p.units.filter((u) => !s.cm.has(u.gameId))
+/** SPEC 6.4 step 4: at least 6 enemy units target the victim. Targets after ai/target are the targets at the start of combat. */
+const overwhelmedAt = (s: Step, v: PUnit) => s.c.units.filter((a) => a.target === v.gameId && a.team !== v.team).length >= kernel.OVERWHELM_ATTACKERS
 /** A fleeing unit that starts its move on its home edge, or one step from it, leaves in that tick. */
 const leaves = (u: PUnit) => fleeing(u) && Math.abs(u.x - homeX(u.team)) <= (stunned(u) ? 0 : u.speed)
 /** A unit that was not fleeing and vanished beside its home edge may have died or have fled and left in the same tick. */
@@ -52,6 +54,11 @@ const ambiguous = (s: Step) => vanished(s).some((u) => !leaves(u) && Math.abs(u.
 const spawned = (s: Step) => s.c.units.some((u) => !s.pm.has(u.gameId))
 const attacked = (p: PUnit, c: PUnit) => p.cooldown === 0 && c.cooldown === UNIT_STATS[c.kind].cooldown - 1
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+/** SPEC §4 set bonus of a unit, from its items only. */
+const setBonus = (u: PUnit, f: 'attack' | 'armor' | 'speed') => {
+  const has = (k: number) => u.items.some((it) => it.kind === k)
+  return sum(kernel.SETS.map((st) => (has(st.items[0]) && has(st.items[1]) ? st[f] : 0)))
+}
 const MELEE = new Set<number>([KIND.WARRIOR, KIND.MINION, KIND.WARLORD])
 const STUNNERS = new Set<number>([KIND.WARRIOR, KIND.WARLORD])
 
@@ -59,7 +66,7 @@ const STUNNERS = new Set<number>([KIND.WARRIOR, KIND.WARLORD])
 type Rule = 'none' | 'retaliation' | 'keep' | 'think' | 'idle' | 'heal-keep' | 'heal-think' | 'heal-idle'
 const expectedTarget = (p: Parsed, pm: Map<number, PUnit>, u: PUnit, t: number): { id: number; rule: Rule; ties: number } => {
   const st = UNIT_STATS[u.kind]
-  const think = (u.gameId + t) % 4 === 0
+  const think = (u.gameId + t) % kernel.THINK_INTERVAL === 0
   const cur = u.target === -1 ? undefined : pm.get(u.target)
   if (fleeing(u) || u.kind === KIND.SUMMONER) return { id: -1, rule: 'none', ties: 0 }
   if (u.kind === KIND.HEALER) {
@@ -136,7 +143,7 @@ describe('snapshot layout', () => {
     expect(s.kills).toEqual([0, 0])
     expect(s.damage).toEqual([0, 0])
     expect(s.score).toEqual([0, 0])
-    expect(s.shrines).toEqual([1, 2, 3, 4, 5, 6, 7].map((gameId) => ({ gameId, owner: -1, progress: 0 })))
+    expect(s.shrines).toEqual([1, 2, 3, 4, 5, 6, 7].map((gameId) => ({ gameId, owner: -1, progress: 0, garrison: [] })))
     expect(s.projectiles).toEqual([])
     expect(s.ground).toEqual([])
   })
@@ -240,7 +247,7 @@ describe('spawn order and warbands', () => {
       const by = new Map(units.map((u) => [u.gameId, u]))
       const warlords = units.filter((u) => u.kind === KIND.WARLORD)
       warlords.forEach((w, wi) => {
-        expect(w.y).toBe(16 * FX + randInt(224, SCENARIOS.skirmish.seed, 0, teamGameId(n), PURPOSE.SPAWN_Y, wi) * FX)
+        expect(w.y).toBe(16 * FX + randInt(224, SMALL.seed, 0, teamGameId(n), PURPOSE.SPAWN_Y, wi) * FX)
         near(w.x, (n === 0 ? 8 : 248) * FX, w.speed)
         units.filter((u) => u.leader === w.gameId).forEach((l, j) => {
           expect(l.y).toBe(w.y + (2 * j - 3) * 4 * FX)
@@ -272,21 +279,28 @@ describe('spawn order and warbands', () => {
     for (const u of s.units) {
       expect(u.hp).toBe(UNIT_STATS[u.kind].maxHp)
       expect(u.cooldown).toBe(0)
-      expect(u.attack).toBe(UNIT_STATS[u.kind].attack + sum(u.items.map((it) => ITEMS[it.kind].attack * it.quality)))
+      expect(u.attack).toBe(UNIT_STATS[u.kind].attack + sum(u.items.map((it) => ITEMS[it.kind].attack * it.quality)) + setBonus(u, 'attack'))
     }
   })
 })
 
+/** SPEC 6.13 from the snapshot: the root of the MemberOf and ChildOf chain is a warlord and the unit is not the root. */
+const bannerOf = (byId: Map<number, PUnit>, u: PUnit): boolean => {
+  let root = u
+  for (let p = byId.get(root.leader !== -1 ? root.leader : root.parent); p; p = byId.get(root.leader !== -1 ? root.leader : root.parent)) root = p
+  return root !== u && root.kind === KIND.WARLORD
+}
+
 describe('stats recompute', () => {
-  const base = (u: PUnit, f: 'attack' | 'armor' | 'speed') => UNIT_STATS[u.kind][f] + sum(u.items.map((it) => ITEMS[it.kind][f] * it.quality))
+  const base = (u: PUnit, f: 'attack' | 'armor' | 'speed') => UNIT_STATS[u.kind][f] + sum(u.items.map((it) => ITEMS[it.kind][f] * it.quality)) + setBonus(u, f)
 
   it('derives attack, armor and speed from base, items, Veteran and Haste on every tick', () => {
     let hasted = 0, veterans = 0
-    for (const { c } of steps()) for (const u of c.units) {
+    for (const { c, cm } of steps()) for (const u of c.units) {
       const haste = u.buffs.some((b) => b.kind === BUFF.HASTE)
-      const vet = (u.flags & VETERAN) ? 2 * Math.min(3, Math.trunc(u.killCount / 3)) : 0
+      const vet = (u.flags & VETERAN) ? 2 * Math.min(3, Math.trunc(u.killCount / kernel.VETERAN_KILLS)) : 0
       expect(u.attack).toBe(base(u, 'attack') + vet)
-      expect(u.armor).toBe(base(u, 'armor'))
+      expect(u.armor).toBe(base(u, 'armor') + (bannerOf(cm, u) ? kernel.BANNER_ARMOR : 0))
       expect(u.speed).toBe(haste ? Math.trunc((base(u, 'speed') * 3) / 2) : base(u, 'speed'))
       if (haste) hasted++
       if (u.flags & VETERAN) veterans++
@@ -297,11 +311,11 @@ describe('stats recompute', () => {
 
   it('shows a pickup in the stats of the same tick', () => {
     let pickups = 0
-    for (const { p, c } of steps()) {
+    for (const { p, c, cm } of steps()) {
       const ground = new Set(p.ground.map((g) => g.gameId))
       for (const u of c.units) for (const it of u.items) if (ground.has(it.gameId)) {
         pickups++
-        expect(u.armor).toBe(base(u, 'armor'))
+        expect(u.armor).toBe(base(u, 'armor') + (bannerOf(cm, u) ? kernel.BANNER_ARMOR : 0))
       }
     }
     expect(pickups).toBeGreaterThan(0)
@@ -474,14 +488,19 @@ describe('projectiles', () => {
     expect(hits).toBeGreaterThan(0)
   })
 
+  // A projectile that spawns on top of its target is rare, so more seeds run until one shows it.
   it('keeps a projectile that is created on its target position until the next tick', () => {
     let onTarget = 0
-    for (const s of [...steps(), ...veteranFight()]) for (const pr of s.c.projectiles) {
-      if (pr.age !== 0) continue
-      const t = s.cm.get(pr.target)
-      if (t && t.x === pr.x && t.y === pr.y) onTarget++
-      expect(s.c.projectiles.filter((x) => x.gameId === pr.gameId)).toHaveLength(1)
+    const check = (list: Step[]) => {
+      for (const s of list) for (const pr of s.c.projectiles) {
+        if (pr.age !== 0) continue
+        const t = s.cm.get(pr.target)
+        if (t && t.x === pr.x && t.y === pr.y) onTarget++
+        expect(s.c.projectiles.filter((x) => x.gameId === pr.gameId)).toHaveLength(1)
+      }
     }
+    check([...steps(), ...veteranFight()])
+    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
     expect(onTarget).toBeGreaterThan(0)
   })
 
@@ -492,21 +511,26 @@ describe('projectiles', () => {
     for (const s of steps()) {
       if (spawned(s) || vanished(s).length > 0 || s.c.units.some((u) => fleeing(u) && !fleeing(s.pm.get(u.gameId) ?? u))) continue
       const expected = [0, 0]
+      let unknownOwner = false
+      const scaled = (victim: PUnit, v: number) => (overwhelmedAt(s, victim) ? kernel.overwhelmDamage(v) : v)
       for (const pr of s.p.projectiles) {
         const t = s.cm.get(pr.target)!
         const at = stepToward(pr.x, pr.y, t.x, t.y, pr.speed)
         if (at[0] !== t.x || at[1] !== t.y) continue
         const fired = fireTick(s, pr)
-        const o = (s.h[fired - 1].units.find((u) => u.gameId === pr.owner) ?? s.h[fired].units.find((u) => u.gameId === pr.owner))!
+        // An owner that spawned in the firing tick has no start-of-tick record, and its end-of-tick attack can differ (a pickup).
+        const o = s.h[fired - 1].units.find((u) => u.gameId === pr.owner)
+        if (!o) { unknownOwner = true; break }
         const crit = isCrit(s.seed, fired, pr.owner)
         if (o.kind === KIND.MAGE) {
-          for (const v of s.c.units) if (v.team !== o.team && inRange(v, t, 2 * FX)) { expected[o.team] += kernel.damage(o.attack, s.pm.get(v.gameId)?.armor ?? v.armor, crit); splash++ }
-        } else { expected[o.team] += kernel.volleyDamage(o.attack, s.pm.get(t.gameId)!.armor, crit); volley++ }
+          for (const v of s.c.units) if (v.team !== o.team && inRange(v, t, 2 * FX)) { expected[o.team] += scaled(v, kernel.damage(o.attack, s.pm.get(v.gameId)?.armor ?? v.armor, crit)); splash++ }
+        } else { expected[o.team] += scaled(t, kernel.volleyDamage(o.attack, s.pm.get(t.gameId)!.armor, crit)); volley++ }
       }
+      if (unknownOwner) continue
       for (const u of s.p.units) {
         const now = s.cm.get(u.gameId)!
         if (!MELEE.has(u.kind) || !attacked(u, now)) continue
-        expected[u.team] += kernel.damage(u.attack, s.pm.get(now.target)!.armor, isCrit(s.seed, s.t, u.gameId))
+        expected[u.team] += scaled(s.cm.get(now.target)!, kernel.damage(u.attack, s.pm.get(now.target)!.armor, isCrit(s.seed, s.t, u.gameId)))
         melee++
       }
       expect([s.c.damage[0] - s.p.damage[0], s.c.damage[1] - s.p.damage[1]]).toEqual(expected)
@@ -516,6 +540,45 @@ describe('projectiles', () => {
     expect(splash).toBeGreaterThan(0)
     expect(volley).toBeGreaterThan(0)
     expect(melee).toBeGreaterThan(0)
+  })
+})
+
+describe('Banner', () => {
+  // A banner falls only when a warlord dies or a leader flees from its warlord, which is rare, so more seeds run until one shows it.
+  it('flags a unit exactly while the root of its chain is a warlord and it is not the root, every tick', () => {
+    let on = 0, lost = 0
+    const check = (list: Step[]) => {
+      for (const s of list) for (const u of s.c.units) {
+        const banner = bannerOf(s.cm, u)
+        expect(!!(u.flags & BANNERED)).toBe(banner)
+        if (banner) on++
+        const was = s.pm.get(u.gameId)
+        if (was && !banner && (was.flags & BANNERED)) lost++
+      }
+    }
+    check([...steps(), ...veteranFight()])
+    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
+    expect(on).toBeGreaterThan(0)
+    expect(lost).toBeGreaterThan(0)
+  })
+})
+
+describe('Overwhelmed', () => {
+  it('tags a unit exactly while 6 or more enemy units target it, and removes the tag when the count drops', () => {
+    let tagged = 0, untaggedTargeted = 0, cleared = 0
+    for (const s of [...steps(), ...veteranFight()]) {
+      if (vanished(s).length > 0 || s.c.units.some((u) => fleeing(u) && !fleeing(s.pm.get(u.gameId) ?? u))) continue
+      for (const v of s.c.units) {
+        const on = !!(v.flags & OVERWHELMED)
+        expect(on).toBe(overwhelmedAt(s, v))
+        if (on) tagged++
+        else if (s.c.units.some((a) => a.target === v.gameId && a.team !== v.team)) untaggedTargeted++
+        if (!on && (s.pm.get(v.gameId)?.flags ?? 0) & OVERWHELMED) cleared++
+      }
+    }
+    expect(tagged).toBeGreaterThan(0)
+    expect(untaggedTargeted).toBeGreaterThan(0)
+    expect(cleared).toBeGreaterThan(0)
   })
 })
 
@@ -687,7 +750,7 @@ describe('morale, rout and fleeing', () => {
   it('never recovers: Fleeing, Routed and Veteran stay on a surviving unit', () => {
     for (const s of steps()) for (const u of s.p.units) {
       const now = s.cm.get(u.gameId)
-      if (now) expect(now.flags & u.flags).toBe(u.flags)
+      if (now) expect(now.flags & u.flags & (FLEEING | VETERAN | ROUTED)).toBe(u.flags & (FLEEING | VETERAN | ROUTED))
     }
   })
 
@@ -858,20 +921,41 @@ describe('Threat', () => {
   })
 })
 
+describe('Trail', () => {
+  it('appends the new position of each unit that moved, drops the oldest point at TRAIL_POINTS, and leaves a unit that stayed alone', () => {
+    let grew = 0, capped = 0, stayed = 0
+    for (const s of steps()) for (const u of s.c.units) {
+      const old = s.pm.get(u.gameId)
+      if (!old) { expect(u.trailCount).toBeLessThanOrEqual(1); continue }
+      if (u.x === old.x && u.y === old.y) {
+        expect(u.trailCount).toBe(old.trailCount); expect([u.trailNewestX, u.trailNewestY]).toEqual([old.trailNewestX, old.trailNewestY]); stayed++
+      } else {
+        expect(u.trailCount).toBe(Math.min(kernel.TRAIL_POINTS, old.trailCount + 1))
+        expect([u.trailNewestX, u.trailNewestY]).toEqual([u.x, u.y])
+        grew++
+        if (old.trailCount === kernel.TRAIL_POINTS) capped++
+      }
+    }
+    expect(grew).toBeGreaterThan(0)
+    expect(capped).toBeGreaterThan(0)
+    expect(stayed).toBeGreaterThan(0)
+  })
+})
+
 describe('Veteran and chronicle', () => {
-  it('makes a unit a Veteran at 3 kills and gives it a chronicle with the promotion mark', () => {
+  it('makes a unit a Veteran at VETERAN_KILLS kills and gives it a chronicle with the promotion mark', () => {
     let promoted = 0
     for (const s of steps()) for (const u of s.c.units) {
-      expect((u.flags & VETERAN) !== 0).toBe(u.killCount >= 3)
-      if (!(u.flags & VETERAN)) expect(u.chronicle).toEqual([])
-      else expect(u.chronicle.length).toBeGreaterThanOrEqual(1)
+      expect((u.flags & VETERAN) !== 0).toBe(u.killCount >= kernel.VETERAN_KILLS)
+      if (!(u.flags & VETERAN)) expect(u.chronicleCount).toBe(0)
+      else expect(u.chronicleCount).toBeGreaterThanOrEqual(1)
       const old = s.pm.get(u.gameId)
       if (old && !(old.flags & VETERAN) && (u.flags & VETERAN)) { expect(u.chronicle).toEqual([-1]); promoted++ }
     }
     expect(promoted).toBeGreaterThan(0)
   })
 
-  it('appends one victim kind for each kill, oldest first, and keeps the last 4', () => {
+  it('appends one victim kind for each kill, oldest first, and keeps the last CHRONICLE_MAX entries', () => {
     let appended = 0, capped = 0
     for (const s of veteranFight()) {
       const kinds = vanished(s).filter((v) => !leaves(v)).map((v) => v.kind)
@@ -880,13 +964,12 @@ describe('Veteran and chronicle', () => {
         if (!now || !(u.flags & VETERAN)) continue
         const gained = now.killCount - u.killCount
         expect(gained).toBeGreaterThanOrEqual(0)
-        const kept = Math.min(4, u.chronicle.length + gained)
-        expect(now.chronicle).toHaveLength(kept)
-        const old = Math.max(0, kept - gained)
+        expect(now.chronicleCount).toBe(Math.min(kernel.CHRONICLE_MAX, u.chronicleCount + gained))
+        const old = Math.max(0, now.chronicle.length - gained) // the entries of the tick before that are still in the tail
         expect(now.chronicle.slice(0, old)).toEqual(u.chronicle.slice(u.chronicle.length - old))
         for (const k of now.chronicle.slice(old)) expect(kinds).toContain(k)
         appended += gained
-        if (u.chronicle.length + gained > 4) capped++
+        if (u.chronicleCount + gained > kernel.CHRONICLE_MAX) capped++
       }
     }
     expect(appended).toBeGreaterThan(0)
@@ -895,6 +978,7 @@ describe('Veteran and chronicle', () => {
 
   it('credits killCount only for units that were destroyed in that tick', () => {
     for (const s of steps()) {
+      if (spawned(s)) continue // a unit that spawns and dies in one tick can give a kill and is in no snapshot
       const gained = sum(s.p.units.flatMap((u) => { const now = s.cm.get(u.gameId); return now ? [now.killCount - u.killCount] : [] }))
       expect(gained).toBeLessThanOrEqual(vanished(s).filter((v) => !leaves(v)).length)
     }
@@ -1045,7 +1129,7 @@ describe('buffs', () => {
 })
 
 describe('winner', () => {
-  it.each([[7, 0], [42, 1]])('seed %i: stays -1 while both teams have units, is set once to the team that still has units, and never changes', (seed, team) => {
+  it.each([[112, 0], [140, 1]])('seed %i: stays -1 while both teams have units, is set once to the team that still has units, and never changes', (seed, team) => {
     const h = run(scenario({ seed, ticks: 1600 }))
     const at = h.findIndex((s) => s.winner !== -1)
     expect(at).toBeGreaterThan(0)
@@ -1059,6 +1143,229 @@ describe('winner', () => {
 
   it('does not name a winner at tick 0', () => {
     expect(run(scenario({ targetPop: 1000, maxSquadsPerWave: 2 }))[0].winner).toBe(-1)
+  })
+})
+
+describe('Garrison', () => {
+  const cap = SMALL.garrisonCap
+  const garrisoned = (u: PUnit) => (u.flags & GARRISONED) !== 0
+  const shrinePos = (i: number) => ({ x: 128 * FX, y: (16 + 32 * i) * FX })
+  const d2 = (u: PUnit, i: number) => distSq(u.x, u.y, shrinePos(i).x, shrinePos(i).y)
+
+  // One streaming pass over many fights with garrisons on. It keeps two snapshots at a time, since the parsed
+  // history of four fights does not fit in memory. Each rule collects its violations, and each test reads its own.
+  const pass = memo(() => {
+    const bad: Record<string, string[]> = {}
+    const seen: Record<string, number> = { listed: 0, entered: 0, ownerChanged: 0, held: 0, burned: 0, exitOwner: 0, exitFlee: 0, counted: 0 }
+    const rule = (name: string, ok: boolean, info: () => string) => { if (!ok) (bad[name] ??= []).push(info()) }
+    for (const seed of [SMALL.seed, 11, 13, 21, 5, 7, 9, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61]) {
+      const sc = { ...SMALL, seed }
+      const sim = createSim(sc, kernel)
+      const tickOf = () => { for (const ph of PHASES) sim.phases[ph](); return parse(sim.snapshot()) }
+      let p = tickOf()
+      for (let t = 1; t < sc.ticks; t++) {
+        const c = tickOf()
+        const cm = index(c)
+        const at = `seed ${seed} tick ${c.tick}`
+        const targeted = new Set([...c.units.map((u) => u.target), ...c.projectiles.map((q) => q.target)])
+        const listed = new Set<number>()
+        c.shrines.forEach((sh, i) => {
+          rule('lists', sh.garrison.every((id, k) => k === 0 || id > sh.garrison[k - 1]) && sh.garrison.length <= cap, () => `${at} shrine ${i}`)
+          for (const id of sh.garrison) {
+            const u = cm.get(id)
+            rule('lists', !!u && garrisoned(u) && u.team === sh.owner && inRange(u, shrinePos(i), 4 * FX) && !fleeing(u), () => `${at} unit ${id}`)
+            listed.add(id)
+            seen.listed++
+          }
+          if (sh.owner === -1) { rule('fills', sh.garrison.length === 0, () => `${at} shrine ${i} unowned`); return }
+          const eligible = c.units.filter((u) => u.team === sh.owner && !fleeing(u) && inRange(u, shrinePos(i), 4 * FX))
+          rule('fills', sh.garrison.length === Math.min(cap, eligible.length), () => `${at} shrine ${i}`)
+          const before = new Set(p.shrines[i].owner === sh.owner ? p.shrines[i].garrison : [])
+          const fresh = eligible.filter((u) => garrisoned(u) && !before.has(u.gameId))
+          const left = eligible.filter((u) => !garrisoned(u))
+          for (const a of fresh) for (const b of left) rule('fills', d2(a, i) < d2(b, i) || (d2(a, i) === d2(b, i) && a.gameId < b.gameId), () => `${at} order ${a.gameId} ${b.gameId}`)
+          seen.entered += fresh.length
+          if (p.shrines[i].owner !== sh.owner) seen.ownerChanged++
+        })
+        rule('lists', c.units.filter(garrisoned).length === listed.size, () => `${at} flag count`)
+        for (const u of c.units) {
+          if (fleeing(u)) rule('exits', !garrisoned(u), () => `${at} fleeing unit ${u.gameId} garrisoned`)
+          if (garrisoned(u)) rule('still', u.target === -1 && !targeted.has(u.gameId), () => `${at} unit ${u.gameId} targeted`)
+        }
+        for (const u of p.units) {
+          const now = cm.get(u.gameId)
+          if (!garrisoned(u) || !now) continue
+          rule('still', now.x === u.x && now.y === u.y && now.target === -1, () => `${at} unit ${u.gameId} moved`)
+          seen.held++
+          const burn = u.buffs.some((b) => b.kind === BUFF.BURN)
+          rule('quiet', u.hp - now.hp === 0 || (u.hp - now.hp === kernel.BURN_DAMAGE && burn), () => `${at} unit ${u.gameId} hp ${u.hp} -> ${now.hp}`)
+          rule('quiet', now.cooldown <= u.cooldown, () => `${at} unit ${u.gameId} cooldown`)
+          if (now.hp < u.hp) seen.burned++
+        }
+        p.shrines.forEach((sh, i) => {
+          const changed = sh.owner !== c.shrines[i].owner
+          for (const id of sh.garrison) {
+            const now = cm.get(id)
+            if (!now) continue
+            if (changed) { rule('exits', !garrisoned(now), () => `${at} unit ${id} stays after a capture`); seen.exitOwner++ }
+            else if (!garrisoned(now)) { rule('exits', fleeing(now), () => `${at} unit ${id} left for no reason`); seen.exitFlee++ }
+          }
+        })
+        const max = kernel.SHRINE_PROGRESS_MAX
+        c.shrines.forEach((sh, i) => {
+          const near = c.units.filter((u) => !fleeing(u) && inRange(u, shrinePos(i), 4 * FX))
+          const step = Math.max(-5, Math.min(5, near.filter((u) => u.team === 0).length - near.filter((u) => u.team === 1).length))
+          rule('capture', sh.progress === Math.max(-max, Math.min(max, p.shrines[i].progress + step)), () => `${at} shrine ${i}`)
+          if (p.shrines[i].garrison.length > 0) seen.counted++
+        })
+        p = c
+      }
+    }
+    return { bad, seen }
+  })
+
+  it('lists the garrisoned units under their shrine in gameId order: owner team, within 4 tiles, not fleeing, at most garrisonCap', () => {
+    expect(pass().bad.lists ?? []).toEqual([])
+    expect(pass().seen.listed).toBeGreaterThan(0)
+  })
+
+  it('tops each owned shrine up to garrisonCap from the owner units within 4 tiles, nearest first, ties to the lowest gameId', () => {
+    expect(pass().bad.fills ?? []).toEqual([])
+    expect(pass().seen.entered).toBeGreaterThan(0)
+    expect(pass().seen.ownerChanged).toBeGreaterThan(0)
+  })
+
+  it('holds a garrisoned unit still, without a target, and no unit or projectile targets it', () => {
+    expect(pass().bad.still ?? []).toEqual([])
+    expect(pass().seen.held).toBeGreaterThan(0)
+  })
+
+  it('takes no attack, heal or splash: hp falls only by burn and the cooldown never restarts', () => {
+    expect(pass().bad.quiet ?? []).toEqual([])
+    expect(pass().seen.burned).toBeGreaterThan(0)
+  })
+
+  it('leaves the garrison only when its shrine changes owner or the unit flees, and a fleeing unit is never garrisoned', () => {
+    expect(pass().bad.exits ?? []).toEqual([])
+    expect(pass().seen.exitOwner).toBeGreaterThan(0)
+    expect(pass().seen.exitFlee).toBeGreaterThan(0)
+  })
+
+  it('counts garrisoned units toward the capture of their shrine, like any unit within 4 tiles', () => {
+    expect(pass().bad.capture ?? []).toEqual([])
+    expect(pass().seen.counted).toBeGreaterThan(0)
+  })
+})
+
+describe('Commander orders', () => {
+  const dense = { ...SMALL, targetPop: 300, maxSquadsPerWave: 30, garrisonCap: 0, ordersPerTeam: 40, ticks: 700 }
+  const idsOf = (s: Parsed) => [...s.shrines.map((x) => x.gameId), ...s.units.flatMap((u) => [u.gameId, ...u.items.map((i) => i.gameId)]), ...s.projectiles.map((q) => q.gameId), ...s.ground.map((g) => g.gameId)]
+
+  // The key range n is the gameId counter at the start of ai/target. A snapshot only shows the ids that exist, so n is
+  // searched from the highest existing id upward, and a tick passes when one n explains every target and both counters.
+  const pass = memo(() => {
+    const bad: string[] = []
+    let effective = 0, ticksWithOrders = 0
+    const sim = createSim(dense, kernel)
+    let before = parse(sim.snapshot())
+    for (let t = 0; t < dense.ticks; t++) {
+      sim.phases.spawn()
+      const s1 = parse(sim.snapshot())
+      sim.phases['ai/target']()
+      const s2 = parse(sim.snapshot())
+      for (const ph of PHASES.slice(2)) sim.phases[ph]()
+      if (t % kernel.ORDER_PERIOD === 0 && t > 0) {
+        const units = index(s1), after = index(s2)
+        const top = Math.max(...idsOf(s1))
+        const delta = [s2.orders[0] - s1.orders[0], s2.orders[1] - s1.orders[1]]
+        let found = false, hits = 0
+        for (let n = top + 1; n <= top + 400 && !found; n++) {
+          const targets = new Map<number, number>()
+          const count = [0, 0]
+          const pick = (team: number, role: number, k: number, own: boolean) => {
+            for (let p = 0; p < kernel.ORDER_PROBES; p++) {
+              const u = units.get(kernel.orderKey(n, dense.seed, t, team, role, k, p))
+              if (u && (u.team === team) === own) return u
+            }
+          }
+          for (const team of [0, 1]) for (let k = 0; k < dense.ordersPerTeam; k++) {
+            const subj = pick(team, PURPOSE.ORDER_SUBJECT, k, true), obj = pick(team, PURPOSE.ORDER_OBJECT, k, false)
+            if (!subj || !obj || stunned(subj) || fleeing(subj) || subj.kind === KIND.HEALER || subj.kind === KIND.SUMMONER || fleeing(obj)) continue
+            targets.set(subj.gameId, obj.gameId)
+            count[team]++
+          }
+          if (count[0] !== delta[0] || count[1] !== delta[1]) continue
+          if ([...targets].every(([sk, ok]) => after.get(sk)?.target === ok)) { found = true; hits = count[0] + count[1] }
+        }
+        if (!found) bad.push(`tick ${t}: no n explains delta ${delta}`)
+        effective += hits
+        if (hits > 0) ticksWithOrders++
+      }
+      before = s2
+    }
+    void before
+    return { bad, effective, ticksWithOrders }
+  })
+
+  it('gives each team ordersPerTeam draws every 10 ticks: a subject that can act targets its object, and a dead key changes nothing', () => {
+    expect(pass().bad).toEqual([])
+    expect(pass().ticksWithOrders).toBeGreaterThan(20)
+    expect(pass().effective).toBeGreaterThan(60)
+  })
+
+  it('changes orders0 and orders1 only on ticks that are a multiple of 10, and never decreases them', () => {
+    const h = run(dense)
+    let moved = 0
+    h.slice(1).forEach((c, i) => {
+      const p = h[i]
+      for (const team of [0, 1]) {
+        expect(c.orders[team]).toBeGreaterThanOrEqual(p.orders[team])
+        if (c.tick % kernel.ORDER_PERIOD !== 0) expect(c.orders[team]).toBe(p.orders[team])
+        else moved += c.orders[team] - p.orders[team]
+      }
+    })
+    expect(moved).toBeGreaterThan(0)
+  })
+
+  it('gives no order when ordersPerTeam is 0', () => {
+    expect(run({ ...dense, ordersPerTeam: 0, ticks: 300 }).every((c) => c.orders[0] === 0 && c.orders[1] === 0)).toBe(true)
+  })
+})
+
+describe('Render extraction', () => {
+  /** SPEC §6.15 written out separately from the kernel: FNV-1a over the little-endian bytes of the buffer. */
+  const fold = (chain: number, ints: number[]) => {
+    const bytes = new DataView(new ArrayBuffer(4 * ints.length))
+    ints.forEach((v, i) => bytes.setInt32(4 * i, v, true))
+    let h = chain >>> 0
+    for (let i = 0; i < 4 * ints.length; i++) h = Math.imul(h ^ bytes.getUint8(i), 0x01000193) >>> 0
+    return h | 0
+  }
+  const bufferOf = (s: Parsed) => [s.units.length, ...s.units.flatMap((u) => [u.gameId, u.kind, u.team, u.x, u.y, Math.trunc((u.hp * 255) / u.maxHp), u.flags, u.trailCount, u.trailOldestX, u.trailOldestY])]
+
+  it('starts renderChain at 0x811c9dc5 and folds the buffer of every tick into it, flags included', () => {
+    const sim = createSim(scenario(), kernel)
+    expect(parse(sim.snapshot()).renderChain).toBe(0x811c9dc5 | 0)
+    let chain = 0x811c9dc5 | 0
+    let flagged = 0
+    for (const s of fights()[0].h) {
+      chain = fold(chain, bufferOf(s))
+      expect(s.renderChain).toBe(chain)
+      if (s.units.some((u) => u.flags !== 0)) flagged++
+    }
+    expect(flagged).toBeGreaterThan(0)
+  })
+
+  it('folds the garrison fights too: units that hold garrison and order flags are in the buffer', () => {
+    const h = run({ ...SMALL, ticks: 600 })
+    let chain = 0x811c9dc5 | 0
+    for (const s of h) { chain = fold(chain, bufferOf(s)); expect(s.renderChain).toBe(chain) }
+    expect(h.some((s) => s.units.some((u) => (u.flags & GARRISONED) !== 0))).toBe(true)
+  })
+
+  it('changes renderChain on every tick, so a run that skips one buffer ends with another value', () => {
+    const chains = fights()[0].h.map((s) => s.renderChain)
+    expect(new Set(chains).size).toBe(chains.length)
   })
 })
 

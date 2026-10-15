@@ -8,7 +8,7 @@ export const spawnSystem = (ctx: Context) => {
 
   const spawnShrines = () => {
     for (let i = 0; i < k.SHRINE_COUNT; i++) {
-      ctx.shrines.push({ gameId: ctx.nextId++, y: k.shrineY(i), owner: -1, progress: 0 })
+      ctx.shrines.push({ gameId: ctx.nextId++, y: k.shrineY(i), owner: -1, progress: 0, garrison: [] })
       add('create.shrine')
     }
   }
@@ -41,8 +41,11 @@ export const spawnSystem = (ctx: Context) => {
     add('q.spawn.summoners', summoners.length)
     for (let s_i = 0, s = summoners[0]; s_i < summoners.length; s = summoners[++s_i]) {
       if (tick - s.lastSummon < k.SUMMON_PERIOD || (minionCount.get(s.gameId) ?? 0) >= k.MAX_MINIONS) continue
-      const m = spawnUnit(ctx, s.team, KIND.MINION, s.x, s.y)
-      m.childOf = s.gameId
+      const m = spawnUnit(ctx, s.team, KIND.MINION, s.x, s.y, s)
+      m.childOf = s.gameId; m.pref = s
+      const list = ctx.minionsOf.get(s.gameId)
+      if (list) list.push(m)
+      else ctx.minionsOf.set(s.gameId, [m])
       add('rel.ChildOf.add')
       s.lastSummon = tick
       minionCount.set(s.gameId, (minionCount.get(s.gameId) ?? 0) + 1)

@@ -27,11 +27,18 @@ The reviewer judges each `Support` value. `pnpm verify` checks the result of the
 | Rout and flight | Add a flag to many entities in one tick, flag state machine | | |
 | Rules on `Added` | React when an entity gains a flag | | |
 | Stat recompute on a change of items, haste, kills or veteran | React to a change of membership or value | | |
+| Item tags and buff tags, set bonuses | Many distinct tags per entity, tag membership reads | | |
+| Overwhelmed (6 or more attackers) | Fan-in count over a link, flag add and remove each tick | | |
+| Banner (armor below a living warlord) | Read through a chain of links, flag sync from a derived value | | |
+| Garrison (units in a held shrine leave the move and target queries) | Exclude entities from some queries without destroying them | | |
+| Commander orders by `gameId`, with dead keys | Lookup of an entity by a key that is not the native id, where a key can be dead | | |
+| Render extraction (a flat int32 buffer of all units, folded into `renderChain`) | Read many traits of every entity in one pass | | |
 | `Threat`, many to many with data | Link with data, eviction, decay | | |
 | `lastHitBy` | Exclusive link, cleared when the unit is destroyed | | |
-| Veteran chronicle | Array data per entity | | |
+| Unit trail (path history) | Array data per entity | | |
 | Queries that exclude or combine | Match entities that lack a flag, or have any of several | | |
 | Metrics and tick | One shared value per world | | |
+| Snapshot and restore (save each 100 ticks, load one save, replay) | Enumerate all entities, traits and relations, and rebuild them in the same world with relations relinked by `gameId` | | |
 | Phases | One system function for each spec phase | | |
 
 ## Notes

@@ -103,11 +103,53 @@ describe('tables', () => {
     expect(kernel.UNIT_STATS[0].range).toBe(1536)
     expect(SCENARIOS['battle'].ticks).toBe(2000)
     expect(SCENARIOS['war-smoke']).toMatchObject({ ticks: 400, targetPop: SCENARIOS['war'].targetPop, seed: S })
-    expect(kernel.UNIT_STATS[kernel.KIND.WARLORD]).toMatchObject({ maxHp: 400, attack: 20, armor: 6, range: 1536, sight: 10 * FX, cooldown: 25, speed: 416 })
+    expect(kernel.UNIT_STATS[kernel.KIND.WARLORD]).toMatchObject({ maxHp: 400, attack: 20, armor: 6, range: 1536, sight: 7.5 * FX, cooldown: 25, speed: 416 })
     expect(kernel.SQUADS[3].members).toEqual([0, 0, 4, 3])
     expect([0, 1, 2, 3, 4, 5, 6].map(kernel.shrineY)).toEqual([16, 48, 80, 112, 144, 176, 208].map((t) => t * FX))
     expect(PURPOSE.SURGE_KIND).toBe(7)
     expect(PURPOSE.SURGE_Y).toBe(8)
+    expect(PURPOSE.ORDER_SUBJECT).toBe(9)
+    expect(PURPOSE.ORDER_OBJECT).toBe(10)
+    expect(kernel.ORDER_PERIOD).toBe(10)
     expect(Object.keys(SCENARIOS)).toHaveLength(6)
   })
+
+describe('orderKey', () => {
+  it('draws probe p of order k as 1 + randInt(n - 1, ..., role, k * ORDER_PROBES + p)', () => {
+    for (const [n, tick, team, k, p] of [[2, 0, 0, 0, 0], [40, 10, 1, 3, 5], [100_000, 1990, 0, 127, 2]]) {
+      for (const role of [PURPOSE.ORDER_SUBJECT, PURPOSE.ORDER_OBJECT]) {
+        expect(kernel.orderKey(n, S, tick, team, role, k, p)).toBe(1 + randInt(n - 1, S, tick, teamGameId(team), role, k * kernel.ORDER_PROBES + p))
+      }
+    }
+    expect(kernel.ORDER_PROBES).toBe(6)
+  })
+  it('stays in [1, n - 1] and is not constant', () => {
+    const seen = new Set<number>()
+    for (let k = 0; k < 40; k++) for (let p = 0; p < kernel.ORDER_PROBES; p++) {
+      const key = kernel.orderKey(50, S, 10, 0, PURPOSE.ORDER_SUBJECT, k, p)
+      expect(key).toBeGreaterThanOrEqual(1); expect(key).toBeLessThanOrEqual(49); seen.add(key)
+    }
+    expect(seen.size).toBeGreaterThan(30)
+  })
+})
+
+describe('foldRender', () => {
+  const independent = (chain: number, ints: number[]) => {
+    const view = new DataView(new ArrayBuffer(4 * ints.length))
+    ints.forEach((v, i) => view.setInt32(4 * i, v, true))
+    let h = chain >>> 0
+    for (let i = 0; i < 4 * ints.length; i++) h = Math.imul(h ^ view.getUint8(i), 0x01000193) >>> 0
+    return h | 0
+  }
+  it('is FNV-1a over little-endian bytes and returns an int32', () => {
+    const ints = [3, -1, 0x01020304, -(2 ** 31), 2 ** 31 - 1, 262143]
+    expect(kernel.foldRender(kernel.RENDER_SEED, ints, ints.length)).toBe(independent(kernel.RENDER_SEED, ints))
+    expect(kernel.foldRender(-5, ints, 2)).toBe(independent(-5, ints.slice(0, 2)))
+    expect(kernel.RENDER_SEED).toBe(0x811c9dc5 | 0)
+  })
+  it('folds only the first n values and chains across calls', () => {
+    const a = [7, 8, 9, 10]
+    expect(kernel.foldRender(kernel.foldRender(kernel.RENDER_SEED, a, 2), a.slice(2), 2)).toBe(kernel.foldRender(kernel.RENDER_SEED, a, 4))
+  })
+})
 })

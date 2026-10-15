@@ -1,55 +1,82 @@
 import { BUFF_NAME, type Context } from '../context.ts'
-import { buildGrid, forNear } from '../spatial.ts'
 import { sampleEntities } from '../profiling.ts'
 import type { DamageIntent, Edge, Unit } from '../types.ts'
 
 export const combatSystem = (ctx: Context) => {
-  const { k, scenario, add, dirty, unitById, world, isStunned, inRange, targetOf } = ctx
+  const { k, scenario, add, begin, end, dirty, buffed, threatened, unitById, world, isStunned, inRange, targetOf, overwhelmed } = ctx
+  const naiveFanIn = ctx.isNaive('combat.fanIn')
   const { seed } = scenario
   const { BUFF, KIND, UNIT_STATS } = k
 
   const applyBuff = (u: Unit, b: number) => {
-    if (ctx.counters) {
-      if (u.buffs[b] > 0) add(`buff.refresh.${BUFF_NAME[b]}`)
-      else { add(`buff.add.${BUFF_NAME[b]}`); dirty?.add(u.gameId) }
-    }
+    if (u.buffs[b] > 0) add(`buff.refresh.${BUFF_NAME[b]}`)
+    else { add(`buff.add.${BUFF_NAME[b]}`); dirty.add(u) }
     u.buffs[b] = k.BUFF_DURATION[b]
+    buffed.add(u)
   }
 
   const addThreat = (victim: Unit, attacker: number, amount: number) => {
-    const i = victim.threat.findIndex((e) => e.attacker >= attacker)
-    if (i !== -1 && victim.threat[i].attacker === attacker) {
-      victim.threat[i].amount = Math.min(k.THREAT_CLAMP, victim.threat[i].amount + amount)
+    const th = victim.threat
+    let i = 0
+    while (i < th.length && th[i].attacker < attacker) i++
+    if (i < th.length && th[i].attacker === attacker) {
+      th[i].amount = Math.min(k.THREAT_CLAMP, th[i].amount + amount)
       add('rel.Threat.accumulate')
     } else {
-      victim.threat.splice(i === -1 ? victim.threat.length : i, 0, { attacker, amount: Math.min(k.THREAT_CLAMP, amount) })
+      th.splice(i, 0, { attacker, amount: Math.min(k.THREAT_CLAMP, amount) })
       add('rel.Threat.add')
     }
   }
 
   const evictThreat = (victim: Unit) => {
-    while (victim.threat.length > k.THREAT_MAX_EDGES) {
+    const th = victim.threat
+    while (th.length > k.THREAT_MAX_EDGES) {
       let worst = 0
-      victim.threat.forEach((e, i) => {
-        const w = victim.threat[worst]
+      for (let i = 1; i < th.length; i++) {
+        const e = th[i], w = th[worst]
         if (e.amount < w.amount || (e.amount === w.amount && e.attacker > w.attacker)) worst = i
-      })
-      victim.threat.splice(worst, 1)
+      }
+      th.splice(worst, 1)
       add('rel.Threat.evict')
     }
   }
 
   return () => {
     const { units, projectiles, tick } = ctx
-    const grid = buildGrid(ctx)
     const intents: DamageIntent[] = []
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) { u.dmgIn = 0; u.healIn = 0; u.stunIn = false; u.burnIn = false; u.hasteIn = false }
 
+    // Overwhelmed: 6 or more enemy units target the victim at the start of combat.
+    begin('combat.fanIn')
+    if (naiveFanIn) {
+      const counts = new Map<Unit, number>()
+      for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) u.overwhelmed = false
+      for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
+        const v = u.target === -1 ? undefined : unitById.get(u.target)
+        if (v && v.team !== u.team) counts.set(v, (counts.get(v) ?? 0) + 1)
+      }
+      for (const [v, n] of counts) if (n >= k.OVERWHELM_ATTACKERS) v.overwhelmed = true
+    } else {
+      for (const u of overwhelmed) u.overwhelmed = false
+      overwhelmed.clear()
+      for (const [id, set] of ctx.targeters) {
+        if (set.size < k.OVERWHELM_ATTACKERS) continue
+        const v = unitById.get(id)
+        if (!v) continue
+        let n = 0
+        for (const a of set) if (a.team !== v.team) n++
+        if (n >= k.OVERWHELM_ATTACKERS) { v.overwhelmed = true; overwhelmed.add(v) }
+      }
+    }
+    end('combat.fanIn')
+
     const addDamage = (victim: Unit, attacker: number, team: number, value: number) => {
+      if (victim.overwhelmed) { value = k.overwhelmDamage(value); add('rule.overwhelmed') }
       victim.dmgIn += value
       intents.push({ victim, attacker, team, value })
     }
 
+    ctx.resendGrid()
     add('q.combat.projectiles', projectiles.length)
     for (let p_i = 0, p = projectiles[0]; p_i < projectiles.length; p = projectiles[++p_i]) {
       const t = unitById.get(p.target)
@@ -57,8 +84,9 @@ export const combatSystem = (ctx: Context) => {
       p.spent = true
       add('q.combat.hits')
       if (p.ownerKind === KIND.MAGE) {
-        forNear(ctx, grid, p.x, p.y, k.SPLASH_RADIUS, (v) => {
-          if (v.team === p.ownerTeam || !inRange(p.x, p.y, v.x, v.y, k.SPLASH_RADIUS)) return
+        ctx.grid.forNear(p.x, p.y, k.SPLASH_RADIUS, (h) => {
+          const v = ctx.slots[h]
+          if (v.team === p.ownerTeam || v.garrison) return
           addDamage(v, p.owner, p.ownerTeam, k.damage(p.attack, v.armor, p.crit))
           v.burnIn = true
         }, 'splash')
@@ -104,6 +132,7 @@ export const combatSystem = (ctx: Context) => {
       if (u.hasteIn) applyBuff(u, BUFF.HASTE)
     }
 
+    const writes: { victim: Unit; sums: Edge[] }[] = []
     intents.sort((a, b) => a.victim.gameId - b.victim.gameId || a.attacker - b.attacker)
     for (let i = 0; i < intents.length;) {
       const victim = intents[i].victim
@@ -119,9 +148,16 @@ export const combatSystem = (ctx: Context) => {
       for (let s_i = 0, s = sums[0]; s_i < sums.length; s = sums[++s_i]) if (!best || s.amount > best.amount) best = s
       if (best) victim.lastHitBy = best.attacker
       if (victim.fleeing) continue
+      writes.push({ victim, sums })
+    }
+    begin('threat')
+    for (let w_i = 0, w = writes[0]; w_i < writes.length; w = writes[++w_i]) {
+      const { victim, sums } = w
       for (let s_i = 0, s = sums[0]; s_i < sums.length; s = sums[++s_i]) addThreat(victim, s.attacker, s.amount)
       evictThreat(victim)
+      if (sums.length > 0) threatened.add(victim)
     }
+    end('threat')
 
     for (let d_i = 0, d = intents[0]; d_i < intents.length; d = intents[++d_i]) world.damage[d.team] = (world.damage[d.team] + d.value) | 0
     sampleEntities(ctx)

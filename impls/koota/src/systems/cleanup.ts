@@ -1,10 +1,9 @@
 import { Not, type Entity } from 'koota'
 import { byGameId, type Context } from '../context.ts'
 import {
-  Age, Chronicle, Dead, Fleeing, GameId, Ground, KillCount, Kind, Metrics, Minion, Morale, Position, Projectile, Routed, Spent, Team, Veteran,
+  Age, Chronicle, Dead, Fleeing, GameId, Ground, ItemKind, ItemTags, KillCount, Kind, Metrics, Minion, Morale, Position, Projectile, Routed, Spent, Team, Veteran,
 } from '../components.ts'
 import { Equips, LastHitBy, MemberOf, Targets } from '../relations.ts'
-import { buildGrid, forNear, type Cell } from '../spatial.ts'
 
 const promote = (ctx: Context, unit: Entity) => {
   const members = ctx.world.query(MemberOf(unit)).map((m) => ({ id: ctx.gid(m), e: m })).sort(byGameId)
@@ -26,7 +25,8 @@ const promote = (ctx: Context, unit: Entity) => {
 
 export const cleanupSystem = (ctx: Context) => {
   const { k, world, gid, homeX, sortedByGameId } = ctx
-  const { KIND, distSq } = k
+  const { KIND } = k
+  const hasRoom = (h: number) => ctx.unitAt[h].targetsFor(Equips).length < k.MAX_ITEMS
 
   return () => {
     const kills = [0, 0]
@@ -75,21 +75,15 @@ export const cleanupSystem = (ctx: Context) => {
 
     const ground = sortedByGameId(Ground)
     if (ground.length > 0) {
-      const grid = buildGrid(ctx)
       for (const g of ground) {
         const gp = g.e.get(Position)!
-        let best: Cell | undefined
-        let bestD = 0
-        forNear(ctx, grid, gp.x, gp.y, k.PICKUP_RANGE, (v) => {
-          const d = distSq(gp.x, gp.y, v.x, v.y)
-          if (d > k.PICKUP_RANGE * k.PICKUP_RANGE) return
-          if (best && !(d < bestD || (d === bestD && v.id < best.id))) return
-          if (v.e.targetsFor(Equips).length >= k.MAX_ITEMS) return
-          best = v; bestD = d
-        })
-        if (!best) continue
+        const h = ctx.grid.nearest(gp.x, gp.y, k.PICKUP_RANGE, hasRoom)
+        if (h === -1) continue
         const quality = g.e.get(Ground)!.quality
-        best.e.add(Equips(g.e, { quality }))
+        const taker = ctx.unitAt[h]
+        taker.add(Equips(g.e, { quality }))
+        const tag = ItemTags[g.e.get(ItemKind)!.value]
+        if (!taker.has(tag)) taker.add(tag)
         g.e.remove(Ground, Position, Age)
       }
     }

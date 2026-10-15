@@ -2,13 +2,54 @@
 
 A deterministic autobattler that plays itself. It is a benchmark for JS/TS ECS libraries.
 
-Two armies fight for 7 shrines on a 256 x 256 tile arena. A team that holds more shrines gets larger reinforcement waves. Squads of warriors, archers, mages, healers and summoners spawn in waves. Warlords lead several warbands. A squad that loses too many members routs. Its members flee to their home edge and leave the battle. A unit that takes damage builds a `Threat` list and fights back against the worst attacker. A unit with 3 kills becomes a veteran and remembers its last kills.
+Two armies fight for 7 shrines on a 256 x 256 tile arena. Squads of warriors, archers, mages, healers and summoners spawn in waves. Warlords lead warbands. Squads rout and flee. Units carry items and buffs, keep a `Threat` list, take orders from a commander, garrison shrines and become veterans. The game saves its state at a fixed interval and loads one save during the run.
 
-The game loads the ECS features that real games depend on: entity churn, tags, relations with data, change detection, hierarchies and large numeric queries. Synthetic micro-benchmarks do not cover this mix. [docs/design/v2-game.md](docs/design/v2-game.md) gives the design and the reasons.
+The game loads the ECS features that real games depend on: entity churn, tags, relations with data, change detection, hierarchies, large numeric queries, lookup by key, render extraction, and snapshot and restore. [docs/design/v3-game.md](docs/design/v3-game.md) gives the design and the reasons. [docs/design/v2-game.md](docs/design/v2-game.md) gives the game that v3 builds on.
 
 Each tick runs 9 phases in this order: `spawn`, `ai/target`, `move`, `combat`, `effects`, `morale`, `cleanup`, `objectives`, `stats`.
 
 The primary goal is a regression harness for [koota](https://github.com/pmndrs/koota). The secondary goal is a comparison of ECS libraries.
+
+## The claim
+
+Each library gets one headline number.
+
+- The number is the geometric mean, over `skirmish`, `battle` and `war`, of the library time divided by the `baseline-js` time. Lower is better.
+- `skirmish` has about 5k peak entities, `battle` about 20k and `war` about 50k.
+- The time is the total run time of a headline run. The report also shows p99, the max tick and the ticks over 16.6 ms.
+- Each headline has a 95% bootstrap interval from 10 runs. Two libraries whose intervals overlap share a rank.
+
+One number is fair only when the game loads each facet by a known amount. The load budget sets that amount.
+
+## How coverage is checked
+
+### Load budget
+
+Each facet that the game claims to test is a named, timed region in `baseline-js`. A flag switches one region to naive code. The naive code does the same work without the feature, for example a scan of all units in place of an index.
+
+A facet passes when all of these are true:
+
+- **Floor.** The naive region time is at least 2% of the normal tick total. A library without the feature must lose at least 2% of the tick.
+- **Cap.** The normal region time is at most 25% of the normal tick total. No facet takes over the number.
+- **Naive is slower.** The naive region is at least 1.5 times slower than the normal region. Otherwise the game does not reward the feature.
+- **Same result.** The naive run gives the same hashes as the normal run.
+
+The check must pass in every scenario and with every seed. `pnpm budget` runs it. It measures `baseline-js` only. The thresholds live in `runner/src/budget-check.ts`.
+
+### Liveness guard
+
+A rule that never activates never changes the hash, so an implementation could skip it. `pnpm run profile` counts the activations of each rule in `baseline-js` for each seed. It fails when a rule counter stays at 0. The rules are in `runner/src/liveness.ts`.
+
+### Correctness
+
+An implementation is correct when its hash trace matches the golden for every tick. `pnpm verify` checks 3 seeds for each scenario. Timing uses the first seed only.
+
+## How a run works
+
+- **Headline runs** time whole ticks only. When an implementation has a `tick()` function, the runner calls it. Otherwise the runner calls the phases in spec order.
+- **Deep-dive runs** call the phases one by one. They record the phase times, GC time, allocation and heap for each tick. `--deep` and `--record` add them. The report shows the overhead of the extra timers.
+- **Warmup.** Each run is a fresh child process. It does one full throwaway run of the same scenario before the timed run.
+- **Snapshot and restore.** The runner asks for a save after each 25th tick. After every 200th tick it loads the newest save and replays the 24 ticks after it. The hash trace must match a run without the loads. Every run kind uses this schedule (`runner/src/schedule.ts`), and the time of each save and load is in the total.
 
 ## Commands
 
@@ -17,14 +58,18 @@ Use Node 24.2 or later (`.nvmrc`). The runner and the koota build need it.
 ```sh
 pnpm install
 pnpm test                                   # unit and behaviour tests
-pnpm verify koota skirmish-smoke            # compare the per-tick hash trace with the golden
+pnpm verify koota skirmish-smoke            # compare the hash trace of each seed with the golden
 pnpm verify:all                             # every implementation, every smoke scenario
 pnpm run diff koota skirmish 120 7 9        # find the first differing record against baseline-js
-pnpm run profile skirmish battle war        # count ECS operations per tick (baseline-js)
+pnpm run profile skirmish battle war        # count ECS operations per tick in baseline-js, run the liveness guard
+pnpm budget                                 # load budget check on baseline-js, first seed
+pnpm budget battle --seeds --runs 10        # every seed, 10 runs for each variant
+pnpm budget --report-only                   # print the table, do not fail
 pnpm run check:caps                         # check the links in every CAPABILITIES.md
-pnpm bench koota battle --runs 5            # timed runs, one child process for each run
+pnpm bench baseline-js koota battle --runs 5   # timed runs, one child process for each run
+pnpm bench koota battle --deep              # add deep-dive runs after the headline runs
+pnpm bench baseline-js koota skirmish battle war --record   # 10 runs, save in bench-data/, rebuild docs/results.md
 pnpm compare koota@main koota@fresh-perf battle
-pnpm bench koota battle --record            # also save the data in bench-data/ and rebuild docs/results.md
 pnpm bench koota battle --protocol          # benchbox native protocol: JSON lines on stdout, samples = tick ns
 pnpm bench koota battle --runs 10 --out a.json   # result file with the machine info and the raw value of each run
 pnpm compare a.json b.json                  # compare two result files, for example from two machines or commits
@@ -32,19 +77,19 @@ BENCH_WRAP="taskset -c 3" pnpm bench ...    # start each child with a prefix com
 pnpm results                                # rebuild docs/results.md from bench-data/
 ```
 
+The headline score needs `baseline-js` in the same bench, because it divides by the `baseline-js` time of matched runs.
+
 ## Results
 
-[docs/results.md](docs/results.md) shows the latest recorded run for each target and scenario. It gives the totals, the mean for each tick, and charts for each tick: tick time, GC time, allocation and each phase. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the git history is the trend.
+[docs/results.md](docs/results.md) shows the headline score and the latest recorded run for each target and scenario. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the git history is the trend. The v2 rows were removed when v3 started, because v2 and v3 numbers do not compare.
 
 ## How it works
 
 - `packages/spec/SPEC.md` is the rules. It is authoritative.
-- `packages/spec/src` is the shared kernel. It holds only pure functions: randomness, fixed-point math, formulas, rule tables and the hash. It knows nothing about entities.
-- `impls/<name>` is one implementation for each library. An implementation writes only the ECS parts: components, relations, queries, systems and data layout.
-- `runner/` calls the phases in spec order, takes snapshots and hashes them.
-- `goldens/` holds the hash traces that `baseline-js` writes.
-
-An implementation is correct when its hash trace matches the golden for every tick.
+- `packages/spec/src` is the shared kernel. It holds randomness, fixed-point math, formulas, rule tables, the hash and the shared spatial grid. The grid is the only part that holds state about entities. Each implementation tells the grid which units it added, moved or removed. Every spatial search uses it.
+- `impls/<name>` is one implementation for each library. An implementation writes only the ECS parts: components, relations, queries, systems, data layout, save and load.
+- `runner/` runs the save and load schedule, takes snapshots and hashes them.
+- `goldens/` holds the hash traces that `baseline-js` writes, one for each scenario and seed.
 
 ## Why fixed point
 
@@ -59,7 +104,22 @@ Each library has up to two implementations:
 
 The gap between the two numbers shows the cost of the idiomatic style.
 
-`impls/baseline-js` uses plain arrays. It is the reference for correctness and the "speed of light" number. It is not in the ranking.
+`impls/baseline-js` uses plain arrays. It is the reference for correctness and for the headline ratio. It is not in the ranking.
+
+## Out of scope
+
+- **Subscribed reads**, such as React bindings or network clients. They measure the binding more than the ECS.
+- **Many worlds and world reset.** The game runs one world. Load replaces its state in place.
+- **Editor reflection.** No game rule reads component schemas at run time.
+- **Worker threads.** Most JS ECS libraries do not support them, and the rules assume one thread.
+- **Symmetric relations.** No game rule needs one that a plain relation cannot express.
+- **Prefabs.** Spawn code sets each field. A prefab would only move that code.
+
+## Known biases
+
+- **`baseline-js` under-prices structural change.** Plain arrays add and remove tags almost for free. The load budget measures shares in `baseline-js` time, so structural facets look cheaper than they are in an archetype library.
+- **Start-of-phase copy.** A library without double-buffered stores copies the positions before `move`, in the optional `Sim.moveStart` step. Each such library pays this cost. `baseline-js` does not. The deep-dive report shows the cost as its own `move.start` line, and `move` does not include it.
+- **The shared grid pulls ratios toward 1.** Every library uses the same kernel grid for spatial searches. That time is equal for all libraries, so it makes the ratios smaller.
 
 ## Add a library
 

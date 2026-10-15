@@ -2,6 +2,7 @@ import type { Entity } from 'koota'
 import { byGameId, type Context } from '../context.ts'
 import { Age, Clock, GameId, Position, Score, Shrine, Summoner, Team } from '../components.ts'
 import { ChildOf } from '../relations.ts'
+import { bannerAtSpawn } from '../derived-stats.ts'
 import { spawnSquads, spawnUnit } from '../spawning.ts'
 
 export const spawnSystem = (ctx: Context) => {
@@ -36,7 +37,9 @@ export const spawnSystem = (ctx: Context) => {
     for (const s of summoners) {
       if (tick - s.last < k.SUMMON_PERIOD || world.query(ChildOf(s.e)).length >= k.MAX_MINIONS) continue
       const pos = s.e.get(Position)!
-      spawnUnit(ctx, s.e.get(Team)!.value, KIND.MINION, pos.x, pos.y).add(ChildOf(s.e))
+      const minion = spawnUnit(ctx, s.e.get(Team)!.value, KIND.MINION, pos.x, pos.y)
+      minion.add(ChildOf(s.e))
+      bannerAtSpawn(ctx, minion, s.e)
       s.e.set(Summoner, { lastSummon: tick })
     }
   }
