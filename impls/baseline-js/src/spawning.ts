@@ -27,7 +27,7 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
     gameId, team, kind, x: clampToArena(x), y: clampToArena(y), h: ctx.freeSlots.pop() ?? ctx.slots.length,
     hp: UNIT_STATS[kind].maxHp, maxHp: UNIT_STATS[kind].maxHp, attack: 0, armor: 0, speed: 0, cooldown: 0,
     target: -1, tref: undefined, memberOf: -1, pref: undefined, offX: 0, offY: 0, childOf: -1, items, itemMask, buffs: [0, 0, 0], threat: [],
-    morale: null, fleeing: false, routed: false, veteran: false, overwhelmed: false, bannered: !!parent && (parent.kind === KIND.WARLORD || parent.bannered), garrison: null, killCount: 0, lastHitBy: -1, chronicle: [],
+    morale: null, fleeing: false, routed: false, veteran: false, overwhelmed: false, bannered: !!parent && (parent.kind === KIND.WARLORD || parent.bannered), garrison: null, killCount: 0, lastHitBy: -1, chronicle: [], trail: [],
     lastSummon: ctx.tick, age: 0, sx: 0, sy: 0, dmgIn: 0, healIn: 0, stunIn: false, burnIn: false, hasteIn: false,
     dead: false, destroyed: false,
   }

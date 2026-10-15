@@ -73,6 +73,12 @@ Budget after D21 (`pnpm budget skirmish battle war --runs 3 --report-only`, seed
 
 All 22 regions pass in all 3 scenarios. The `war` load naive share has the thinnest margin (2.01%, spread 0.38% to 0.65% normal). The goldens are regenerated for all scenarios and seeds. No implementation code changed, because `Sim.load` already replaces the live state.
 
+## The array-data rule after D22 (U10)
+
+D22 removed the veteran log (SPEC §6.7 step 5a) and restored the v2 chronicle (`VETERAN_KILLS` 3, `CHRONICLE_MAX` 4). It added the per-unit trail (SPEC §6.3, `TRAIL_POINTS` 12, all units that moved). The region is `move.trail` and replaces `cleanup.credit`. Why the trail fits where the chronicle did not: many units move each tick, so the append rate is thousands each tick, against the one append each tick for each veteran of the veteran log. Normal code pushes and trims in place. Naive code copies the full array on each append and on each trim.
+
+The budget was not re-run for D22. The old `cleanup.credit` rows in the tables below are from before D22.
+
 ## Final state
 
 Commits: `eba6fcf` (tuning, naive variants, veteran log, `SAVE_INTERVAL` 25) and `058f947` (minion life and summon period). The goldens are regenerated for all scenarios and seeds in both.

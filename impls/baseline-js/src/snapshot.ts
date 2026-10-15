@@ -28,6 +28,7 @@ export const snapshot = (ctx: Context): CanonicalState => {
     s.push(u.threat.length)
     for (let e_i = 0, e = u.threat[0]; e_i < u.threat.length; e = u.threat[++e_i]) s.push(e.attacker, e.amount)
     s.push(u.chronicle.length, ...u.chronicle)
+    s.push(u.trail.length >> 1, ...u.trail)
   }
   s.push(projectiles.length)
   for (let p_i = 0, p = projectiles[0]; p_i < projectiles.length; p = projectiles[++p_i]) s.push(p.gameId, p.owner, p.target, p.x, p.y, p.age, p.speed, p.volley ? 1 : 0)

@@ -56,6 +56,7 @@ export const parseSnapshot = (s: ArrayLike<number>): Snapshot => {
     i += 5 // flags, killCount, lastHitBy, moraleSize0, moraleLost
     i += s[i] * 2 + 1 // threats
     i += s[i] + 1 // chronicle
+    i += s[i] * 2 + 1 // trail
     units.push({ gameId, team, kind, x, y, hp, maxHp, cooldown, flags, buffs })
   }
 

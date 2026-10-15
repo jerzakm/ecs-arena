@@ -1,6 +1,6 @@
 import type { Entity } from 'koota'
 import type { Context } from './context.ts'
-import { Age, Cooldown, GameId, Health, Item, ItemKind, ItemTags, KillCount, Kind, Minion, Morale, Position, Start, Stats, Summoner, Team, Unit } from './components.ts'
+import { Age, Cooldown, GameId, Health, Item, ItemKind, ItemTags, KillCount, Kind, Minion, Morale, Position, Start, Stats, Summoner, Team, Trail, Unit } from './components.ts'
 import { Equips, MemberOf } from './relations.ts'
 import { bannerAtSpawn, recomputeStats } from './derived-stats.ts'
 
@@ -13,7 +13,7 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
   const px = k.clampToArena(x), py = k.clampToArena(y)
   const e = world.spawn(
     Unit, GameId({ id }), Team({ value: team }), Kind({ value: kind }),
-    Position({ x: px, y: py }), Start({ x: px, y: py }), Health({ hp: maxHp, maxHp }), Stats, Cooldown, KillCount
+    Position({ x: px, y: py }), Start({ x: px, y: py }), Health({ hp: maxHp, maxHp }), Stats, Cooldown, KillCount, Trail
   )
   ctx.unitAt[e.id()] = e
   ctx.teamAt[e.id()] = team

@@ -6,7 +6,7 @@ export const cleanupSystem = (ctx: Context) => {
   const { k, add, begin, end, dirty, unitById, world, homeX, kindName } = ctx
   const { KIND } = k
   const naiveChurn = ctx.isNaive('churn'), naiveUnlink = ctx.isNaive('cleanup.unlink'), naiveCascade = ctx.isNaive('cleanup.cascade')
-  const naiveLinks = ctx.isNaive('links'), naiveCredit = ctx.isNaive('cleanup.credit'), naiveThreat = ctx.isNaive('threat'), naiveGarrison = ctx.isNaive('garrison')
+  const naiveLinks = ctx.isNaive('links'), naiveThreat = ctx.isNaive('threat'), naiveGarrison = ctx.isNaive('garrison')
   const hasRoom = (h: number) => { const v = ctx.slots[h]; return v.items.length < k.MAX_ITEMS && !v.garrison }
 
   const destroy = (u: Unit) => {
@@ -55,21 +55,15 @@ export const cleanupSystem = (ctx: Context) => {
       if (u.destroyed) continue
       if (u.dead) {
         if (u.kind !== KIND.MINION) world.kills[1 - u.team]++
-        begin('cleanup.credit')
         const killer = unitById.get(u.lastHitBy)
         if (killer) {
           killer.killCount++
           dirty.add(killer)
           if (killer.veteran) {
-            if (naiveCredit) killer.chronicle = [...killer.chronicle, u.kind]
-            else killer.chronicle.push(u.kind)
-            if (killer.chronicle.length > k.CHRONICLE_MAX) {
-              if (naiveCredit) killer.chronicle = killer.chronicle.slice(1)
-              else killer.chronicle.shift()
-            }
+            killer.chronicle.push(u.kind)
+            if (killer.chronicle.length > k.CHRONICLE_MAX) killer.chronicle.shift()
           }
         }
-        end('cleanup.credit')
         if (u.items.length > 0) {
           const it = u.items[0]
           ctx.groundItems.push({ gameId: it.gameId, kind: it.kind, quality: it.quality, x: u.x, y: u.y, age: 0 })
@@ -84,19 +78,6 @@ export const cleanupSystem = (ctx: Context) => {
       end('links')
       destroy(u)
     }
-
-    // The chronicle of a Veteran also logs its hp once each tick, oldest first, at most CHRONICLE_MAX entries.
-    begin('cleanup.credit')
-    for (const u of ctx.veterans) if (!u.destroyed) {
-      if (naiveCredit) {
-        u.chronicle = [...u.chronicle, u.hp]
-        if (u.chronicle.length > k.CHRONICLE_MAX) u.chronicle = u.chronicle.slice(1)
-      } else {
-        u.chronicle.push(u.hp)
-        if (u.chronicle.length > k.CHRONICLE_MAX) u.chronicle.shift()
-      }
-    }
-    end('cleanup.credit')
 
     for (let u_i = 0, u = before[0]; u_i < before.length; u = before[++u_i]) if (u.kind === KIND.MINION && u.age >= k.MINION_LIFETIME && !u.destroyed) {
       begin('cleanup.cascade')

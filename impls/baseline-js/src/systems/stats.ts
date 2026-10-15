@@ -75,10 +75,10 @@ export const statsSystem = (ctx: Context) => {
     let at = 1
     if (naiveRender) {
       const rows = units.map((u) => ({ ...u })) // one object for each unit, like a copy of the entity that a renderer would take
-      for (let r_i = 0, r = rows[0]; r_i < rows.length; r = rows[++r_i]) { buf[at++] = r.gameId; buf[at++] = r.kind; buf[at++] = r.team; buf[at++] = r.x; buf[at++] = r.y; buf[at++] = k.fx.div(r.hp * 255, r.maxHp); buf[at++] = flagsOf(r) }
+      for (let r_i = 0, r = rows[0]; r_i < rows.length; r = rows[++r_i]) { buf[at++] = r.gameId; buf[at++] = r.kind; buf[at++] = r.team; buf[at++] = r.x; buf[at++] = r.y; buf[at++] = k.fx.div(r.hp * 255, r.maxHp); buf[at++] = flagsOf(r); buf[at++] = r.trail.length >> 1; buf[at++] = r.trail[0] ?? 0; buf[at++] = r.trail[1] ?? 0 }
     } else {
       for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) {
-        buf[at++] = u.gameId; buf[at++] = u.kind; buf[at++] = u.team; buf[at++] = u.x; buf[at++] = u.y; buf[at++] = k.fx.div(u.hp * 255, u.maxHp); buf[at++] = flagsOf(u)
+        buf[at++] = u.gameId; buf[at++] = u.kind; buf[at++] = u.team; buf[at++] = u.x; buf[at++] = u.y; buf[at++] = k.fx.div(u.hp * 255, u.maxHp); buf[at++] = flagsOf(u); buf[at++] = u.trail.length >> 1; buf[at++] = u.trail[0] ?? 0; buf[at++] = u.trail[1] ?? 0
       }
     }
     end('stats.render') // the fold is the kernel's hash of the buffer, not extraction work

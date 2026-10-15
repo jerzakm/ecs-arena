@@ -4,7 +4,7 @@ import type { Unit } from '../types.ts'
 export const moveSystem = (ctx: Context) => {
   const { k, add, begin, end, unitById, isStunned, homeX, inRange, targetOf, depthOf } = ctx
   const { stepToward, KIND, UNIT_STATS } = k
-  const naiveStep = ctx.isNaive('move.step'), naiveDepth = ctx.isNaive('move.depthOrder'), naiveGrid = ctx.isNaive('grid.update')
+  const naiveStep = ctx.isNaive('move.step'), naiveDepth = ctx.isNaive('move.depthOrder'), naiveGrid = ctx.isNaive('grid.update'), naiveTrail = ctx.isNaive('move.trail')
   const farX = (team: number) => (team === 0 ? k.MAX_COORD : 0)
   const moved: Unit[] = []
 
@@ -45,6 +45,18 @@ export const moveSystem = (ctx: Context) => {
       if (naiveStep) { const w = unitById.get(u.gameId)!; w.x = u.x; w.y = u.y } // the write goes through the key too
       moved.push(u)
     }
+    begin('move.trail')
+    for (let u_i = 0, u = moved[0]; u_i < moved.length; u = moved[++u_i]) {
+      if (u.x === u.sx && u.y === u.sy) continue
+      if (naiveTrail) {
+        u.trail = [...u.trail, u.x, u.y]
+        if (u.trail.length > 2 * k.TRAIL_POINTS) u.trail = u.trail.slice(2)
+      } else {
+        u.trail.push(u.x, u.y)
+        if (u.trail.length > 2 * k.TRAIL_POINTS) u.trail.splice(0, 2)
+      }
+    }
+    end('move.trail')
     add('q.move.projectiles', projectiles.length)
     for (let p_i = 0, p = projectiles[0]; p_i < projectiles.length; p = projectiles[++p_i]) {
       const t = unitById.get(p.target)
