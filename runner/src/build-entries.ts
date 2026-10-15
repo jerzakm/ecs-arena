@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync, readFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build, type Plugin } from 'esbuild'
@@ -6,10 +6,14 @@ import { resolveInRoot } from './alias-hook.mjs'
 import { ensureVariant, parseTarget } from './variants.ts'
 
 const ROOT = resolve(import.meta.dirname, '../..')
-const SCENARIOS = ['skirmish', 'battle', 'war']
 
-/** Final golden hash of each scenario. */
-const goldens = () => Object.fromEntries(SCENARIOS.map((sc) => [sc, (JSON.parse(readFileSync(resolve(ROOT, 'goldens', `${sc}.json`), 'utf8')) as string[]).at(-1)]))
+/** Final golden hash of each scenario that has a goldens/<name>.json file. The .s2 and .s3 seed files are skipped. */
+const goldens = () =>
+  Object.fromEntries(
+    readdirSync(resolve(ROOT, 'goldens'))
+      .filter((f) => /^[\w-]+\.json$/.test(f))
+      .map((f) => [f.slice(0, -5), (JSON.parse(readFileSync(resolve(ROOT, 'goldens', f), 'utf8')) as string[]).at(-1)]),
+  )
 
 /** Sends `koota` and `koota/*` to the built variant package, with the same resolver as the node hook. */
 const variantPlugin = (root: string): Plugin => ({
