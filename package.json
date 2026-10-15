@@ -15,10 +15,13 @@
     "check:caps": "tsx runner/src/check-capabilities.ts",
     "verify:all": "tsx runner/src/verify-all.ts",
     "budget": "tsx runner/src/budget.ts",
-    "results": "tsx runner/src/results.ts"
+    "results": "tsx runner/src/results.ts",
+    "build:bench": "tsx runner/src/build-entries.ts",
+    "import:benchbox": "tsx runner/src/import-benchbox.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
     "oxlint": "^1.88.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

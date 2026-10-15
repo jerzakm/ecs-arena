@@ -27,7 +27,7 @@ export const readCsv = (path: string): Record<string, string>[] => {
 
 export const commit = () => {
   try {
-    return execSync('git rev-parse --short HEAD', { cwd: ROOT }).toString().trim()
+    return execSync('git rev-parse --short HEAD', { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim()
   } catch {
     return 'unknown'
   }

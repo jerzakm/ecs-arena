@@ -1,0 +1,1 @@
+{"harness":"native","entries":["dist/bench-koota.mjs","dist/bench-baseline-js.mjs"],"config":{"runtime":"node"}}
