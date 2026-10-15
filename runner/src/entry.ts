@@ -22,6 +22,6 @@ export const main = async (target: string, createSim: CreateSim, goldens: Record
   if (!(runs >= 1)) throw new Error('--runs needs a number of 1 or more')
   // Scenario names on argv replace the default list, for local checks.
   const named = argv.filter((a, k) => !a.startsWith('--') && k !== i + 1)
-  await writeProtocol(target, named.length ? named : SCENARIO_NAMES, runs,{ script: process.argv[1], args: ['--child'], execArgv: [] })
+  await writeProtocol(target, named.length ? named : SCENARIO_NAMES, runs, { script: process.argv[1], args: ['--child'], execArgv: [] })
   process.exit(0)
 }
