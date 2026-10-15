@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runScheduled } from './schedule.ts'
-import { SCENARIOS, SEEDS, goldenFile, hashState, kernel, PHASES, withSeed, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { SCENARIOS, SEEDS, goldenFile, hashState, kernel, runPhases, withSeed, type CreateSim, type Scenario } from '@ecs-arena/spec'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -11,7 +11,7 @@ export const runTrace = (createSim: CreateSim, scenario: Scenario, ticks = scena
   const sim = createSim(scenario, kernel)
   const trace: string[] = []
   runScheduled(sim, { ...scenario, ticks }, {
-    tick: () => { for (const p of PHASES) sim.phases[p]() },
+    tick: () => runPhases(sim),
     after: () => void trace.push(hashState(sim.snapshot())),
   })
   sim.dispose?.()

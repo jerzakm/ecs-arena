@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SCENARIOS, PHASES, kernel } from '@ecs-arena/spec'
+import { SCENARIOS, runPhases, kernel } from '@ecs-arena/spec'
 import createSim from '../../../impls/baseline-js/src/index.ts'
 import { parseSnapshot } from './snapshot.ts'
 
@@ -35,7 +35,7 @@ describe('parseSnapshot', () => {
 
   it('matches a real baseline-js battle-smoke snapshot', () => {
     const sim = createSim(SCENARIOS['battle-smoke'], kernel)
-    for (let t = 0; t < 150; t++) for (const ph of PHASES) sim.phases[ph]()
+    for (let t = 0; t < 150; t++) runPhases(sim)
     const raw = sim.snapshot()
     for (const input of [raw, Int32Array.from(raw)]) {
       const p = parseSnapshot(input)

@@ -125,10 +125,10 @@ The flat int32 array of render state for all units that `stats` writes at the en
 The world value that folds in each render buffer. It is in the snapshot, so no tick can skip the buffer.
 
 **Save**:
-A deep copy of all world state at the end of a tick. The game makes one each 100 ticks.
+A deep copy of all world state at the end of a tick. The game makes one each 25 ticks.
 
-**Load tick**:
-The tick after which the game loads the newest save and replays the ticks after it.
+**Load period** (`loadEvery`):
+The game loads the newest save after every 200th tick (after ticks 199, 399 and so on) and replays the ticks after that save.
 
 **Headline number**:
 The geometric mean over the 3 scenarios of library time divided by `baseline-js` time.

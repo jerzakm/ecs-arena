@@ -49,7 +49,7 @@ Region names are proposals. The unit that adds the regions (U4) can change them 
 | E. Disabled entities | Garrison: units in a held shrine leave move and target queries | `objectives`, `ai/target`, `move` | Keep garrisoned units in the grid and test a flag in every search, and find the `Targets` to an entering unit by a scan of all units and find the members of each garrison by a scan of all units for `GarrisonOf` (normal code takes the unit out of the grid, reads the inverse index of `Targets` and reads the list of the shrine) | `garrison` |
 | F. Lookup by key | Commander orders by `gameId`, with dead keys | `ai/target` | Scan all units for each key (normal code reads the `gameId` map) | `orders.lookup` |
 | G. Render extraction | A flat int32 buffer of all units, folded into `renderChain` | `stats` | Copy each unit into a new object, then copy that into the buffer. The `foldRender` hash of the buffer is outside the region, because it is the kernel's | `stats.render` |
-| Snapshot and restore | Save each 100 ticks, load one save, replay | between ticks | Serialize the world to JSON and parse it back | `save`, `load` (normal code copies the world into a tree of plain data; the naive code runs the tree through `JSON.stringify` and `JSON.parse`) |
+| Snapshot and restore | Save each 25 ticks, load the newest save after every 200th tick, replay | between ticks | Serialize the world to JSON and parse it back | `save`, `load` (normal code copies the world into a tree of plain data; the naive code runs the tree through `JSON.stringify` and `JSON.parse`) |
 
 ### Why each new facet has a hash effect
 
@@ -90,6 +90,5 @@ The README lists these items.
 - `targetPop` is 800, 3,200 and 9,200 for `skirmish`, `battle` and `war`. The peak entities are about 5.1k, 21.7k and 54.1k with seed 1 (`pnpm run profile`).
 - Think interval 16 and sight 6 to 8 tiles. The shared target search was 76% of a `war` tick, so every facet share was small. Now it is about 40%.
 - `VETERAN_KILLS` 1, `CHRONICLE_MAX` 384, and the veteran log of SPEC §6.7 step 5a, which is the one rule change.
-- `SAVE_INTERVAL` 25, and `loadTick` 1,562, 1,562 and 762 (12 replayed ticks).
-- Not met: the `load` floor. A run loads once, so the naive load costs about 0.3% to 0.6% of the tick total. See `v3-tuning.md`.
+- `SAVE_INTERVAL` 25 and `loadEvery` 200 (decision D21). A run loads after ticks 199, 399 and so on, and replays 24 ticks each time. That gives 10 loads in `skirmish` and `battle` and 5 in `war`. One load per run was too small for the `load` floor. See `v3-tuning.md`.
 - Unchanged: Overwhelmed threshold and multiplier, banner armor, set bonuses, `garrisonCap` and `ordersPerTeam` for each scenario, the order period.

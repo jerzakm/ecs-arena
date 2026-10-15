@@ -1,4 +1,4 @@
-import { kernel, PHASES, type CreateSim, type Scenario, type Sim } from '@ecs-arena/spec'
+import { kernel, runPhases, type CreateSim, type Scenario, type Sim } from '@ecs-arena/spec'
 import { advance, type Speed } from './clock.ts'
 import type { FromWorker, ToWorker } from './protocol.ts'
 import { registry } from './registry.ts'
@@ -62,7 +62,7 @@ const step = () => {
   const budgeted = due.ticks === Infinity
   while (ran < due.ticks && ticksRun < scenario.ticks) {
     const t0 = performance.now()
-    for (const p of PHASES) sim.phases[p]()
+    runPhases(sim)
     phaseMs += performance.now() - t0
     ran++
     ticksRun++

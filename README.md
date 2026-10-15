@@ -49,7 +49,7 @@ An implementation is correct when its hash trace matches the golden for every ti
 - **Headline runs** time whole ticks only. When an implementation has a `tick()` function, the runner calls it. Otherwise the runner calls the phases in spec order.
 - **Deep-dive runs** call the phases one by one. They record the phase times, GC time, allocation and heap for each tick. `--deep` and `--record` add them. The report shows the overhead of the extra timers.
 - **Warmup.** Each run is a fresh child process. It does one full throwaway run of the same scenario before the timed run.
-- **Snapshot and restore.** The runner asks for a save after each 100th tick. After the load tick of the scenario, it loads the newest save and replays the ticks after it. The hash trace must match a run without the load. Every run kind uses this schedule (`runner/src/schedule.ts`), and the time of each save and load is in the total.
+- **Snapshot and restore.** The runner asks for a save after each 25th tick. After every 200th tick it loads the newest save and replays the 24 ticks after it. The hash trace must match a run without the loads. Every run kind uses this schedule (`runner/src/schedule.ts`), and the time of each save and load is in the total.
 
 ## Commands
 
@@ -118,7 +118,7 @@ The gap between the two numbers shows the cost of the idiomatic style.
 ## Known biases
 
 - **`baseline-js` under-prices structural change.** Plain arrays add and remove tags almost for free. The load budget measures shares in `baseline-js` time, so structural facets look cheaper than they are in an archetype library.
-- **Start-of-phase copy.** A library without double-buffered stores copies the positions at the top of `move`. Each such library pays this cost. `baseline-js` does not. The cost is part of the `move` time in the deep-dive report.
+- **Start-of-phase copy.** A library without double-buffered stores copies the positions before `move`, in the optional `Sim.moveStart` step. Each such library pays this cost. `baseline-js` does not. The deep-dive report shows the cost as its own `move.start` line, and `move` does not include it.
 - **The shared grid pulls ratios toward 1.** Every library uses the same kernel grid for spatial searches. That time is equal for all libraries, so it makes the ratios smaller.
 
 ## Add a library

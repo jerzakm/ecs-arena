@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import { findPackageJSON } from 'node:module'
 import v8, { GCProfiler } from 'node:v8'
 import { pathToFileURL } from 'node:url'
-import { SCENARIOS, hashState, kernel, PHASES, type CreateSim, type Sim } from '@ecs-arena/spec'
+import { SCENARIOS, hashState, kernel, runPhases, TIMED_PHASES, type CreateSim, type Sim } from '@ecs-arena/spec'
 import { runScheduled } from './schedule.ts'
 import type { RunResult } from './stats.ts'
 
@@ -19,7 +19,6 @@ const usesKoota = 'koota' in (JSON.parse(readFileSync(resolve(ROOT, 'impls', imp
 if (usesKoota) console.log(`koota -> ${process.env.ECS_ALIAS?.includes('"koota"') ? import.meta.resolve('koota') : findPackageJSON('koota', implEntry)}`)
 
 // Warm the JIT with one full throwaway run of the same scenario, then time a fresh sim.
-const runPhases = (sim: Sim) => { for (const p of PHASES) sim.phases[p]() }
 const runTick = (sim: Sim) => (deep || !sim.tick ? runPhases(sim) : sim.tick())
 const warm = createSim(scenario, kernel)
 runScheduled(warm, scenario, { tick: () => runTick(warm) })
@@ -38,7 +37,7 @@ const sim = createSim(scenario, kernel)
 let deepData: RunResult['deep']
 let totalMs: number
 if (deep) {
-  const phasesMs = Object.fromEntries([...PHASES, 'save', 'load'].map((p) => [p, 0])) as Record<string, number>
+  const phasesMs = Object.fromEntries([...TIMED_PHASES, 'save', 'load'].map((p) => [p, 0])) as Record<string, number>
   const ticks: number[][] = []
   let peakHeap = 0
   let gcMs = 0
@@ -52,9 +51,10 @@ if (deep) {
       const before = v8.getHeapStatistics().used_heap_size
       const row: number[] = []
       const ts = performance.now()
-      for (const p of PHASES) {
+      for (const p of TIMED_PHASES) {
         const s = performance.now()
-        sim.phases[p]()
+        if (p === 'move.start') sim.moveStart?.()
+        else sim.phases[p]()
         const d = performance.now() - s
         phasesMs[p] += d
         row.push(d)

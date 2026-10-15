@@ -3,7 +3,7 @@
 // Usage: pnpm run diff <impl> <scenario> <tick> [gameIds...]
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { PHASES, SCENARIOS, hashState, kernel, type CreateSim } from '@ecs-arena/spec'
+import { runPhases, SCENARIOS, hashState, kernel, type CreateSim } from '@ecs-arena/spec'
 import baseline from '../../impls/baseline-js/src/index.ts'
 import { parse, type Parsed } from '../../impls/baseline-js/src/testkit.ts'
 
@@ -71,7 +71,7 @@ const main = async (): Promise<number> => {
   const other = (await import(pathToFileURL(resolve(ROOT, 'impls', impl, 'src/index.ts')).href)).default as CreateSim
   const a = baseline(scenario, kernel), b = other(scenario, kernel)
   for (let t = 0; t <= last; t++) {
-    for (const p of PHASES) { a.phases[p](); b.phases[p]() }
+    runPhases(a); runPhases(b)
     const sa = a.snapshot(), sb = b.snapshot()
     const differs = hashState(sa) !== hashState(sb)
     if (!differs && t < last) continue

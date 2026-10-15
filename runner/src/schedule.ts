@@ -9,22 +9,21 @@ export interface Hooks {
   timed?(kind: 'save' | 'load', run: () => void): void
 }
 
-/** The SPEC §10 schedule: save after each 100th tick, load the newest save after `loadTick`, replay from the save. Every run kind goes through this. */
+/** The SPEC §10 schedule. Every run kind goes through this. */
 export const runScheduled = (sim: Sim, scenario: Scenario, hooks: Hooks): void => {
   const timed = hooks.timed ?? ((_, run) => run())
   let saved: { tick: number; state: unknown } | undefined
-  let loaded = false
+  let loadedAt = -1
   for (let t = 0; t < scenario.ticks; t++) {
     hooks.tick(t)
     hooks.after?.(t)
-    if (t > 0 && t % SAVE_INTERVAL === 0) {
-      const at = t
-      timed('save', () => { saved = { tick: at, state: sim.save() } })
-    }
-    if (t === scenario.loadTick && !loaded) {
-      loaded = true
+    if ((t + 1) % scenario.loadEvery === 0 && t > loadedAt) {
+      loadedAt = t
       timed('load', () => sim.load(saved!.state))
       t = saved!.tick
+    } else if (t > 0 && t % SAVE_INTERVAL === 0) {
+      const at = t
+      timed('save', () => { saved = { tick: at, state: sim.save() } })
     }
   }
 }

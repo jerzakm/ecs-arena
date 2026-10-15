@@ -3,7 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
-import { PHASES, SCENARIOS } from '@ecs-arena/spec'
+import { TIMED_PHASES, SCENARIOS } from '@ecs-arena/spec'
 import { aggregate, scoreTargets, type Aggregate, type RunResult } from './stats.ts'
 import { commit, recordReport, writeResultsPage } from './results.ts'
 import { cpus, platform, release } from 'node:os'
@@ -107,7 +107,7 @@ export const printScores = (report: BenchReport) => {
   console.table(Object.fromEntries(scores.map((s) => [s.target, { rank: s.rank, score: +s.point.toFixed(3), 'ci95 lo': +s.lo.toFixed(3), 'ci95 hi': +s.hi.toFixed(3) }])))
 }
 
-const COLS = [...PHASES, 'tick']
+const COLS = [...TIMED_PHASES, 'tick']
 
 /** benchbox native protocol v1: one bench per scenario and column, samples = per-tick median in ns. */
 export const writeProtocol = async (target: string, scenarios: string[], runs: number) => {
