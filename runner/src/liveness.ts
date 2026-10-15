@@ -8,6 +8,8 @@ export const LIVENESS: readonly (readonly [string, string, boolean?])[] = [
   ['F orders taken effect', 'q.ai.ordered'],
   ['F dead-key orders', 'q.ai.orderDeadKey'],
   ['G renderChain updates', 'rule.renderChain'],
+  ['H save calls', 'save.count'],
+  ['H load calls', 'load.count'],
   ['v2 veteran promotions', 'tag.add.veteran', true],
   ['v2 rout', 'tag.add.routed', true],
   ['v2 flee', 'tag.add.fleeing', true],

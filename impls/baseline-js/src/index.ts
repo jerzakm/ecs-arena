@@ -5,6 +5,7 @@
 // The index loops cut battle allocation by 21%. A loop body that pushes to the array still sees the new items.
 import type { CreateSim, Scenario } from '@ecs-arena/spec'
 import { createContext, type Kernel } from './context.ts'
+import { load, save } from './save.ts'
 import { snapshot } from './snapshot.ts'
 import { aiTargetSystem } from './systems/ai-target.ts'
 import { cleanupSystem } from './systems/cleanup.ts'
@@ -28,6 +29,8 @@ const createSim = (scenario: Scenario, k: Kernel, counters?: Counters, regions?:
       stats: statsSystem(ctx),
     },
     snapshot: () => snapshot(ctx),
+    save: () => save(ctx),
+    load: (state) => load(ctx, state),
   }
 }
 

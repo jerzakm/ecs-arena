@@ -5,11 +5,12 @@
 import { spawnSync } from 'node:child_process'
 import { SCENARIOS, SEEDS, PHASES, hashState, kernel, withSeed, type Scenario } from '@ecs-arena/spec'
 import createSim from '../../impls/baseline-js/src/index.ts'
+import { runScheduled } from './schedule.ts'
 import { CAP, FLOOR, MIN_NAIVE_RATIO, exitCode, judge, summarize, type Verdict } from './budget-check.ts'
 
 export const REGIONS = [
   'move.step', 'churn', 'effects.buffs', 'cleanup.unlink', 'move.depthOrder', 'cleanup.cascade', 'links',
-  'objectives.capture', 'morale.rout', 'morale.onFlee', 'stats.recompute', 'stats.setBonus', 'stats.banner', 'combat.fanIn', 'threat', 'cleanup.credit', 'grid.update', 'garrison', 'orders.lookup', 'stats.render',
+  'objectives.capture', 'morale.rout', 'morale.onFlee', 'stats.recompute', 'stats.setBonus', 'stats.banner', 'combat.fanIn', 'threat', 'cleanup.credit', 'grid.update', 'garrison', 'orders.lookup', 'stats.render', 'save', 'load',
 ]
 const HASH_EVERY = 25
 
@@ -32,12 +33,15 @@ const timeRun = (scenario: Scenario, naive: string | null): Run => {
   const sim = createSim(scenario, kernel, undefined, regions)
   let total = 0
   const hashes: string[] = []
-  for (let t = 0; t < scenario.ticks; t++) {
-    const t0 = performance.now()
-    for (const p of PHASES) sim.phases[p]()
-    total += performance.now() - t0
-    if (t % HASH_EVERY === 0 || t === scenario.ticks - 1) hashes.push(hashState(sim.snapshot()))
-  }
+  runScheduled(sim, scenario, {
+    tick: () => {
+      const t0 = performance.now()
+      for (const p of PHASES) sim.phases[p]()
+      total += performance.now() - t0
+    },
+    after: (t) => { if (t % HASH_EVERY === 0 || t === scenario.ticks - 1) hashes.push(hashState(sim.snapshot())) },
+    timed: (_, run) => { const t0 = performance.now(); run(); total += performance.now() - t0 },
+  })
   return { total, self, hashes }
 }
 

@@ -2,6 +2,7 @@
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { SCENARIOS, SEEDS, PHASES, kernel, withSeed, type Scenario } from '@ecs-arena/spec'
+import { runScheduled } from './schedule.ts'
 import { LIVENESS } from './liveness.ts'
 import createSim, { type Counters } from '../../impls/baseline-js/src/index.ts'
 
@@ -19,22 +20,23 @@ export const profile = (scenario: Scenario): Profile => {
   const counts = new Map<string, Stat>()
   const gauges = new Map<string, Stat>()
   const prev = new Map<string, number>()
-  for (let t = 0; t < scenario.ticks; t++) {
-    gauge.clear()
-    for (const p of PHASES) sim.phases[p]()
-    for (const [n, v] of cum) {
-      const d = v - (prev.get(n) ?? 0)
-      prev.set(n, v)
-      const s = counts.get(n) ?? { total: 0, mean: 0, max: 0 }
-      s.total += d; s.max = Math.max(s.max, d)
-      counts.set(n, s)
-    }
-    for (const [n, v] of gauge) {
-      const s = gauges.get(n) ?? { total: 0, mean: 0, max: 0 }
-      s.total += v; s.max = Math.max(s.max, v)
-      gauges.set(n, s)
-    }
-  }
+  runScheduled(sim, scenario, {
+    tick: () => { gauge.clear(); for (const p of PHASES) sim.phases[p]() },
+    after: () => {
+      for (const [n, v] of cum) {
+        const d = v - (prev.get(n) ?? 0)
+        prev.set(n, v)
+        const s = counts.get(n) ?? { total: 0, mean: 0, max: 0 }
+        s.total += d; s.max = Math.max(s.max, d)
+        counts.set(n, s)
+      }
+      for (const [n, v] of gauge) {
+        const s = gauges.get(n) ?? { total: 0, mean: 0, max: 0 }
+        s.total += v; s.max = Math.max(s.max, v)
+        gauges.set(n, s)
+      }
+    },
+  })
   for (const m of [counts, gauges]) for (const s of m.values()) s.mean = s.total / scenario.ticks
   const obj = (m: Map<string, Stat>) => Object.fromEntries([...m].sort(([a], [b]) => a.localeCompare(b)))
   return { ticks: scenario.ticks, counts: obj(counts), gauges: obj(gauges) }
