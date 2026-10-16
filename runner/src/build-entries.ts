@@ -21,15 +21,20 @@ const variantPlugin = (root: string): Plugin => ({
   setup: (b) => b.onResolve({ filter: /^koota(\/.*)?$/ }, (a) => ({ path: fileURLToPath(resolveInRoot(root, 'koota', '.' + a.path.slice('koota'.length))) })),
 })
 
-export const buildEntry = async (target: string) => {
+/** A `:smoke` suffix builds a short entry for a quick check on the bench box: skirmish-smoke, 3 runs. */
+const SMOKE = { scenarios: ['skirmish-smoke'], runs: 3 }
+
+export const buildEntry = async (name: string) => {
+  const smoke = name.endsWith(':smoke')
+  const target = smoke ? name.slice(0, -':smoke'.length) : name
   const { impl, variant } = parseTarget(target)
-  const outfile = resolve(ROOT, 'dist', `bench-${target.replace(/[^\w.-]/g, '-')}.mjs`)
+  const outfile = resolve(ROOT, 'dist', `bench-${name.replace(/[^\w.-]/g, '-')}.mjs`)
   mkdirSync(resolve(ROOT, 'dist'), { recursive: true })
   await build({
     stdin: {
       contents: `import createSim from './impls/${impl}/src/index.ts'
 import { main } from './runner/src/entry.ts'
-await main(${JSON.stringify(target)}, createSim, ${JSON.stringify(goldens())})
+await main(${JSON.stringify(target)}, createSim, ${JSON.stringify(goldens())}${smoke ? `, ${JSON.stringify(SMOKE)}` : ''})
 `,
       resolveDir: ROOT,
       loader: 'ts',
