@@ -13,7 +13,7 @@ const PAGE = resolve(ROOT, 'docs/results.md')
 const CHARTS = resolve(ROOT, 'docs/charts')
 const MB = 1048576
 
-const TICK_COLS = [...TIMED_PHASES, 'tick_ms', 'gc_ms', 'alloc_bytes', 'heap_bytes']
+const TICK_COLS = ['tick', ...TIMED_PHASES, 'tick_ms', 'gc_ms', 'alloc_bytes', 'heap_bytes']
 const SUMMARY_COLS = ['date', 'commit', 'target', 'scenario', 'runs', 'total_ms', 'total_lo', 'total_hi', 'p99_ms', 'max_ms', 'over_16ms', 'run_totals', ...TIMED_PHASES.map((p) => `${p}_ms`), 'gc_ms', 'alloc_mb', 'peak_heap_mb']
 
 const fileName = (target: string) => target.replace(/[^\w.@-]/g, '_')
@@ -59,7 +59,7 @@ export const recordReport = (report: BenchReport) => {
   for (const [target, byScenario] of Object.entries(report))
     for (const [scenario, a] of Object.entries(byScenario)) {
       const d = a.deep!
-      writeTicks(scenario, target, d.ticks.map((r) => r.map((v, i) => (i >= r.length - 2 ? Math.round(v) : +v.toFixed(4))).join(',')))
+      writeTicks(scenario, target, d.ticks.map((r, t) => [t, ...r.map((v, i) => (i >= r.length - 2 ? Math.round(v) : +v.toFixed(4)))].join(',')))
       rows.push({
         target, scenario, runs: a.runs, total_ms: a.totalMs.median, total_lo: a.totalMs.lo, total_hi: a.totalMs.hi,
         p99_ms: a.p99Ms.median, max_ms: a.maxMs.median, over_16ms: a.over.median,

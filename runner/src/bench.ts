@@ -134,9 +134,9 @@ export const writeProtocol = async (target: string, scenarios: string[], runs: n
     try {
       const a = (await bench([target], [sc], runs, true, child))[target][sc]
       const ns = (ms: number) => Math.round(ms * 1e6)
-      COLS.forEach((c, i) => out({ type: 'bench', group, name: c, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
-      out({ type: 'bench', group, name: 'total', samples: a.samples.total.map(ns) })
-      out({ type: 'bench', group, name: 'gc', samples: a.deep!.ticks.map((r) => ns(r[COLS.length])) })
+      COLS.forEach((c, i) => out({ type: 'bench', group, name: c, ordered: true, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
+      out({ type: 'bench', group, name: 'total', ordered: true, samples: a.samples.total.map(ns) })
+      out({ type: 'bench', group, name: 'gc', ordered: true, samples: a.deep!.ticks.map((r) => ns(r[COLS.length])) })
     } catch (e) {
       // A golden hash mismatch exits the child with code 3, so a wrong result never gives samples.
       for (const c of [...COLS, 'total', 'gc']) out({ type: 'error', group, name: c, message: String(e) })
