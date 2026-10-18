@@ -8,7 +8,7 @@ import { clearLink, Equips, itemCount, LastHitBy, MemberOf, offsetX, offsetY, se
 
 const promote = (ctx: Context, unit: number) => {
   const { world } = ctx
-  const members = (MemberOf.from![unit] ?? []).slice().sort(byGameId)
+  const members = (MemberOf.from[unit] ?? []).slice().sort(byGameId)
   if (members.length === 0) return
   const [head, ...rest] = members
   const headX = offsetX[head], headY = offsetY[head]

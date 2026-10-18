@@ -3,10 +3,10 @@ import type { Context } from './context.ts'
 import {
   Age, CAP, Cooldown, GameId, Health, Item, ItemKind, ItemTags, KillCount, Kind, Minion, Morale, Position, Start, Stats, Summoner, Team, Trail, Unit,
 } from './components.ts'
-import { ChildOf, clearLink, clearThreat, Equips, FiredBy, GarrisonOf, LastHitBy, LINKS, MemberOf, offsetX, offsetY, setLink, Targets, Threat } from './relations.ts'
+import { ChildOf, clearLink, clearThreat, Equips, FiredBy, GarrisonOf, LastHitBy, LINKS, MemberOf, offsetX, offsetY, type ReverseLink, setLink, Targets, Threat } from './relations.ts'
 import { bannerAtSpawn, recomputeStats } from './derived-stats.ts'
 
-const REVERSE_LINKS = [ChildOf, MemberOf, GarrisonOf]
+const REVERSE_LINKS: ReverseLink[] = [ChildOf, MemberOf, GarrisonOf]
 const CLEARED_LINKS = [Targets, LastHitBy, FiredBy]
 
 /** Allocates an entity. bitECS recycles ids at once, so the mirrors that an old entity left in this slot are cleared. */
@@ -32,11 +32,11 @@ export const equip = (ctx: Context, unit: number, item: number, quality: number)
 export const destroyEntity = (ctx: Context, e: number) => {
   const { world } = ctx
   if (!entityExists(world, e)) return
-  for (const minion of ChildOf.from![e]?.slice() ?? []) destroyEntity(ctx, minion)
+  for (const minion of ChildOf.from[e]?.slice() ?? []) destroyEntity(ctx, minion)
   for (const l of REVERSE_LINKS) {
     clearLink(e, l)
-    for (const s of l.from![e] ?? []) l.to[s] = -1
-    if (l.from![e]) l.from![e].length = 0
+    const held = l.from[e]
+    if (held) { for (const s of held) l.to[s] = -1; held.length = 0 }
   }
   const items = Equips.items[e] ?? []
   if (hasComponent(world, e, Unit)) ctx.destroyed.add(e) // only units are the target of a link or a threat

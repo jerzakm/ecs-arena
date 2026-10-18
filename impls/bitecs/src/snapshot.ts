@@ -22,7 +22,7 @@ export const snapshot = (ctx: Context): CanonicalState => {
   const shrines = sortedByGameId(Shrine)
   s.push(shrines.length)
   for (const e of shrines) {
-    const held = (GarrisonOf.from![e] ?? []).map(gid).sort((a, b) => a - b)
+    const held = (GarrisonOf.from[e] ?? []).map(gid).sort((a, b) => a - b)
     s.push(gid(e), Shrine.owner[e], Shrine.progress[e], held.length, ...held)
   }
 

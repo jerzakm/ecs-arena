@@ -35,7 +35,7 @@ export const spawnSystem = (ctx: Context) => {
     }
 
     for (const s of ctx.sortedByGameId(Summoner)) {
-      if (tick - Summoner.lastSummon[s] < k.SUMMON_PERIOD || (ChildOf.from![s]?.length ?? 0) >= k.MAX_MINIONS) continue
+      if (tick - Summoner.lastSummon[s] < k.SUMMON_PERIOD || (ChildOf.from[s]?.length ?? 0) >= k.MAX_MINIONS) continue
       const minion = spawnUnit(ctx, Team.value[s], KIND.MINION, Position.x[s], Position.y[s])
       setLink(minion, ChildOf, s)
       bannerAtSpawn(ctx, minion, s)

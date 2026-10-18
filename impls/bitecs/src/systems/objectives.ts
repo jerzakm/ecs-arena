@@ -12,7 +12,7 @@ export const objectivesSystem = (ctx: Context) => {
   return () => {
     const entered = new Set<number>()
     for (const e of ctx.sortedByGameId(Shrine)) {
-      const garrison = GarrisonOf.from![e] ??= [] // the members of this shrine, from the reverse index
+      const garrison = GarrisonOf.from[e] ??= [] // the members of this shrine, from the reverse index
       const x = Position.x[e], y = Position.y[e]
       const count = [0, 0]
       ctx.grid.forNear(x, y, k.SHRINE_RADIUS, (h) => {
