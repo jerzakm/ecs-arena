@@ -16,7 +16,7 @@ export const spawnUnit = (ctx: Context, team: number, kind: number, x: number, y
     [Stats, { attack: 0, armor: 0, speed: 0 }], [Cooldown, { value: 0 }], [KillCount, { value: 0 }], [Trail, { pts: [] }],
     [Targets, { to: 0 }], [LastHitBy, { to: 0 }], [Threat, { edges: [] }], [Equips, { items: [] }],
   ])
-  ctx.trackUnit(e, id, team, px, py)
+  ctx.units.track(e, id, team, px, py)
   if (kind === k.KIND.SUMMONER) addComponent(world, e, Summoner, { lastSummon: tick })
   if (kind === k.KIND.MINION) addComponents(world, e, [Minion, [Age, { value: 0 }]])
   else {

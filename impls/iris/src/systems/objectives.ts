@@ -29,8 +29,8 @@ export const objectivesSystem = (ctx: Context) => {
     for (const { e } of shrines) {
       const px = get(e, Position, 'x'), py = get(e, Position, 'y')
       const count = [0, 0]
-      ctx.grid.forNear(px, py, k.SHRINE_RADIUS, (h) => {
-        if (!hasComponent(world, ctx.unitAt[h], Fleeing)) count[ctx.teamAt[h]]++
+      ctx.units.grid.forNear(px, py, k.SHRINE_RADIUS, (h) => {
+        if (!hasComponent(world, ctx.units.unitAt[h], Fleeing)) count[ctx.units.teamAt[h]]++
       })
       const garrison = () => collectEntities(world, [pair(GarrisonOf, e)])
       for (const g of garrison()) count[get(g, Team, 'value')]++
@@ -44,8 +44,8 @@ export const objectivesSystem = (ctx: Context) => {
       const held = garrison().length
       if (owner === -1 || held >= cap) continue
       const near: { u: EntityId; id: number; d2: number }[] = []
-      ctx.grid.forNear(px, py, k.SHRINE_RADIUS, (h, d2, id) => {
-        if (ctx.teamAt[h] === owner && !hasComponent(world, ctx.unitAt[h], Fleeing)) near.push({ u: ctx.unitAt[h], id, d2 })
+      ctx.units.grid.forNear(px, py, k.SHRINE_RADIUS, (h, d2, id) => {
+        if (ctx.units.teamAt[h] === owner && !hasComponent(world, ctx.units.unitAt[h], Fleeing)) near.push({ u: ctx.units.unitAt[h], id, d2 })
       })
       near.sort((a, b) => a.d2 - b.d2 || a.id - b.id)
       for (const { u } of near.slice(0, cap - held)) enterGarrison(ctx, u, e, (by ??= targeters(ctx)))

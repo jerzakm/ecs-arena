@@ -10,7 +10,7 @@ export const aiTargetSystem = (ctx: Context) => {
   const has = (e: EntityId, c: EntityId) => hasComponent(world, e, c)
   let seekerTeam = 0
   const ordered = new Set<EntityId>() // units that took an order in this tick
-  const isEnemy = (h: number) => ctx.teamAt[h] !== seekerTeam && !has(ctx.unitAt[h], Fleeing)
+  const isEnemy = (h: number) => ctx.units.teamAt[h] !== seekerTeam && !has(ctx.units.unitAt[h], Fleeing)
 
   return defineSystem('ai/target', () => {
     const tick = ctx.tickNow()
@@ -73,9 +73,9 @@ export const aiTargetSystem = (ctx: Context) => {
           if (cur !== undefined && curHurt && inRange(x, y, get(cur, Position, 'x'), get(cur, Position, 'y'), stats.range)) continue
           if (isThinkTick(id, tick)) {
             let bestHp = 0, bestMax = 0, bestId = 0
-            ctx.grid.forNear(x, y, stats.range, (h, _d2, vid) => {
-              const v = ctx.unitAt[h]
-              if (ctx.teamAt[h] !== team || v === e) return
+            ctx.units.grid.forNear(x, y, stats.range, (h, _d2, vid) => {
+              const v = ctx.units.unitAt[h]
+              if (ctx.units.teamAt[h] !== team || v === e) return
               const hp = get(v, Health, 'hp'), maxHp = get(v, Health, 'maxHp')
               if (hp >= maxHp) return
               if (best !== undefined) {
@@ -90,8 +90,8 @@ export const aiTargetSystem = (ctx: Context) => {
           if (best === undefined && cur !== undefined && validTarget(team, x, y, stats.sight, cur)) best = cur
           if (best === undefined && isThinkTick(id, tick)) {
             seekerTeam = team
-            const h = ctx.grid.nearest(x, y, stats.sight, isEnemy)
-            best = h === -1 ? undefined : ctx.unitAt[h]
+            const h = ctx.units.grid.nearest(x, y, stats.sight, isEnemy)
+            best = h === -1 ? undefined : ctx.units.unitAt[h]
           }
         }
         if (best !== cur) retarget.push([e, best])

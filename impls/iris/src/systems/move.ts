@@ -99,7 +99,7 @@ export const moveSystem = (ctx: Context) => {
           pts.push(x, y)
           if (pts.length > 2 * k.TRAIL_POINTS) pts.splice(0, 2)
         }
-        ctx.grid.update(ctx.handleOf.get(e)!, x, y)
+        ctx.units.grid.update(ctx.units.handleOf.get(e)!, x, y)
       }
     }
     // No structural change may sit between the read pass and this write pass: the write-back is by position, in query order.

@@ -3,10 +3,11 @@ import {
   registerObserverCallback, setComponentValue, setResourceValue,
   type Component, type EntityId, type InferSchema, type QueryTerm, type SchemaRecord, type World,
 } from 'iris-ecs'
-import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { type CreateSim, type Scenario } from '@ecs-arena/spec'
 import { Clock, Equips, GameId, Metrics, NextId, Score, Team, Threat, Unit, type Link, type Targets, type LastHitBy } from './components.ts'
 import { observeDirty } from './derived-stats.ts'
 import { ChildOf } from './relations.ts'
+import { UnitGrid } from './unit-grid.ts'
 
 export type Kernel = Parameters<CreateSim>[1]
 
@@ -14,14 +15,8 @@ export interface Context {
   // Config
   k: Kernel
   scenario: Scenario
-  grid: SpatialGrid // handle: a dense int that the context hands out
-  unitAt: EntityId[] // grid handle -> unit
-  teamAt: number[] // grid handle -> team
-  inGrid: boolean[] // grid handle -> the unit is in the grid (a garrisoned unit is not)
-  idAt: number[] // grid handle -> gameId
-  handleOf: Map<EntityId, number> // unit -> grid handle
+  units: UnitGrid
   entityOf: Map<number, EntityId> // gameId -> live entity: every link field and list holds a gameId and resolves here
-  freeHandles: number[]
   // State
   world: World
   dirty: Set<EntityId>
@@ -47,9 +42,6 @@ export interface Context {
   threatOf: (e: EntityId) => number[]
   /** The held items of a unit, flat as item gameId and quality. */
   equipsOf: (e: EntityId) => number[]
-  trackUnit: (e: EntityId, gameId: number, team: number, x: number, y: number) => number
-  /** Takes every unit out of the kernel grid and forgets the handles and the gameId map. `load` calls it before it rebuilds the world. */
-  untrackAll: () => void
   homeX: (team: number) => number
   isThinkTick: (id: number, tick: number) => boolean
   inRange: (ax: number, ay: number, bx: number, by: number, r: number) => boolean
@@ -67,25 +59,13 @@ export const createContext = (world: World, scenario: Scenario, k: Kernel): Cont
 
   const dirty = new Set<EntityId>()
   observeDirty(world, dirty)
-  const grid = new SpatialGrid()
-  const unitAt: EntityId[] = []
-  const teamAt: number[] = []
-  const inGrid: boolean[] = []
-  const idAt: number[] = []
-  const handleOf = new Map<EntityId, number>()
+  const units = new UnitGrid()
   const entityOf = new Map<number, EntityId>()
-  const freeHandles: number[] = []
-  let handles = 0
   // Observers keep the gameId map and the kernel grid current: they also see the minions that `ChildOf` destroys with their summoner.
   registerObserverCallback(world, 'componentAdded', (c, e) => { if (c === GameId) entityOf.set(getComponentValue(world, e, GameId, 'id') as number, e) })
   registerObserverCallback(world, 'entityDestroying', (e) => {
     if (hasComponent(world, e, GameId)) entityOf.delete(getComponentValue(world, e, GameId, 'id') as number)
-    const h = handleOf.get(e)
-    if (h === undefined) return
-    if (inGrid[h]) grid.remove(h)
-    inGrid[h] = false
-    handleOf.delete(e)
-    freeHandles.push(h)
+    units.untrack(e)
   })
 
   const get: Context['get'] = (e, c, field) => getComponentValue(world, e, c, field) as never
@@ -104,14 +84,8 @@ export const createContext = (world: World, scenario: Scenario, k: Kernel): Cont
     scenario,
     world,
     dirty,
-    grid,
-    unitAt,
-    teamAt,
-    inGrid,
-    idAt,
-    handleOf,
+    units,
     entityOf,
-    freeHandles,
     get,
     set,
     gid,
@@ -136,23 +110,6 @@ export const createContext = (world: World, scenario: Scenario, k: Kernel): Cont
     setLink: (e, link, to) => setComponentValue(world, e, link, 'to', (to === undefined ? 0 : gid(to)) as never),
     threatOf: (e) => getComponentValue(world, e, Threat, 'edges') as number[],
     equipsOf: (e) => getComponentValue(world, e, Equips, 'items') as number[],
-    trackUnit: (e, gameId, team, x, y) => {
-      const h = freeHandles.pop() ?? handles++
-      handleOf.set(e, h)
-      unitAt[h] = e
-      teamAt[h] = team
-      idAt[h] = gameId
-      grid.add(h, gameId, x, y)
-      inGrid[h] = true
-      return h
-    },
-    untrackAll: () => {
-      for (const h of handleOf.values()) if (inGrid[h]) grid.remove(h)
-      handleOf.clear()
-      entityOf.clear()
-      freeHandles.length = unitAt.length = teamAt.length = inGrid.length = idAt.length = 0
-      handles = 0
-    },
     homeX: (team) => (team === 0 ? 0 : k.MAX_COORD),
     isThinkTick: (id, tick) => (id + tick) % k.THINK_INTERVAL === 0,
     inRange: (ax, ay, bx, by, r) => distSq(ax, ay, bx, by) <= r * r,

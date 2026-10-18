@@ -57,9 +57,9 @@ export const combatSystem = (ctx: Context) => {
       const shooter = ctx.targetOf(e, FiredBy)
       const owner = get(e, Projectile, 'owner'), ownerTeam = get(e, Projectile, 'ownerTeam'), attack = get(e, Projectile, 'attack')
       if (get(e, Projectile, 'ownerKind') === KIND.MAGE) {
-        ctx.grid.forNear(px, py, k.SPLASH_RADIUS, (h) => {
-          if (ctx.teamAt[h] === ownerTeam) return
-          const v = ctx.unitAt[h]
+        ctx.units.grid.forNear(px, py, k.SPLASH_RADIUS, (h) => {
+          if (ctx.units.teamAt[h] === ownerTeam) return
+          const v = ctx.units.unitAt[h]
           hurt(v, shooter, owner, ownerTeam, k.damage(attack, get(v, Stats, 'armor'), crit))
           incomingOf(v).burn = true
         })

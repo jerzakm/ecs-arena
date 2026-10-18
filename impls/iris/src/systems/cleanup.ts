@@ -10,7 +10,7 @@ export const cleanupSystem = (ctx: Context) => {
   const { k, world, gid, get, set, homeX, sortedByGameId } = ctx
   const { KIND } = k
   const has = (e: EntityId, c: EntityId) => hasComponent(world, e, c)
-  const hasRoom = (h: number) => ctx.equipsOf(ctx.unitAt[h]).length < 2 * k.MAX_ITEMS
+  const hasRoom = (h: number) => ctx.equipsOf(ctx.units.unitAt[h]).length < 2 * k.MAX_ITEMS
 
   return defineSystem('cleanup', () => {
     const kills = [0, 0]
@@ -107,10 +107,10 @@ export const cleanupSystem = (ctx: Context) => {
     const ground = sortedByGameId(Ground)
     for (const g of ground) {
       const gx = get(g.e, Position, 'x'), gy = get(g.e, Position, 'y')
-      const h = ctx.grid.nearest(gx, gy, k.PICKUP_RANGE, hasRoom)
+      const h = ctx.units.grid.nearest(gx, gy, k.PICKUP_RANGE, hasRoom)
       if (h === -1) continue
       const quality = get(g.e, Ground, 'quality')
-      const taker = ctx.unitAt[h]
+      const taker = ctx.units.unitAt[h]
       ctx.equipsOf(taker).push(g.id, quality)
       ctx.dirty.add(taker)
       addComponent(world, taker, ItemTags[get(g.e, ItemKind, 'value')])

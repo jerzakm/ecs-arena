@@ -64,7 +64,8 @@ const dropEvents = (ctx: Context) => {
 
 export const load = (ctx: Context, saved: Saved): void => {
   const { world } = ctx
-  ctx.untrackAll()
+  ctx.units.clear()
+  ctx.entityOf.clear()
   resetWorld(world)
   RESOURCES.forEach((r, i) => addResource(world, r as never, copy(saved.resources[i]!) as never))
 
@@ -80,11 +81,8 @@ export const load = (ctx: Context, saved: Saved): void => {
   // The kernel grid holds every unit that is not garrisoned (SPEC 3.2). The `componentAdded` observer of the context has refilled the gameId map.
   for (const [gameId, e] of byGameId) {
     if (!hasComponent(world, e, Unit)) continue
-    const h = ctx.trackUnit(e, gameId, ctx.get(e, Team, 'value'), ctx.get(e, Position, 'x'), ctx.get(e, Position, 'y'))
-    if (hasComponent(world, e, AnyGarrison)) {
-      ctx.grid.remove(h)
-      ctx.inGrid[h] = false
-    }
+    ctx.units.track(e, gameId, ctx.get(e, Team, 'value'), ctx.get(e, Position, 'x'), ctx.get(e, Position, 'y'))
+    if (hasComponent(world, e, AnyGarrison)) ctx.units.leave(e)
   }
   dropEvents(ctx)
 }

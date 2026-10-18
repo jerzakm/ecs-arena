@@ -9,15 +9,11 @@ export const enterGarrison = (ctx: Context, unit: EntityId, shrine: EntityId, by
   addComponent(world, unit, pair(GarrisonOf, shrine))
   ctx.setLink(unit, Targets, undefined)
   for (const s of by.get(unit) ?? []) ctx.setLink(s, Targets, undefined)
-  const h = ctx.handleOf.get(unit)!
-  ctx.grid.remove(h)
-  ctx.inGrid[h] = false
+  ctx.units.leave(unit)
 }
 
 export const leaveGarrison = (ctx: Context, unit: EntityId) => {
   const { world, get } = ctx
   removeComponent(world, unit, pair(GarrisonOf, getRelationTargets(world, unit, GarrisonOf)[0]))
-  const h = ctx.handleOf.get(unit)!
-  ctx.grid.add(h, ctx.gid(unit), get(unit, Position, 'x'), get(unit, Position, 'y'))
-  ctx.inGrid[h] = true
+  ctx.units.rejoin(unit, get(unit, Position, 'x'), get(unit, Position, 'y'))
 }
