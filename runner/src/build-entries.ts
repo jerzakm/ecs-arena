@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { chmodSync, mkdirSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -28,8 +29,10 @@ export const buildEntry = async (name: string) => {
   const smoke = name.endsWith(':smoke')
   const target = smoke ? name.slice(0, -':smoke'.length) : name
   const { impl, variant } = parseTarget(target)
-  const outfile = resolve(ROOT, 'dist', `bench-${name.replace(/[^\w.-]/g, '-')}.mjs`)
-  mkdirSync(resolve(ROOT, 'dist'), { recursive: true })
+  // Every entry goes in impls/<impl>/dist, next to the benchbox config of that impl, so each impl is its own benchbox Project.
+  const dir = resolve(ROOT, 'impls', impl, 'dist')
+  const outfile = resolve(dir, `bench-${name.replace(/[^\w.-]/g, '-')}.mjs`)
+  mkdirSync(dir, { recursive: true })
   await build({
     stdin: {
       contents: `import createSim from './impls/${impl}/src/index.ts'
@@ -54,5 +57,11 @@ await main(${JSON.stringify(target)}, createSim, ${JSON.stringify(goldens())}${s
   return outfile
 }
 
-const targets = process.argv.slice(2)
-for (const t of targets.length ? targets : ['koota', 'baseline-js']) console.log(await buildEntry(t))
+/** With --submit, each impl is built, then `benchbox submit` runs in impls/<impl>, which queues one job for that impl. */
+const submit = process.argv.includes('--submit')
+const targets = process.argv.slice(2).filter((a) => a !== '--submit')
+if (submit && !targets.length) throw new Error('usage: pnpm bench:submit <impl...>')
+for (const t of targets.length ? targets : readdirSync(resolve(ROOT, 'impls'))) {
+  console.log(await buildEntry(t))
+  if (submit) execFileSync('benchbox', ['submit'], { cwd: resolve(ROOT, 'impls', parseTarget(t).impl), stdio: 'inherit' })
+}

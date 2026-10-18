@@ -17,6 +17,7 @@
     "budget": "tsx runner/src/budget.ts",
     "results": "tsx runner/src/results.ts",
     "build:bench": "tsx runner/src/build-entries.ts",
+    "bench:submit": "tsx runner/src/build-entries.ts --submit",
     "import:benchbox": "tsx runner/src/import-benchbox.ts"
   },
   "devDependencies": {

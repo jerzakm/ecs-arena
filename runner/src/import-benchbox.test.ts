@@ -35,9 +35,14 @@ it('skips a group with an error bench and logs it', () => {
 
 it('skips the per-tick rows when the samples have no ordered flag', () => {
   const logged: string[] = []
-  const benches = group('koota', 1).map(({ ordered, ...b }) => b)
+  const benches = group('koota', 1).map(({ ordered: _ordered, ...b }) => b)
   const [row] = parseBenchbox({ files: [{ file: 'f', benches }] }, (l) => logged.push(l))
   expect(row.ticks).toEqual([])
   expect(row.summary.runs).toBe(5)
   expect(logged[0]).toContain('sorted')
+})
+
+it('imports a result from a job with only one impl', () => {
+  const rows = parseBenchbox({ files: [{ file: 'dist/bench-koota.mjs', benches: group('koota', 1) }] })
+  expect(rows.map((r) => [r.scenario, r.target])).toEqual([['skirmish', 'koota']])
 })
