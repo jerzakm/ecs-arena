@@ -14,7 +14,7 @@ export const aiTargetSystem = (ctx: Context) => {
     for (let u_i = 0, u = units[0]; u_i < units.length; u = units[++u_i]) if (u.gameId === id) return u
     return undefined
   }
-  const isThinkTick = (u: Unit) => (u.gameId + ctx.tick) % k.THINK_INTERVAL === 0
+  const isThinkTick = (u: Unit) => k.isThinkTick(u.gameId, ctx.tick)
 
   return () => {
     const units = ctx.units

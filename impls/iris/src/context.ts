@@ -3,13 +3,11 @@ import {
   registerObserverCallback, setComponentValue, setResourceValue,
   type Component, type EntityId, type InferSchema, type QueryTerm, type SchemaRecord, type World,
 } from 'iris-ecs'
-import { type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { type Kernel, type Scenario } from '@ecs-arena/spec'
 import { Clock, Equips, GameId, Metrics, NextId, Score, Team, Threat, Unit, type Link, type Targets, type LastHitBy } from './components.ts'
 import { observeDirty } from './derived-stats.ts'
 import { ChildOf } from './relations.ts'
 import { UnitGrid } from './unit-grid.ts'
-
-export type Kernel = Parameters<CreateSim>[1]
 
 export interface Context {
   // Config
@@ -51,7 +49,6 @@ export interface Context {
 export const byGameId = (a: { id: number }, b: { id: number }) => a.id - b.id
 
 export const createContext = (world: World, scenario: Scenario, k: Kernel): Context => {
-  const { distSq } = k
   addResource(world, Clock, { tick: -1 })
   addResource(world, NextId, { value: 1 })
   addResource(world, Metrics, { alive0: 0, alive1: 0, kills0: 0, kills1: 0, damage0: 0, damage1: 0, orders0: 0, orders1: 0, renderChain: 0x811c9dc5 | 0, winner: -1 })
@@ -110,9 +107,9 @@ export const createContext = (world: World, scenario: Scenario, k: Kernel): Cont
     setLink: (e, link, to) => setComponentValue(world, e, link, 'to', (to === undefined ? 0 : gid(to)) as never),
     threatOf: (e) => getComponentValue(world, e, Threat, 'edges') as number[],
     equipsOf: (e) => getComponentValue(world, e, Equips, 'items') as number[],
-    homeX: (team) => (team === 0 ? 0 : k.MAX_COORD),
-    isThinkTick: (id, tick) => (id + tick) % k.THINK_INTERVAL === 0,
-    inRange: (ax, ay, bx, by, r) => distSq(ax, ay, bx, by) <= r * r,
+    homeX: k.homeX,
+    isThinkTick: k.isThinkTick,
+    inRange: k.inRange,
     aliveCount: (team) => {
       let n = 0
       for (const e of collectEntities(world, [Unit, Team])) if (get(e, Team, 'value') === team) n++

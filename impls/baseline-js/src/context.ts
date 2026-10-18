@@ -1,7 +1,5 @@
-import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { SpatialGrid, type Kernel, type Scenario } from '@ecs-arena/spec'
 import type { Counters, GroundItem, Projectile, Regions, Shrine, Unit } from './types.ts'
-
-export type Kernel = Parameters<CreateSim>[1]
 
 export const byGameId = (a: { gameId: number }, b: { gameId: number }) => a.gameId - b.gameId
 export const BUFF_NAME = ['stun', 'burn', 'haste']
@@ -52,7 +50,7 @@ export interface Context {
 }
 
 export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters, regions?: Regions): Context => {
-  const { distSq, KIND, BUFF } = k
+  const { KIND, BUFF } = k
   const begin = regions ? regions.begin : () => {}, end = regions ? regions.end : () => {}
   const unitById = new Map<number, Unit>()
   const targeters = new Map<number, Set<Unit>>()
@@ -102,8 +100,8 @@ export const createContext = (scenario: Scenario, k: Kernel, counters?: Counters
     },
     kindName: (kind) => (kind === KIND.MINION ? 'minion' : kind === KIND.WARLORD ? 'warlord' : 'unit'),
     isStunned: (u) => u.buffs[BUFF.STUN] > 0,
-    homeX: (team) => (team === 0 ? 0 : k.MAX_COORD),
-    inRange: (ax, ay, bx, by, r) => distSq(ax, ay, bx, by) <= r * r,
+    homeX: k.homeX,
+    inRange: k.inRange,
     targetOf: (u) => u.tref,
     parentOf: (u) => u.pref,
     parentById: (u) => unitById.get(u.memberOf !== -1 ? u.memberOf : u.childOf),

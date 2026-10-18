@@ -25,6 +25,14 @@ export const isqrt = (n: number): number => {
   return s
 }
 
+/** The x a team's units flee to (SPEC 6.7): team 0 at the left edge, team 1 at the right edge. */
+export const homeX = (team: number): number => (team === 0 ? 0 : MAX_COORD)
+
+/** A unit retargets on the ticks where (gameId + tick) is a multiple of THINK_INTERVAL (SPEC 6.4). */
+export const isThinkTick = (id: number, tick: number): boolean => (id + tick) % THINK_INTERVAL === 0
+
+export const inRange = (ax: number, ay: number, bx: number, by: number, r: number): boolean => distSq(ax, ay, bx, by) <= r * r
+
 export const clampToArena = (v: number): number => (v < 0 ? 0 : v > MAX_COORD ? MAX_COORD : v)
 
 /** SPEC §6.3 stepToward, including the clamp. Returns [x, y]. */

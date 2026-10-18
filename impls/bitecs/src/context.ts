@@ -1,11 +1,9 @@
 import { createWorld, observe, onAdd, onRemove, query, type QueryTerm, type World } from 'bitecs'
-import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { SpatialGrid, type Kernel, type Scenario } from '@ecs-arena/spec'
 import { CAP, Fleeing, GameId, Routed, Team, Unit, Veteran } from './components.ts'
 import { observeDirty } from './derived-stats.ts'
 import { Q } from './queries.ts'
 import { resetStores } from './relations.ts'
-
-export type Kernel = Parameters<CreateSim>[1]
 
 /** World-level values: the custom world context of bitECS (`createWorld(context)` returns the same object). */
 export interface Resources {
@@ -71,7 +69,6 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
   if (k.CHRONICLE_MAX > 8) throw new Error('Chronicle store holds 8 entries')
   resetStores()
   const world = createWorld<Resources>(initialResources())
-  const { distSq } = k
   const ctx: Context = {
     k,
     scenario,
@@ -88,9 +85,9 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
     nextId: () => world.nextId++,
     gid: (e) => GameId.id[e],
     sortedByGameId: (...terms) => Array.from(query(world, [GameId, ...terms])).sort(byGameId),
-    homeX: (team) => (team === 0 ? 0 : k.MAX_COORD),
-    isThinkTick: (id, tick) => (id + tick) % k.THINK_INTERVAL === 0,
-    inRange: (ax, ay, bx, by, r) => distSq(ax, ay, bx, by) <= r * r,
+    homeX: k.homeX,
+    isThinkTick: k.isThinkTick,
+    inRange: k.inRange,
     aliveCount: (team) => {
       let n = 0
       for (const e of query(world, Q.teamQuery)) if (Team.value[e] === team) n++
