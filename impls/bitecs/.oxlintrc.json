@@ -1,0 +1,6 @@
+{
+  "rules": {
+    "no-restricted-imports": ["error", { "paths": [{ "name": "bitecs", "importNames": ["removeEntity"], "message": "Use destroyEntity from spawning.ts." }] }]
+  },
+  "overrides": [{ "files": ["src/spawning.ts"], "rules": { "no-restricted-imports": "off" } }]
+}
