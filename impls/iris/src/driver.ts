@@ -2,6 +2,9 @@
 // Both reach into `getWorldInternals`, which is why the version is pinned: without the flush, the removal events of every destroyed component would pile up.
 import { getWorldInternals, type System, type World } from 'iris-ecs'
 
+/** The iris-ecs version this driver targets. `driver.test.ts` fails when the installed or pinned version differs. */
+export const IRIS_VERSION = '0.0.14'
+
 /** Runs `fn` with the system id of `systemId` set, so the tracker windows of that system are the ones that it reads. */
 export const runAs = (world: World, systemId: string, fn: () => void): void => {
   const exec = getWorldInternals(world).execution
