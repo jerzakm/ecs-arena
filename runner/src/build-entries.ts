@@ -29,8 +29,8 @@ export const buildEntry = async (name: string) => {
   const smoke = name.endsWith(':smoke')
   const target = smoke ? name.slice(0, -':smoke'.length) : name
   const { impl, variant } = parseTarget(target)
-  // A plain impl entry goes in impls/<impl>/dist, next to the benchbox config of that impl, so each impl is its own benchbox Project.
-  const dir = smoke || variant ? resolve(ROOT, 'dist') : resolve(ROOT, 'impls', impl, 'dist')
+  // Every entry goes in impls/<impl>/dist, next to the benchbox config of that impl, so each impl is its own benchbox Project.
+  const dir = resolve(ROOT, 'impls', impl, 'dist')
   const outfile = resolve(dir, `bench-${name.replace(/[^\w.-]/g, '-')}.mjs`)
   mkdirSync(dir, { recursive: true })
   await build({
