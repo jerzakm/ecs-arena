@@ -34,7 +34,7 @@ export interface Parsed {
 }
 
 /** Reads the flat array exactly as SPEC §8 lays it out. Throws on a non-int32 value or when the length does not match. */
-export const parse = (s: CanonicalState): Parsed => {
+export const parse = (s: CanonicalState | Int32Array): Parsed => {
   for (const v of s) if (!Number.isInteger(v) || v < -(2 ** 31) || v >= 2 ** 31) throw new Error(`snapshot value ${v} is not an int32 integer`)
   let i = 0
   const next = () => s[i++]
