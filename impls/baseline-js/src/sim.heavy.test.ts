@@ -20,23 +20,56 @@ const { KIND, BUFF, UNIT_STATS, ITEMS, FX, SQUADS, PURPOSE, distSq, stepToward, 
 
 const memo = <T>(f: () => T) => { let v: T | undefined; return () => (v ??= f()) }
 
+const index = (s: Parsed) => new Map(s.units.map((u) => [u.gameId, u]))
+
+/**
+ * Runs `sc.ticks` ticks and keeps each snapshot as raw int32s, parsed again on access.
+ * The parsed snapshots of every tick of a fight take about 800 MB, so the fights do not fit in a 2 GB heap.
+ * The cache holds more ticks than the 61-tick burn window, so a test that slides over a fight parses each tick once.
+ */
+class Tape {
+  private readonly raw: Int32Array[] = []
+  private readonly cache = new Map<number, { s: Parsed; m?: Map<number, PUnit> }>()
+  constructor(sc: Scenario) {
+    const sim = createSim(sc, kernel)
+    for (let t = 0; t < sc.ticks; t++) {
+      for (const p of PHASES) sim.phases[p]()
+      const s = sim.snapshot()
+      const a = Int32Array.from(s)
+      if (a.some((v, i) => v !== s[i])) parse(s) // throws the int32 error that Int32Array.from hides
+      this.raw.push(a)
+    }
+  }
+  get length() { return this.raw.length }
+  tick(i: number) { return this.raw[i][0] }
+  private entry(i: number) {
+    const e = this.cache.get(i) ?? { s: parse(this.raw[i]) }
+    this.cache.delete(i)
+    this.cache.set(i, e)
+    if (this.cache.size > 128) this.cache.delete(this.cache.keys().next().value!)
+    return e
+  }
+  at(i: number) { return this.entry(i).s }
+  units(i: number) { const e = this.entry(i); return (e.m ??= index(e.s)) }
+  *[Symbol.iterator]() { for (let i = 0; i < this.length; i++) yield this.at(i) }
+}
+
 const SEEDS = [SMALL.seed, 5]
 const fights = memo(() => SEEDS.map((seed) => {
   const sc = { ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed }
-  return { sc, h: run(sc) }
+  return { sc, h: new Tape(sc) }
 }))
 
-interface Step { seed: number; t: number; h: Parsed[]; p: Parsed; c: Parsed; pm: Map<number, PUnit>; cm: Map<number, PUnit> }
-const index = (s: Parsed) => new Map(s.units.map((u) => [u.gameId, u]))
-const stepsOf = (seed: number, h: Parsed[]): Step[] => {
-  const maps = h.map(index)
-  return h.slice(1).map((c, i) => ({ seed, t: c.tick, h, p: h[i], c, pm: maps[i], cm: maps[i + 1] }))
-}
+interface Step { seed: number; t: number; h: Tape; p: Parsed; c: Parsed; pm: Map<number, PUnit>; cm: Map<number, PUnit> }
+const stepsOf = (seed: number, h: Tape): Step[] => Array.from({ length: h.length - 1 }, (_, i) => ({
+  seed, t: h.tick(i + 1), h,
+  get p() { return h.at(i) }, get c() { return h.at(i + 1) }, get pm() { return h.units(i) }, get cm() { return h.units(i + 1) },
+}))
 const steps = memo(() => fights().flatMap(({ sc, h }) => stepsOf(sc.seed, h)))
 /** A bigger fight with a different seed, for rules that need many kills by one unit. */
 const veteranFight = memo(() => {
   const sc = { ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed: 11, targetPop: 300, maxSquadsPerWave: 30, ticks: 1500 }
-  return stepsOf(sc.seed, run(sc))
+  return stepsOf(sc.seed, new Tape(sc))
 })
 
 const stunned = (u: PUnit) => u.buffs.some((b) => b.kind === BUFF.STUN)
@@ -500,7 +533,7 @@ describe('projectiles', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
+    for (let seed = 8; onTarget === 0 && seed < 60; seed++) check(stepsOf(seed, new Tape({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
     expect(onTarget).toBeGreaterThan(0)
   })
 
@@ -519,7 +552,7 @@ describe('projectiles', () => {
         if (at[0] !== t.x || at[1] !== t.y) continue
         const fired = fireTick(s, pr)
         // An owner that spawned in the firing tick has no start-of-tick record, and its end-of-tick attack can differ (a pickup).
-        const o = s.h[fired - 1].units.find((u) => u.gameId === pr.owner)
+        const o = s.h.at(fired - 1).units.find((u) => u.gameId === pr.owner)
         if (!o) { unknownOwner = true; break }
         const crit = isCrit(s.seed, fired, pr.owner)
         if (o.kind === KIND.MAGE) {
@@ -557,7 +590,7 @@ describe('Banner', () => {
       }
     }
     check([...steps(), ...veteranFight()])
-    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, run({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
+    for (let seed = 8; lost === 0 && seed < 60; seed++) check(stepsOf(seed, new Tape({ ...SMALL, garrisonCap: 0, ordersPerTeam: 0, seed })))
     expect(on).toBeGreaterThan(0)
     expect(lost).toBeGreaterThan(0)
   })
@@ -647,7 +680,9 @@ describe('healer', () => {
 })
 
 describe('death cascade', () => {
-  const deaths = () => steps().filter((s) => !ambiguous(s)).flatMap((s) => vanished(s).filter((d) => d.kind !== KIND.MINION && !leaves(d)).map((d) => ({ ...s, d })))
+  function* deaths() {
+    for (const s of steps()) if (!ambiguous(s)) for (const d of vanished(s)) if (d.kind !== KIND.MINION && !leaves(d)) yield { ...s, d }
+  }
 
   it('clears Targets to a dead unit and removes projectiles aimed at it', () => {
     let aimedAt = 0
@@ -871,8 +906,9 @@ describe('Threat', () => {
   it('adds the damage of the first hits as Threat, one edge for each attacker', () => {
     for (const seed of SEEDS) {
       const h = fights().find((f) => f.sc.seed === seed)!.h
-      const first = h.findIndex((s) => s.damage[0] + s.damage[1] > 0)
-      const c = h[first], p = h[first - 1]
+      let first = 0
+      while (h.at(first).damage[0] + h.at(first).damage[1] === 0) first++
+      const c = h.at(first), p = h.at(first - 1)
       expect(first % 20).not.toBe(0)
       expect(p.units.every((u) => u.threat.length === 0)).toBe(true)
       const total = sum(c.units.flatMap((u) => u.threat.map((e) => e.amount)))
@@ -1005,14 +1041,13 @@ describe('shrines and Score', () => {
 
 describe('surge', () => {
   const surgeScenario = scenario({ targetPop: 170, maxSquadsPerWave: 15, wavePeriod: 1_000_000, surgePeriod: 60, surgeBase: 3, surgeCap: 215, ticks: 1000 })
-  const h = memo(() => run(surgeScenario))
+  const h = memo(() => new Tape(surgeScenario))
 
   it('spawns surgeBase * (shrine lead) squads for the leading team, up to surgeCap, and none on a tie', () => {
     let surged = 0, ties = 0, capped = 0, limited = 0
     const seen = new Set<number>()
-    for (const [t, c] of h().entries()) {
-      if (t === 0) continue
-      const p = h()[t - 1]
+    for (let t = 1; t < h().length; t++) {
+      const c = h().at(t), p = h().at(t - 1)
       for (const team of [0, 1]) {
         const fresh = c.units.filter((u) => u.team === team && !p.units.some((x) => x.gameId === u.gameId) && u.kind !== KIND.MINION)
         const lead = p.score[team] - p.score[1 - team]
@@ -1110,11 +1145,11 @@ describe('buffs', () => {
   it('burns 2 damage when ticksLeft % 10 == 0, six times in a full burn', () => {
     let clean = 0
     for (const { h } of fights()) for (let t0 = 1; t0 < h.length - 61; t0++) {
-      for (const u0 of h[t0].units) {
+      for (const u0 of h.at(t0).units) {
         const b0 = u0.buffs.find((b) => b.kind === BUFF.BURN)
-        const prev = h[t0 - 1].units.find((u) => u.gameId === u0.gameId)?.buffs.find((b) => b.kind === BUFF.BURN)
+        const prev = h.at(t0 - 1).units.find((u) => u.gameId === u0.gameId)?.buffs.find((b) => b.kind === BUFF.BURN)
         if (!b0 || prev || b0.ticksLeft !== 59) continue
-        const hpAt = (k: number) => h[t0 + k].units.find((u) => u.gameId === u0.gameId)?.hp
+        const hpAt = (k: number) => h.at(t0 + k).units.find((u) => u.gameId === u0.gameId)?.hp
         let ok = true, burnTicks = 0
         for (let k = 1; k <= 59 && ok; k++) {
           const left = 59 - k
@@ -1364,7 +1399,7 @@ describe('Render extraction', () => {
   })
 
   it('changes renderChain on every tick, so a run that skips one buffer ends with another value', () => {
-    const chains = fights()[0].h.map((s) => s.renderChain)
+    const chains = Array.from(fights()[0].h, (s) => s.renderChain)
     expect(new Set(chains).size).toBe(chains.length)
   })
 })
