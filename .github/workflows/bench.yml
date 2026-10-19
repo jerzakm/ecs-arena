@@ -1,0 +1,45 @@
+name: bench
+# Submits a full board for koota and baseline-js to benchbox. Does not wait for results.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      BENCHBOX_TOKEN: ${{ secrets.BENCHBOX_TOKEN }}
+      BENCHBOX_URL: ${{ vars.BENCHBOX_URL || 'https://bench-staging.benchbox.app' }}
+    steps:
+      - name: Check the secret
+        if: ${{ env.BENCHBOX_TOKEN == '' }}
+        run: echo "::notice::BENCHBOX_TOKEN is not set. Skipping the benchbox submit."
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        if: ${{ env.BENCHBOX_TOKEN != '' }}
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        if: ${{ env.BENCHBOX_TOKEN != '' }}
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        if: ${{ env.BENCHBOX_TOKEN != '' }}
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: ${{ env.BENCHBOX_TOKEN != '' }}
+      # benchbox has no published CLI. Clone the canary ref and put a `benchbox` launcher on PATH.
+      - name: Install the benchbox CLI
+        if: ${{ env.BENCHBOX_TOKEN != '' }}
+        run: |
+          git clone --depth 1 --branch canary https://github.com/jerzakm/benchbox.git "$RUNNER_TEMP/benchbox"
+          pnpm --dir "$RUNNER_TEMP/benchbox" install --frozen-lockfile --filter @benchbox/cli...
+          mkdir -p "$RUNNER_TEMP/bin"
+          printf '#!/bin/sh\nexec node "%s/benchbox/packages/cli/bin/benchbox.mjs" "$@"\n' "$RUNNER_TEMP" > "$RUNNER_TEMP/bin/benchbox"
+          chmod +x "$RUNNER_TEMP/bin/benchbox"
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Build and submit
+        if: ${{ env.BENCHBOX_TOKEN != '' }}
+        run: pnpm bench:submit koota baseline-js

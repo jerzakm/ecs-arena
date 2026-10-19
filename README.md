@@ -80,6 +80,23 @@ pnpm results                                # rebuild docs/results.md from bench
 
 The headline score needs `baseline-js` in the same bench, because it divides by the `baseline-js` time of matched runs.
 
+## Baselines
+
+A push to `main` runs the workflow `.github/workflows/bench.yml`. It builds `koota` and `baseline-js` and submits a full board to benchbox. It does not wait for the results. The log shows the job ids.
+
+A CI token on a clean tree makes a baseline run. Any other run stays local. A baseline run is not yet a Baseline. Bless it:
+
+1. Wait for the job to finish.
+2. For each Project, run `benchbox bless <jobId>`. Do it for `koota` and for `baseline-js`.
+
+Set up the workflow one time:
+
+1. In the benchbox repo, run `pnpm run token mint client ci --ci --remote --env staging`. Copy the token. It shows one time.
+2. Run `gh secret set BENCHBOX_TOKEN`. Paste the token.
+3. Optional: run `gh variable set BENCHBOX_URL --body <url>`. The default is `https://bench-staging.benchbox.app`.
+
+Without the secret, the workflow skips the submit and prints a notice.
+
 ## Results
 
 [docs/results.md](docs/results.md) shows the headline score and the latest recorded run for each target and scenario. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the commit history is the trend. The page appears after the first import of the new series.
