@@ -3,6 +3,10 @@ import { SCENARIOS, hashState, kernel, runPhases, TIMED_PHASES, type CreateSim, 
 import { runScheduled } from './schedule.ts'
 import type { RunResult } from './stats.ts'
 
+/** The warmup runs this share of the scenario's ticks, at least WARMUP_MIN_TICKS. 20% of a 1000-tick scenario still covers a save and a load (loadEvery 200). */
+export const WARMUP_FRACTION = 0.2
+export const WARMUP_MIN_TICKS = 50
+
 export interface ChildArgs {
   createSim: CreateSim
   impl: string
@@ -17,10 +21,11 @@ export const runChild = ({ createSim, impl, scenario: name, kind, golden }: Chil
   const deep = kind === 'deep'
   const scenario = SCENARIOS[name]
 
-  // Warm the JIT with one full throwaway run of the same scenario, then time a fresh sim.
+  // Warm the JIT with a short throwaway run (the first WARMUP_FRACTION of the ticks, same schedule), then time a fresh sim.
+  // Goldens are checked on the timed sim only.
   const runTick = (sim: Sim) => (deep || !sim.tick ? runPhases(sim) : sim.tick())
   const warm = createSim(scenario, kernel)
-  runScheduled(warm, scenario, { tick: () => runTick(warm) })
+  runScheduled(warm, { ...scenario, ticks: Math.min(scenario.ticks, Math.max(WARMUP_MIN_TICKS, Math.round(scenario.ticks * WARMUP_FRACTION))) }, { tick: () => runTick(warm) })
   globalThis.gc?.()
 
   const tickMs: number[] = []

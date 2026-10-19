@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { TIMED_PHASES, SCENARIOS } from '@ecs-arena/spec'
-import { aggregate, enough, fixed, FULL, scoreTargets, type Aggregate, type RunPlan, type RunResult } from './stats.ts'
+import { aggregate, enough, planFor, scoreTargets, type Aggregate, type RunPlan, type RunResult } from './stats.ts'
 import { commit, recordReport, writeResultsPage } from './results.ts'
 import { cpus, platform, release } from 'node:os'
 import { ensureVariant, parseTarget } from './variants.ts'
@@ -63,8 +63,8 @@ const runOnce = (impl: string, scenario: string, alias: Record<string, string>, 
 
 export type BenchReport = Record<string, Record<string, Aggregate>>
 
-/** Headline runs are interleaved target by target (ABAB...) so machine drift hits every target alike. They go on until every target has `enough` runs, so all targets keep the same count. Then `plan.deep` interleaved deep-dive runs follow. */
-export const bench = async (targets: string[], scenarios: string[], plan: RunPlan, child = DEV_CHILD): Promise<BenchReport> => {
+/** Headline runs are interleaved target by target (ABAB...) so machine drift hits every target alike. They go on until every target has `enough` runs, so all targets keep the same count. `t0` is when the entry started, for the wall-time cap. Then `plan.deep` interleaved deep-dive runs follow. */
+export const bench = async (targets: string[], scenarios: string[], plan: RunPlan, child = DEV_CHILD, t0 = Date.now()): Promise<BenchReport> => {
   const prepared = targets.map((target) => {
     const { impl, variant } = parseTarget(target)
     // A bundled entry has its variant built in.
@@ -72,16 +72,25 @@ export const bench = async (targets: string[], scenarios: string[], plan: RunPla
     return { target, impl, alias }
   })
   const report: BenchReport = Object.fromEntries(targets.map((t) => [t, {}]))
+  // benchbox progress records (protocol mode only). Total counts every planned run and shrinks when adaptive headline runs stop early.
+  const perScenario = targets.length * (plan.max + plan.deep)
+  let done = 0
+  let total = scenarios.length * perScenario
   for (const sc of scenarios) {
     if (!SCENARIOS[sc]) throw new Error(`unknown scenario ${sc}`)
     const head: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
     const dp: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
     const round = async (kind: 'headline' | 'deep', rs: Record<string, RunResult[]>) => {
-      for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, kind, child))
+      for (const { target, impl, alias } of prepared) {
+        if (quiet) process.stdout.write(JSON.stringify({ type: 'progress', done, total, text: `${sc} ${kind} ${rs[target].length + 1}/${kind === 'deep' ? plan.deep : plan.max}` }) + '\n')
+        rs[target].push(await runOnce(impl, sc, alias, kind, child))
+        done++
+      }
     }
     do {
       await round('headline', head)
-    } while (!targets.every((t) => enough(head[t].map((r) => r.totalMs), plan)))
+    } while (!targets.every((t) => enough(head[t].map((r) => r.totalMs), plan, Date.now() - t0)))
+    total -= (plan.max - head[targets[0]].length) * targets.length
     for (let i = 0; i < plan.deep; i++) await round('deep', dp)
     for (const t of targets) report[t][sc] = aggregate(head[t], dp[t])
   }
@@ -128,12 +137,13 @@ const COLS = [...TIMED_PHASES, 'tick']
 /** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. With no deep runs only the run totals go out. */
 export const writeProtocol = async (target: string, scenarios: string[], plan: RunPlan, child = DEV_CHILD) => {
   quiet = true
+  const t0 = Date.now()
   const out = (r: object) => process.stdout.write(JSON.stringify(r) + '\n')
   out({ type: 'meta', language: 'js', toolchain: process.version, target: `${process.arch}-${process.platform}`, machine: machine(plan) })
   for (const sc of scenarios) {
     const group = `${sc}/${target}`
     try {
-      const a = (await bench([target], [sc], plan, child))[target][sc]
+      const a = (await bench([target], [sc], plan, child, t0))[target][sc]
       const ns = (ms: number) => Math.round(ms * 1e6)
       if (a.deep) COLS.forEach((c, i) => out({ type: 'bench', group, name: c, ordered: true, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
       out({ type: 'bench', group, name: 'total', ordered: true, samples: a.samples.total.map(ns) })
@@ -152,7 +162,7 @@ export const parseCli = (argv: string[]) => {
     options: { runs: { type: 'string' }, out: { type: 'string' }, record: { type: 'boolean', default: false }, deep: { type: 'boolean', default: false }, protocol: { type: 'boolean', default: !!process.env.BENCHBOX_PROTOCOL } },
   })
   const deep = values.record || values.deep ? 2 : 0
-  const plan = values.runs === undefined ? { ...FULL, deep } : fixed(Number(values.runs), deep)
+  const plan = planFor(values.runs === undefined ? undefined : Number(values.runs), deep > 0)
   return { pos: positionals, plan, out: values.out, record: values.record, protocol: values.protocol }
 }
 

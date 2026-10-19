@@ -4,7 +4,6 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build, type Plugin } from 'esbuild'
 import { resolveInRoot } from './alias-hook.mjs'
-import { QUICK } from './stats.ts'
 import { ensureVariant, parseTarget } from './variants.ts'
 
 const ROOT = resolve(import.meta.dirname, '../..')
@@ -23,22 +22,29 @@ const variantPlugin = (root: string): Plugin => ({
   setup: (b) => b.onResolve({ filter: /^koota(\/.*)?$/ }, (a) => ({ path: fileURLToPath(resolveInRoot(root, 'koota', '.' + a.path.slice('koota'.length))) })),
 })
 
-/** A `:smoke` suffix builds a quick tier entry for a check on the bench box: the smoke scenarios, 1 headline run, no deep runs, so only `total` benches. */
-const SMOKE = { scenarios: ['skirmish-smoke', 'war-smoke'], plan: QUICK }
+/** Splits `<target>[:<profile>]`. The profile names a slice in the benchbox.config.json of the impl. */
+export const splitProfile = (name: string) => {
+  const [target, profile] = name.split(':')
+  return { target, profile }
+}
+
+export const submitArgs = (name: string) => {
+  const { profile } = splitProfile(name)
+  return ['submit', ...(profile ? ['--profile', profile] : [])]
+}
 
 export const buildEntry = async (name: string) => {
-  const smoke = name.endsWith(':smoke')
-  const target = smoke ? name.slice(0, -':smoke'.length) : name
+  const { target } = splitProfile(name)
   const { impl, variant } = parseTarget(target)
   // Every entry goes in impls/<impl>/dist, next to the benchbox config of that impl, so each impl is its own benchbox Project.
   const dir = resolve(ROOT, 'impls', impl, 'dist')
-  const outfile = resolve(dir, `bench-${name.replace(/[^\w.-]/g, '-')}.mjs`)
+  const outfile = resolve(dir, `bench-${target.replace(/[^\w.-]/g, '-')}.mjs`)
   mkdirSync(dir, { recursive: true })
   await build({
     stdin: {
       contents: `import createSim from './impls/${impl}/src/index.ts'
 import { main } from './runner/src/entry.ts'
-await main(${JSON.stringify(target)}, createSim, ${JSON.stringify(goldens())}${smoke ? `, ${JSON.stringify(SMOKE)}` : ''})
+await main(${JSON.stringify(target)}, createSim, ${JSON.stringify(goldens())})
 `,
       resolveDir: ROOT,
       loader: 'ts',
@@ -58,11 +64,11 @@ await main(${JSON.stringify(target)}, createSim, ${JSON.stringify(goldens())}${s
   return outfile
 }
 
-/** With --submit, each impl is built, then `benchbox submit` runs in impls/<impl>, which queues one job for that impl. */
+/** With --submit, each impl is built, then `benchbox submit` runs in impls/<impl>, which queues one job for that impl. `<impl>:<profile>` adds `--profile <profile>`, so `koota:smoke` submits the smoke slice of the normal build. */
 const submit = process.argv.includes('--submit')
 const targets = process.argv.slice(2).filter((a) => a !== '--submit')
 if (submit && !targets.length) throw new Error('usage: pnpm bench:submit <impl...>')
 for (const t of targets.length ? targets : readdirSync(resolve(ROOT, 'impls'))) {
   console.log(await buildEntry(t))
-  if (submit) execFileSync('benchbox', ['submit'], { cwd: resolve(ROOT, 'impls', parseTarget(t).impl), stdio: 'inherit' })
+  if (submit) execFileSync('benchbox', submitArgs(t), { cwd: resolve(ROOT, 'impls', parseTarget(splitProfile(t).target).impl), stdio: 'inherit' })
 }
