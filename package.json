@@ -4,7 +4,9 @@
   "packageManager": "pnpm@11.9.0",
   "type": "module",
   "scripts": {
-    "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/** --exclude **/.claude/**",
+    "prepare": "git config core.hooksPath .githooks",
+    "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/** --exclude **/.claude/** --exclude **/*.heavy.test.ts",
+    "test:heavy": "vitest run .heavy.test.ts --exclude **/node_modules/** --exclude **/.worktrees/** --exclude **/.claude/**",
     "typecheck": "tsc --noEmit -p .",
     "lint": "oxlint --deny-warnings",
     "verify": "tsx runner/src/verify.ts",

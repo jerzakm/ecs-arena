@@ -58,6 +58,7 @@ Use Node 24.2 or later (`.nvmrc`). The runner and the koota build need it.
 ```sh
 pnpm install
 pnpm test                                   # unit and behaviour tests
+pnpm test:heavy                             # *.heavy.test.ts: full fights, minutes. The pre-push hook runs it
 pnpm verify koota skirmish-smoke            # compare the hash trace of each seed with the golden
 pnpm verify:all                             # every implementation, every smoke scenario
 pnpm run diff koota skirmish 120 7 9        # find the first differing record against baseline-js
