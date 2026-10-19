@@ -79,7 +79,7 @@ export const parse = (s: CanonicalState | Int32Array): Parsed => {
 }
 
 /** The skirmish of the first v3 sizing. The behaviour tests run it, so they stay fast and do not move when the load budget retunes `SCENARIOS`. */
-export const SMALL: Scenario = { ...SCENARIOS.skirmish, targetPop: 170, maxSquadsPerWave: 15, surgeBase: 3, surgeCap: 260, garrisonCap: 8, ordersPerTeam: 8 }
+export const SMALL: Scenario = { ...SCENARIOS.skirmish, targetPop: 170, maxSquadsPerWave: 15, surgeBase: 3, surgeCap: 260, garrisonCap: 8, ordersPerTeam: 8, ticks: 2000 }
 
 /** One squad of one warband per team, no repeat waves, no surge. Override what a test needs. */
 export const scenario = (o: Partial<Scenario> = {}): Scenario => ({
