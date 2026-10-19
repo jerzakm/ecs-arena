@@ -1,1 +1,1 @@
-{"harness":"native","target":"x86_64-linux","entries":["dist/bench-baseline-js.mjs"],"config":{"runtime":"node"}}
+{"harness":"native","target":"x86_64-linux","entries":["dist/bench-baseline-js.mjs"],"config":{"runtime":"node"},"profiles":{"smoke":["skirmish-smoke","--runs","3"]}}
