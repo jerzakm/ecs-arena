@@ -1,5 +1,5 @@
 import { TIMED_PHASES } from '@ecs-arena/spec'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { fetchResult, parseBenchbox, report, type BenchboxResult } from './import-benchbox.ts'
 import { scoreTargets } from './stats.ts'
 
@@ -72,4 +72,17 @@ it('fetches one result per impl by Project path, passes the commit, and reports 
 
 it('fails when the baseline result is missing', () => {
   expect(() => fetchResult(['baseline-js', 'koota'], undefined, () => { throw new Error('no job') })).toThrow(/baseline-js/)
+})
+
+it('says phase ratios need deep runs when a result has only totals', () => {
+  const total = (t: string, k: number) => ({ group: `skirmish/${t}`, name: 'total', ordered: true, samples: [100, 110, 105].map((x) => x * k * NS) })
+  const lines = report(parseBenchbox({ files: [{ file: 'f', benches: [total('baseline-js', 1), total('koota', 2)] }] }))
+  expect(lines.at(-1)).toBe('phase ratios need deep runs: run `pnpm bench:submit <impl>:deep`')
+})
+
+it('logs one quiet skip line for a missing non-baseline impl', () => {
+  const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+  fetchResult(['iris'], 'abc1234', () => { throw new Error('no job') })
+  expect(err.mock.calls).toEqual([['skip iris: no result at abc1234']])
+  err.mockRestore()
 })

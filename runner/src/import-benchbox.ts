@@ -77,14 +77,14 @@ const ROOT = resolve(import.meta.dirname, '../..')
 const BASELINE = 'baseline-js'
 
 /** Runs `benchbox results` for every impl, one Project each (named by its path, impls/<impl>). An impl with no done job at the commit is skipped with a note, except the baseline, because the headline divides by it. */
-export const fetchResult = (impls: string[], commit?: string, run: (args: string[]) => string = (a) => execFileSync(process.env.BENCHBOX ?? 'benchbox', a, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 30, stdio: ['ignore', 'pipe', 'inherit'] })): BenchboxResult => {
+export const fetchResult = (impls: string[], commit?: string, run: (args: string[]) => string = (a) => execFileSync(process.env.BENCHBOX ?? 'benchbox', a, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 30, stdio: ['ignore', 'pipe', 'pipe'] })): BenchboxResult => {
   const results: BenchboxResult[] = []
   for (const impl of impls) {
     try {
       results.push(JSON.parse(run(['results', '--project', `impls/${impl}`, ...(commit ? ['--commit', commit] : [])])) as BenchboxResult)
     } catch (e) {
       if (impl === BASELINE) throw new Error(`no ${BASELINE} result: the headline needs it (${e})`)
-      console.error(`skipping ${impl}: no result`)
+      console.error(`skip ${impl}: no result at ${commit ?? 'HEAD'}`)
     }
   }
   return { timestamp: results[0]?.timestamp, files: results.flatMap((r) => r.files) }
@@ -106,6 +106,7 @@ export const report = (rows: Imported[]): string[] => {
       })
       if (ratios.length) out.push(`  ${t} ${p}: ${geomean(ratios).toFixed(3)}`)
     }
+  if (rows.some((r) => r.summary.spawn_ms === undefined)) out.push('phase ratios need deep runs: run `pnpm bench:submit <impl>:deep`')
   return out
 }
 
@@ -115,7 +116,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error('usage: pnpm import:benchbox [--commit sha] [results.json]\n  with no file, fetches the results of every impl at the commit (default HEAD) with `benchbox results`')
     process.exit(2)
   }
-  const result = positionals[0] ? (JSON.parse(readFileSync(resolve(positionals[0]), 'utf8')) as BenchboxResult) : fetchResult(readdirSync(resolve(ROOT, 'impls')), values.commit)
+  const result = positionals[0] ? (JSON.parse(readFileSync(resolve(positionals[0]), 'utf8')) as BenchboxResult) : fetchResult(readdirSync(resolve(ROOT, 'impls')), values.commit ?? commit())
   const imported = parseBenchbox(result)
   for (const r of imported) if (r.ticks.length) writeTicks(r.scenario, r.target, r.ticks)
   upsertSummary(imported.map((r) => r.summary), (result.timestamp ?? new Date().toISOString()).slice(0, 10), values.commit ?? commit())
