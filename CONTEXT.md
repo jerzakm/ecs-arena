@@ -134,7 +134,7 @@ A deep copy of all world state at the end of a tick. The game makes one each 25 
 The game loads the newest save after every 200th tick (after ticks 199, 399 and so on) and replays the ticks after that save.
 
 **Headline number**:
-The geometric mean over the 3 scenarios of library time divided by `baseline-js` time.
+The geometric mean over the 2 board scenarios (`skirmish` and `war`) of library time divided by `baseline-js` time.
 
 **Load budget**:
 The rule that each facet uses at least 2% and at most 25% of the tick in `baseline-js` time, and that its naive way is at least 1.5 times slower.

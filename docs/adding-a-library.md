@@ -78,7 +78,7 @@ Time `pnpm verify baseline-js <scenario>` on your machine first. Then compare yo
 6. Run `pnpm verify <lib> skirmish` before you trust smoke. Then run `battle` and `war`. All must pass. Each scenario runs with 3 seeds, and each seed has its own golden. A pass with one seed is not enough.
 7. On a failure, debug with the diff tool. See [Debug a failing scenario](#debug-a-failing-scenario).
 8. Fill in `impls/<lib>/CAPABILITIES.md` from [the template](capabilities-template.md). Include the rows for save and load and for the kernel grid. Run `pnpm run check:caps`. It fails on a broken link.
-9. Run `pnpm bench baseline-js <lib> skirmish battle war` to see your headline score.
+9. Run `pnpm bench baseline-js <lib> skirmish war` to see your headline score.
 10. Open a PR. A reviewer checks the `Support` column and the links against the code.
 
 You do not run `pnpm budget` for a new library. The load budget measures `baseline-js` only. It shows that the game loads each facet, not how fast your library is.
