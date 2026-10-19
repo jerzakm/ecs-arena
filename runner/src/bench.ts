@@ -72,16 +72,26 @@ export const bench = async (targets: string[], scenarios: string[], plan: RunPla
     return { target, impl, alias }
   })
   const report: BenchReport = Object.fromEntries(targets.map((t) => [t, {}]))
+  // benchbox progress records (protocol mode only). Total counts every planned run and shrinks when adaptive headline runs stop early.
+  const perScenario = targets.length * (plan.max + plan.deep)
+  let done = 0
+  let total = scenarios.length * perScenario
   for (const sc of scenarios) {
+    const first = done
     if (!SCENARIOS[sc]) throw new Error(`unknown scenario ${sc}`)
     const head: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
     const dp: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
     const round = async (kind: 'headline' | 'deep', rs: Record<string, RunResult[]>) => {
-      for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, kind, child))
+      for (const { target, impl, alias } of prepared) {
+        if (quiet) process.stdout.write(JSON.stringify({ type: 'progress', done, total, text: `${sc} run ${done - first + 1}/${perScenario}` }) + '\n')
+        rs[target].push(await runOnce(impl, sc, alias, kind, child))
+        done++
+      }
     }
     do {
       await round('headline', head)
     } while (!targets.every((t) => enough(head[t].map((r) => r.totalMs), plan, Date.now() - t0)))
+    total -= (plan.max - head[targets[0]].length) * targets.length
     for (let i = 0; i < plan.deep; i++) await round('deep', dp)
     for (const t of targets) report[t][sc] = aggregate(head[t], dp[t])
   }
