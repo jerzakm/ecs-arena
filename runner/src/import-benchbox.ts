@@ -1,10 +1,11 @@
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { SCENARIOS, TIMED_PHASES } from '@ecs-arena/spec'
 import { commit, upsertSummary, writeResultsPage, writeTicks } from './results.ts'
-import { median, medianCI } from './stats.ts'
+import { median, medianCI, scoreTargets } from './stats.ts'
 
 /** The part of `benchbox results <jobId>` this importer reads. */
 export interface BenchboxResult {
@@ -72,15 +73,52 @@ export const parseBenchbox = (result: BenchboxResult, log: (line: string) => voi
   return out
 }
 
+const ROOT = resolve(import.meta.dirname, '../..')
+const BASELINE = 'baseline-js'
+
+/** Runs `benchbox results` for every impl, one Project each (named by its path, impls/<impl>). An impl with no done job at the commit is skipped with a note, except the baseline, because the headline divides by it. */
+export const fetchResult = (impls: string[], commit?: string, run: (args: string[]) => string = (a) => execFileSync(process.env.BENCHBOX ?? 'benchbox', a, { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 30, stdio: ['ignore', 'pipe', 'inherit'] })): BenchboxResult => {
+  const results: BenchboxResult[] = []
+  for (const impl of impls) {
+    try {
+      results.push(JSON.parse(run(['results', '--project', `impls/${impl}`, ...(commit ? ['--commit', commit] : [])])) as BenchboxResult)
+    } catch (e) {
+      if (impl === BASELINE) throw new Error(`no ${BASELINE} result: the headline needs it (${e})`)
+      console.error(`skipping ${impl}: no result`)
+    }
+  }
+  return { timestamp: results[0]?.timestamp, files: results.flatMap((r) => r.files) }
+}
+
+const geomean = (xs: number[]) => Math.exp(xs.reduce((a, b) => a + Math.log(b), 0) / xs.length)
+
+/** The headline geometric mean with its interval, then per target and phase the geometric mean over scenarios of phase ms divided by the baseline phase ms. */
+export const report = (rows: Imported[]): string[] => {
+  const totals: Record<string, Record<string, number[]>> = {}
+  for (const r of rows) (totals[r.target] ??= {})[r.scenario] = String(r.summary.run_totals).split(';').map(Number)
+  const out = scoreTargets(totals).map((s) => `headline ${s.target}: ${s.point.toFixed(3)} (95% ${s.lo.toFixed(3)} to ${s.hi.toFixed(3)}), geomean of total ms over ${BASELINE}`)
+  const base = new Map(rows.filter((r) => r.target === BASELINE).map((r) => [r.scenario, r.summary]))
+  for (const t of Object.keys(totals).filter((t) => t !== BASELINE))
+    for (const p of [...TIMED_PHASES, 'gc']) {
+      const ratios = rows.filter((r) => r.target === t).flatMap((r) => {
+        const [a, b] = [Number(r.summary[`${p}_ms`]), Number(base.get(r.scenario)?.[`${p}_ms`])]
+        return a > 0 && b > 0 ? [a / b] : []
+      })
+      if (ratios.length) out.push(`  ${t} ${p}: ${geomean(ratios).toFixed(3)}`)
+    }
+  return out
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const { positionals, values } = parseArgs({ allowPositionals: true, options: { commit: { type: 'string' } } })
-  if (positionals.length !== 1) {
-    console.error('usage: pnpm import:benchbox <results.json> [--commit sha]')
+  if (positionals.length > 1) {
+    console.error('usage: pnpm import:benchbox [--commit sha] [results.json]\n  with no file, fetches the results of every impl at the commit (default HEAD) with `benchbox results`')
     process.exit(2)
   }
-  const result = JSON.parse(readFileSync(resolve(positionals[0]), 'utf8')) as BenchboxResult
+  const result = positionals[0] ? (JSON.parse(readFileSync(resolve(positionals[0]), 'utf8')) as BenchboxResult) : fetchResult(readdirSync(resolve(ROOT, 'impls')), values.commit)
   const imported = parseBenchbox(result)
   for (const r of imported) if (r.ticks.length) writeTicks(r.scenario, r.target, r.ticks)
   upsertSummary(imported.map((r) => r.summary), (result.timestamp ?? new Date().toISOString()).slice(0, 10), values.commit ?? commit())
   writeResultsPage()
+  console.log(report(imported).join('\n'))
 }

@@ -84,6 +84,16 @@ The headline score needs `baseline-js` in the same bench, because it divides by 
 
 [docs/results.md](docs/results.md) shows the headline score and the latest recorded run for each target and scenario. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the commit history is the trend. The page appears after the first import of the new series.
 
+One command fetches both Projects of a commit, updates the data and the page, and prints the headline score with one ratio row for each phase:
+
+```
+pnpm import:benchbox                    # results of HEAD, every impl
+pnpm import:benchbox --commit 938bef3   # a named commit
+pnpm import:benchbox results.json       # offline, from a saved `benchbox results` file
+```
+
+It runs `benchbox results --project impls/<impl>` for each impl. The Project name is the path of the impl directory. A commit needs a finished `baseline-js` job, because the headline divides by it.
+
 The data of the old protocol (`battle`, 2000 ticks, 10 headline and 10 deep runs) is in `bench-data/old-protocol/` and `docs/old-protocol/results.md`. It does not compare with the new series.
 
 ## How it works

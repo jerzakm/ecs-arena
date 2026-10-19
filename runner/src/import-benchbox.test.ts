@@ -1,6 +1,6 @@
 import { TIMED_PHASES } from '@ecs-arena/spec'
 import { expect, it } from 'vitest'
-import { parseBenchbox, type BenchboxResult } from './import-benchbox.ts'
+import { fetchResult, parseBenchbox, report, type BenchboxResult } from './import-benchbox.ts'
 import { scoreTargets } from './stats.ts'
 
 const NS = 1e6
@@ -52,4 +52,24 @@ it('imports a quick group that has only a total bench', () => {
   const [row] = parseBenchbox({ files: [{ file: 'f', benches: [total] }] })
   expect(row.ticks).toEqual([])
   expect(row.summary).toMatchObject({ runs: 3, total_ms: 105, spawn_ms: undefined, gc_ms: undefined })
+})
+
+it('fetches one result per impl by Project path, passes the commit, and reports headline and phase ratios', () => {
+  const calls: string[][] = []
+  const files = (impl: string, scale: number) => JSON.stringify({ files: [{ file: `dist/bench-${impl}.mjs`, benches: group(impl, scale) }] })
+  const run = (a: string[]) => {
+    calls.push(a)
+    const impl = a[2].replace('impls/', '')
+    if (impl === 'iris') throw new Error('no job')
+    return files(impl, impl === 'koota' ? 2 : 1)
+  }
+  const result = fetchResult(['baseline-js', 'iris', 'koota'], 'abc1234', run)
+  expect(calls[0]).toEqual(['results', '--project', 'impls/baseline-js', '--commit', 'abc1234'])
+  const lines = report(parseBenchbox(result))
+  expect(lines[0]).toMatch(/^headline koota: 2\.000 \(95% /)
+  expect(lines).toContain('  koota spawn: 2.000')
+})
+
+it('fails when the baseline result is missing', () => {
+  expect(() => fetchResult(['baseline-js', 'koota'], undefined, () => { throw new Error('no job') })).toThrow(/baseline-js/)
 })
