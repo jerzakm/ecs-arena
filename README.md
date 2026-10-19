@@ -17,7 +17,7 @@ Each library gets one headline number.
 - The number is the geometric mean, over `skirmish` and `war`, of the library time divided by the `baseline-js` time. Lower is better.
 - `skirmish` has about 5k peak entities and `war` about 50k. Both run 1000 ticks. `battle` (about 20k) is for local use and is not on the board.
 - The time is the total run time of a headline run. The report also shows p99, the max tick and the ticks over 16.6 ms.
-- Runs are adaptive. A headline has 3 to 10 runs and stops when the 95% interval of the median is under 2% of the median. Two deep runs follow. Two libraries whose intervals overlap share a rank.
+- Runs are adaptive. A headline has 3 to 10 runs and stops when the 95% interval of the median is under 2% of the median. An entry that has used 10 min of wall time stops its headline runs after the 3-run minimum. Two deep runs follow. Two libraries whose intervals overlap share a rank.
 
 One number is fair only when the game loads each facet by a known amount. The load budget sets that amount.
 

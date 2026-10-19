@@ -40,21 +40,23 @@ const bootstrap = (n: number, stat: (idx: number[]) => number, point: number, re
 export const medianCI = (xs: number[], resamples = 2000, seed = 1): Interval =>
   bootstrap(xs.length, (idx) => median(idx.map((i) => xs[i])), median(xs), resamples, seed)
 
-/** How many runs a scenario gets. Headline runs stop at `max`, or earlier once `min` runs give a 95% median interval narrower than `width` of the median. */
+/** How many runs a scenario gets. Headline runs stop at `max`, or earlier once `min` runs give a 95% median interval narrower than `width` of the median. After `min` runs, an entry that has used `wallMs` of wall time stops too. */
 export interface RunPlan {
   min: number
   max: number
   deep: number
   width: number
+  wallMs: number
 }
-export const FULL: RunPlan = { min: 3, max: 10, deep: 2, width: 0.02 }
-export const QUICK: RunPlan = { min: 1, max: 1, deep: 0, width: 0.02 }
-export const fixed = (n: number, deep: number): RunPlan => ({ min: n, max: n, deep, width: 0 })
+export const FULL: RunPlan = { min: 3, max: 10, deep: 2, width: 0.02, wallMs: 10 * 60_000 }
+export const QUICK: RunPlan = { min: 1, max: 1, deep: 0, width: 0.02, wallMs: Infinity }
+export const fixed = (n: number, deep: number): RunPlan => ({ min: n, max: n, deep, width: 0, wallMs: Infinity })
 
 /** True when the headline run totals of one target need no more runs. */
-export const enough = (totals: number[], plan: RunPlan): boolean => {
+export const enough = (totals: number[], plan: RunPlan, elapsedMs = 0): boolean => {
   if (totals.length >= plan.max) return true
   if (totals.length < plan.min) return false
+  if (elapsedMs >= plan.wallMs) return true
   const { lo, hi, point } = medianCI(totals)
   return (hi - lo) / point < plan.width
 }

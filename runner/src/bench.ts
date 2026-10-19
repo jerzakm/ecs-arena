@@ -63,8 +63,8 @@ const runOnce = (impl: string, scenario: string, alias: Record<string, string>, 
 
 export type BenchReport = Record<string, Record<string, Aggregate>>
 
-/** Headline runs are interleaved target by target (ABAB...) so machine drift hits every target alike. They go on until every target has `enough` runs, so all targets keep the same count. Then `plan.deep` interleaved deep-dive runs follow. */
-export const bench = async (targets: string[], scenarios: string[], plan: RunPlan, child = DEV_CHILD): Promise<BenchReport> => {
+/** Headline runs are interleaved target by target (ABAB...) so machine drift hits every target alike. They go on until every target has `enough` runs, so all targets keep the same count. `t0` is when the entry started, for the wall-time cap. Then `plan.deep` interleaved deep-dive runs follow. */
+export const bench = async (targets: string[], scenarios: string[], plan: RunPlan, child = DEV_CHILD, t0 = Date.now()): Promise<BenchReport> => {
   const prepared = targets.map((target) => {
     const { impl, variant } = parseTarget(target)
     // A bundled entry has its variant built in.
@@ -81,7 +81,7 @@ export const bench = async (targets: string[], scenarios: string[], plan: RunPla
     }
     do {
       await round('headline', head)
-    } while (!targets.every((t) => enough(head[t].map((r) => r.totalMs), plan)))
+    } while (!targets.every((t) => enough(head[t].map((r) => r.totalMs), plan, Date.now() - t0)))
     for (let i = 0; i < plan.deep; i++) await round('deep', dp)
     for (const t of targets) report[t][sc] = aggregate(head[t], dp[t])
   }
@@ -128,12 +128,13 @@ const COLS = [...TIMED_PHASES, 'tick']
 /** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. With no deep runs only the run totals go out. */
 export const writeProtocol = async (target: string, scenarios: string[], plan: RunPlan, child = DEV_CHILD) => {
   quiet = true
+  const t0 = Date.now()
   const out = (r: object) => process.stdout.write(JSON.stringify(r) + '\n')
   out({ type: 'meta', language: 'js', toolchain: process.version, target: `${process.arch}-${process.platform}`, machine: machine(plan) })
   for (const sc of scenarios) {
     const group = `${sc}/${target}`
     try {
-      const a = (await bench([target], [sc], plan, child))[target][sc]
+      const a = (await bench([target], [sc], plan, child, t0))[target][sc]
       const ns = (ms: number) => Math.round(ms * 1e6)
       if (a.deep) COLS.forEach((c, i) => out({ type: 'bench', group, name: c, ordered: true, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
       out({ type: 'bench', group, name: 'total', ordered: true, samples: a.samples.total.map(ns) })

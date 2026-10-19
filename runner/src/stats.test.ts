@@ -56,6 +56,9 @@ describe('stats', () => {
     expect(enough([5, 5, 5], FULL)).toBe(true)
     expect(enough([5], fixed(3, 2))).toBe(false)
     expect(enough([5, 6, 7], fixed(3, 2))).toBe(true)
+    // wall-time cap: stops a wide interval, but never before min runs
+    expect(enough(spread.slice(0, 5), FULL, FULL.wallMs)).toBe(true)
+    expect(enough(spread.slice(0, 2), FULL, FULL.wallMs)).toBe(false)
   })
   it('geomean score is the geometric mean of matched ratios', () => {
     const base = { a: [10, 10, 10], b: [100, 100, 100] }
