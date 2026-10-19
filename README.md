@@ -17,7 +17,7 @@ Each library gets one headline number.
 - The number is the geometric mean, over `skirmish` and `war`, of the library time divided by the `baseline-js` time. Lower is better.
 - `skirmish` has about 5k peak entities and `war` about 50k. Both run 1000 ticks. `battle` (about 20k) is for local use and is not on the board.
 - The time is the total run time of a headline run. The report also shows p99, the max tick and the ticks over 16.6 ms.
-- Runs are adaptive. A headline has 3 to 10 runs and stops when the 95% interval of the median is under 2% of the median. An entry that has used 10 min of wall time stops its headline runs after the 3-run minimum. Two deep runs follow. Two libraries whose intervals overlap share a rank.
+- Runs are adaptive. A headline has 3 to 10 runs and stops when the 95% interval of the median is under 2% of the median. An entry that has used 10 min of wall time stops its headline runs after the 3-run minimum. The default board run has no deep runs, and a full koota entry takes about 10 min. Deep runs only come on request (`--deep`, `--record`, or `benchbox submit --profile deep`). Two libraries whose intervals overlap share a rank.
 
 One number is fair only when the game loads each facet by a known amount. The load budget sets that amount.
 
@@ -47,8 +47,8 @@ An implementation is correct when its hash trace matches the golden for every ti
 ## How a run works
 
 - **Headline runs** time whole ticks only. When an implementation has a `tick()` function, the runner calls it. Otherwise the runner calls the phases in spec order.
-- **Deep-dive runs** call the phases one by one. They record the phase times, GC time, allocation and heap for each tick. `--deep` and `--record` add them. The report shows the overhead of the extra timers.
-- **Warmup.** Each run is a fresh child process. It does one full throwaway run of the same scenario before the timed run.
+- **Deep-dive runs** call the phases one by one. They record the phase times, GC time, allocation and heap for each tick. `--deep` and `--record` add 2 of them. `--runs N` alone gives N headline runs and no deep runs. The report shows the overhead of the extra timers.
+- **Warmup.** Each run is a fresh child process. It first runs the first 20% of the scenario's ticks (at least 50) as a throwaway warmup, then times a fresh sim. The hash check and the goldens apply to the timed run only.
 - **Snapshot and restore.** The runner asks for a save after each 25th tick. After every 200th tick it loads the newest save and replays the 24 ticks after it. The hash trace must match a run without the loads. Every run kind uses this schedule (`runner/src/schedule.ts`), and the time of each save and load is in the total.
 
 ## Commands
@@ -95,6 +95,8 @@ pnpm import:benchbox results.json       # offline, from a saved `benchbox result
 It runs `benchbox results --project impls/<impl>` for each impl. The Project name is the path of the impl directory. A commit needs a finished `baseline-js` job, because the headline divides by it.
 
 The data of the old protocol (`battle`, 2000 ticks, 10 headline and 10 deep runs) is in `bench-data/old-protocol/` and `docs/old-protocol/results.md`. It does not compare with the new series.
+
+Results before the short-warmup commit (a full-length warmup, 2 deep runs on every board run) are a different protocol too. Their timings are not comparable with later results.
 
 ## How it works
 
