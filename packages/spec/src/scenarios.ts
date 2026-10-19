@@ -21,3 +21,6 @@ export const withSeed = (s: Scenario, i: number): Scenario => ({ ...s, seed: SEE
 
 /** Seed 1 keeps the plain golden name, the others get `.s2`, `.s3`. */
 export const goldenFile = (name: string, i: number): string => (i === 0 ? `${name}.json` : `${name}.s${i + 1}.json`)
+
+/** The scenarios of the published board. `battle` stays in `SCENARIOS` for local use. */
+export const BOARD_SCENARIOS = ['skirmish', 'war']
