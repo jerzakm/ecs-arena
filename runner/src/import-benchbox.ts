@@ -17,13 +17,13 @@ export interface Imported {
   scenario: string
   /** Per-tick CSV data rows, empty when the samples are not in tick order. */
   ticks: string[]
-  summary: Record<string, string | number>
+  summary: Record<string, string | number | undefined>
 }
 
 const ms = (ns: number) => ns / 1e6
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
 
-/** Turns protocol benches (group `<scenario>/<target>`, samples in ns) into per-tick rows and summary values. A group with an error bench is reported and skipped. */
+/** Turns protocol benches (group `<scenario>/<target>`, samples in ns) into per-tick rows and summary values. A group with an error bench is reported and skipped. A group with only a `total` bench (a quick run) gives no tick rows and empty phase and GC cells. */
 export const parseBenchbox = (result: BenchboxResult, log: (line: string) => void = console.error): Imported[] => {
   const groups = new Map<string, Map<string, number[]>>()
   const sorted = new Set<string>()
@@ -50,21 +50,22 @@ export const parseBenchbox = (result: BenchboxResult, log: (line: string) => voi
       return s
     }
     const total = need('total').map(ms)
-    const tick = need('tick')
-    const columns = [...TIMED_PHASES, 'tick', 'gc'].map((c) => need(c).map(ms))
+    const deep = cols.has('tick')
+    const tick = deep ? need('tick') : []
+    const columns = deep ? [...TIMED_PHASES, 'tick', 'gc'].map((c) => need(c).map(ms)) : []
     if (sorted.has(group)) log(`${group}: samples have no ordered flag, so benchbox sorted them. The per-tick CSV is skipped and run_totals are sorted.`)
     // benchbox downsamples a series over 50k samples with an even stride, so the index maps back to the real tick (approximate).
     const n = SCENARIOS[scenario]?.ticks ?? tick.length
     const at = (t: number) => (tick.length > 1 && n > tick.length ? Math.round((t * (n - 1)) / (tick.length - 1)) : t)
-    const ticks = sorted.has(group) ? [] : tick.map((_, t) => [at(t), ...columns.map((c) => +c[t].toFixed(4)), '', ''].join(','))
+    const ticks = sorted.has(group) || !deep ? [] : tick.map((_, t) => [at(t), ...columns.map((c) => +c[t].toFixed(4)), '', ''].join(','))
     const ci = medianCI(total)
     out.push({
       target, scenario, ticks,
       summary: {
         target, scenario, runs: total.length, total_ms: median(total), total_lo: ci.lo, total_hi: ci.hi,
         run_totals: total.map((x) => +x.toFixed(2)).join(';'),
-        ...Object.fromEntries(TIMED_PHASES.map((p, k) => [`${p}_ms`, sum(columns[k])])),
-        gc_ms: sum(columns[columns.length - 1]),
+        ...Object.fromEntries(TIMED_PHASES.map((p, k) => [`${p}_ms`, deep ? sum(columns[k]) : undefined])),
+        gc_ms: deep ? sum(columns[columns.length - 1]) : undefined,
       },
     })
   }

@@ -46,3 +46,10 @@ it('imports a result from a job with only one impl', () => {
   const rows = parseBenchbox({ files: [{ file: 'dist/bench-koota.mjs', benches: group('koota', 1) }] })
   expect(rows.map((r) => [r.scenario, r.target])).toEqual([['skirmish', 'koota']])
 })
+
+it('imports a quick group that has only a total bench', () => {
+  const total = { group: 'skirmish-smoke/koota', name: 'total', ordered: true, samples: [100, 110, 105].map((t) => t * NS) }
+  const [row] = parseBenchbox({ files: [{ file: 'f', benches: [total] }] })
+  expect(row.ticks).toEqual([])
+  expect(row.summary).toMatchObject({ runs: 3, total_ms: 105, spawn_ms: undefined, gc_ms: undefined })
+})

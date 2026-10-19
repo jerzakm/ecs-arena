@@ -125,7 +125,7 @@ export const printScores = (report: BenchReport) => {
 
 const COLS = [...TIMED_PHASES, 'tick']
 
-/** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. */
+/** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. With no deep runs only the run totals go out. */
 export const writeProtocol = async (target: string, scenarios: string[], plan: RunPlan, child = DEV_CHILD) => {
   quiet = true
   const out = (r: object) => process.stdout.write(JSON.stringify(r) + '\n')
@@ -135,12 +135,12 @@ export const writeProtocol = async (target: string, scenarios: string[], plan: R
     try {
       const a = (await bench([target], [sc], plan, child))[target][sc]
       const ns = (ms: number) => Math.round(ms * 1e6)
-      COLS.forEach((c, i) => out({ type: 'bench', group, name: c, ordered: true, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
+      if (a.deep) COLS.forEach((c, i) => out({ type: 'bench', group, name: c, ordered: true, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
       out({ type: 'bench', group, name: 'total', ordered: true, samples: a.samples.total.map(ns) })
-      out({ type: 'bench', group, name: 'gc', ordered: true, samples: a.deep!.ticks.map((r) => ns(r[COLS.length])) })
+      if (a.deep) out({ type: 'bench', group, name: 'gc', ordered: true, samples: a.deep.ticks.map((r) => ns(r[COLS.length])) })
     } catch (e) {
       // A golden hash mismatch exits the child with code 3, so a wrong result never gives samples.
-      for (const c of [...COLS, 'total', 'gc']) out({ type: 'error', group, name: c, message: String(e) })
+      for (const c of plan.deep ? [...COLS, 'total', 'gc'] : ['total']) out({ type: 'error', group, name: c, message: String(e) })
     }
   }
 }
