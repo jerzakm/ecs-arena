@@ -14,8 +14,8 @@ The primary goal is a regression harness for [koota](https://github.com/pmndrs/k
 
 Each library gets one headline number.
 
-- The number is the geometric mean, over `skirmish`, `battle` and `war`, of the library time divided by the `baseline-js` time. Lower is better.
-- `skirmish` has about 5k peak entities, `battle` about 20k and `war` about 50k.
+- The number is the geometric mean, over `skirmish` and `war`, of the library time divided by the `baseline-js` time. Lower is better.
+- `skirmish` has about 5k peak entities and `war` about 50k. Both run 1000 ticks. `battle` (about 20k) is for local use and is not on the board.
 - The time is the total run time of a headline run. The report also shows p99, the max tick and the ticks over 16.6 ms.
 - Each headline has a 95% bootstrap interval from 10 runs. Two libraries whose intervals overlap share a rank.
 
@@ -82,7 +82,9 @@ The headline score needs `baseline-js` in the same bench, because it divides by 
 
 ## Results
 
-[docs/results.md](docs/results.md) shows the headline score and the latest recorded run for each target and scenario. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the git history is the trend. The v2 rows were removed when v3 started, because v2 and v3 numbers do not compare.
+[docs/results.md](docs/results.md) shows the headline score and the latest recorded run for each target and scenario. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the commit history is the trend. The page appears after the first import of the new series.
+
+The data of the old protocol (`battle`, 2000 ticks, 10 headline and 10 deep runs) is in `bench-data/old-protocol/` and `docs/old-protocol/results.md`. It does not compare with the new series.
 
 ## How it works
 
