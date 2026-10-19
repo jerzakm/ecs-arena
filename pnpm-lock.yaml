@@ -55,6 +55,24 @@ importers:
         specifier: workspace:*
         version: link:../../packages/spec
 
+  impls/bitecs:
+    dependencies:
+      '@ecs-arena/spec':
+        specifier: workspace:*
+        version: link:../../packages/spec
+      bitecs:
+        specifier: ^0.4.0
+        version: 0.4.0
+
+  impls/iris:
+    dependencies:
+      '@ecs-arena/spec':
+        specifier: workspace:*
+        version: link:../../packages/spec
+      iris-ecs:
+        specifier: 0.0.14
+        version: 0.0.14
+
   impls/koota:
     dependencies:
       '@ecs-arena/spec':
@@ -848,6 +866,9 @@ packages:
     resolution: {integrity: sha512-Izi8RQcffqCeNVgFigKli1ssklIbpHnCYc6AknXGYoB6grJqyeby7jv12JUQgmTAnIDnbck1uxksT4dzN3PWBA==}
     engines: {node: '>=12'}
 
+  bitecs@0.4.0:
+    resolution: {integrity: sha512-ho6Zop/L79DRTnBAfakPpGPuX7y0+lAjX06CpaAW+5tnAc7BH3L3RlSrWAXAqwnQGDZ10GsoxaxyTTsddlun3g==}
+
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
     engines: {node: '>=8'}
@@ -914,6 +935,10 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  iris-ecs@0.0.14:
+    resolution: {integrity: sha512-9GSxgJbZvxu6/TIhugPSW0pQR0TMwxcTRJ6YAI4qtZjgQt2D+Q00dwbCvy8Vve96wST+FYxHNoM6wC9JajzZog==}
+    engines: {node: '>=24'}
 
   koota@0.6.6:
     resolution: {integrity: sha512-Fn8lSooH3u9TIP+eAMugFrOju40Ec70+sB7x1eZBB3H0Lki2hyIbFAodk3NDB/RIRzoMs54O4422BVN6SbtWfw==}
@@ -1565,6 +1590,8 @@ snapshots:
 
   assertion-error@2.0.1: {}
 
+  bitecs@0.4.0: {}
+
   cac@6.7.14: {}
 
   chai@5.3.3:
@@ -1683,6 +1710,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  iris-ecs@0.0.14: {}
 
   koota@0.6.6: {}
 

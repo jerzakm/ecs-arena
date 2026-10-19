@@ -57,4 +57,5 @@ export const runPhases = (sim: Sim): void => {
   }
 }
 
-export type CreateSim = (scenario: Scenario, kernel: typeof import('./kernel.ts')) => Sim
+export type Kernel = typeof import('./kernel.ts')
+export type CreateSim = (scenario: Scenario, kernel: Kernel) => Sim

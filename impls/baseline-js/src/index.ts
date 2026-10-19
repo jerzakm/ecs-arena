@@ -3,8 +3,8 @@
 // arrays that stay sorted by gameId. No ECS library.
 // Array loops use an index, not for...of, in every file. V8 allocates an iterator result for each step of for...of.
 // The index loops cut battle allocation by 21%. A loop body that pushes to the array still sees the new items.
-import type { CreateSim, Scenario } from '@ecs-arena/spec'
-import { createContext, type Kernel } from './context.ts'
+import type { CreateSim, Kernel, Scenario } from '@ecs-arena/spec'
+import { createContext } from './context.ts'
 import { load, save } from './save.ts'
 import { snapshot } from './snapshot.ts'
 import { aiTargetSystem } from './systems/ai-target.ts'

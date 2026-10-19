@@ -1,10 +1,8 @@
 import { createWorld, type Entity, type QueryParameter, type World } from 'koota'
-import { SpatialGrid, type CreateSim, type Scenario } from '@ecs-arena/spec'
+import { SpatialGrid, type Kernel, type Scenario } from '@ecs-arena/spec'
 import { Clock, GameId, Metrics, NextId, Score, Unit } from './components.ts'
 import { observeDirty } from './derived-stats.ts'
 import { createQueries, type Queries } from './queries.ts'
-
-export type Kernel = Parameters<CreateSim>[1]
 
 export interface Context {
   // Config
@@ -35,7 +33,6 @@ export const byGameId = (a: { id: number }, b: { id: number }) => a.id - b.id
 
 export const createContext = (scenario: Scenario, k: Kernel): Context => {
   const world: World = createWorld(Clock, NextId, Metrics, Score)
-  const { distSq } = k
   const q = createQueries()
   const dirty = new Set<Entity>()
   observeDirty(world, dirty)
@@ -72,9 +69,9 @@ export const createContext = (scenario: Scenario, k: Kernel): Context => {
       world.query(GameId, ...params).readEach(([g], e) => out.push({ id: g.id, e }))
       return out.sort(byGameId)
     },
-    homeX: (team) => (team === 0 ? 0 : k.MAX_COORD),
-    isThinkTick: (id, tick) => (id + tick) % k.THINK_INTERVAL === 0,
-    inRange: (ax, ay, bx, by, r) => distSq(ax, ay, bx, by) <= r * r,
+    homeX: k.homeX,
+    isThinkTick: k.isThinkTick,
+    inRange: k.inRange,
     aliveCount: (team) => {
       let n = 0
       world.query(q.teamQuery).readEach(([t]) => { if (t.value === team) n++ })
