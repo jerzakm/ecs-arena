@@ -14,10 +14,10 @@ The primary goal is a regression harness for [koota](https://github.com/pmndrs/k
 
 Each library gets one headline number.
 
-- The number is the geometric mean, over `skirmish`, `battle` and `war`, of the library time divided by the `baseline-js` time. Lower is better.
-- `skirmish` has about 5k peak entities, `battle` about 20k and `war` about 50k.
+- The number is the geometric mean, over `skirmish` and `war`, of the library time divided by the `baseline-js` time. Lower is better.
+- `skirmish` has about 5k peak entities and `war` about 50k. Both run 1000 ticks. `battle` (about 20k) is for local use and is not on the board.
 - The time is the total run time of a headline run. The report also shows p99, the max tick and the ticks over 16.6 ms.
-- Each headline has a 95% bootstrap interval from 10 runs. Two libraries whose intervals overlap share a rank.
+- Runs are adaptive. A headline has 3 to 10 runs and stops when the 95% interval of the median is under 2% of the median. Two deep runs follow. Two libraries whose intervals overlap share a rank.
 
 One number is fair only when the game loads each facet by a known amount. The load budget sets that amount.
 
@@ -67,12 +67,12 @@ pnpm budget                                 # load budget check on baseline-js, 
 pnpm budget battle --seeds --runs 10        # every seed, 10 runs for each variant
 pnpm budget --report-only                   # print the table, do not fail
 pnpm run check:caps                         # check the links in every CAPABILITIES.md
-pnpm bench baseline-js koota battle --runs 5   # timed runs, one child process for each run
-pnpm bench koota battle --deep              # add deep-dive runs after the headline runs
-pnpm bench baseline-js koota skirmish battle war --record   # 10 runs, save in bench-data/, rebuild docs/results.md
+pnpm bench baseline-js koota skirmish --runs 5   # 5 timed runs, one child process for each run
+pnpm bench koota skirmish --deep            # add 2 deep-dive runs after the headline runs
+pnpm bench baseline-js koota skirmish war --record   # adaptive runs, 2 deep runs, save in bench-data/, rebuild docs/results.md
 pnpm compare koota@main koota@fresh-perf battle
-pnpm bench koota battle --protocol          # benchbox native protocol: JSON lines on stdout, samples = tick ns
-pnpm bench koota battle --runs 10 --out a.json   # result file with the machine info and the raw value of each run
+pnpm bench koota skirmish --protocol        # benchbox native protocol: JSON lines on stdout, samples = tick ns
+pnpm bench koota skirmish --runs 10 --out a.json   # result file with the machine info and the raw value of each run
 pnpm compare a.json b.json                  # compare two result files, for example from two machines or commits
 BENCH_WRAP="taskset -c 3" pnpm bench ...    # start each child with a prefix command (core pinning, priority)
 pnpm results                                # rebuild docs/results.md from bench-data/
@@ -82,7 +82,9 @@ The headline score needs `baseline-js` in the same bench, because it divides by 
 
 ## Results
 
-[docs/results.md](docs/results.md) shows the headline score and the latest recorded run for each target and scenario. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the git history is the trend. The v2 rows were removed when v3 started, because v2 and v3 numbers do not compare.
+[docs/results.md](docs/results.md) shows the headline score and the latest recorded run for each target and scenario. `bench-data/summary.csv` keeps one row for each commit, target and scenario, so the commit history is the trend. The page appears after the first import of the new series.
+
+The data of the old protocol (`battle`, 2000 ticks, 10 headline and 10 deep runs) is in `bench-data/old-protocol/` and `docs/old-protocol/results.md`. It does not compare with the new series.
 
 ## How it works
 

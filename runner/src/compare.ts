@@ -26,7 +26,7 @@ export const compareRows = (a: Side, b: Side, alpha = 0.05) =>
 const load = (path: string) => (JSON.parse(readFileSync(path, 'utf8')) as { report: BenchReport }).report
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { pos: [a, b, ...scenarios], runs } = parseCli(process.argv.slice(2))
+  const { pos: [a, b, ...scenarios], plan } = parseCli(process.argv.slice(2))
   const files = a?.endsWith('.json') && b?.endsWith('.json')
   if (!a || !b || (!files && scenarios.length === 0)) {
     console.error('usage: pnpm compare <targetA> <targetB> <scenario...> [--runs N]\n       pnpm compare <a.json> <b.json>   (files from pnpm bench --out)')
@@ -40,7 +40,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     for (const sc of Object.keys(ra[ta]).filter((s) => rb[tb][s]))
       sides.push([{ name: `${sc} A ${ta}`, samples: ra[ta][sc].samples }, { name: `B ${tb}`, samples: rb[tb][sc].samples }])
   } else {
-    const report = await bench([a, b], scenarios, runs, true)
+    const report = await bench([a, b], scenarios, { ...plan, deep: 2 })
     for (const sc of scenarios) sides.push([{ name: `${sc} ${a}`, samples: report[a][sc].samples }, { name: b, samples: report[b][sc].samples }])
   }
   console.log('shift = Hodges-Lehmann median of B/A run pairs (+ is slower). p = Mann-Whitney U. noise = max 1.4826*MAD/median.')

@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { build, type Plugin } from 'esbuild'
 import { resolveInRoot } from './alias-hook.mjs'
+import { QUICK } from './stats.ts'
 import { ensureVariant, parseTarget } from './variants.ts'
 
 const ROOT = resolve(import.meta.dirname, '../..')
@@ -22,8 +23,8 @@ const variantPlugin = (root: string): Plugin => ({
   setup: (b) => b.onResolve({ filter: /^koota(\/.*)?$/ }, (a) => ({ path: fileURLToPath(resolveInRoot(root, 'koota', '.' + a.path.slice('koota'.length))) })),
 })
 
-/** A `:smoke` suffix builds a short entry for a quick check on the bench box: skirmish-smoke, 3 runs. */
-const SMOKE = { scenarios: ['skirmish-smoke'], runs: 3 }
+/** A `:smoke` suffix builds a quick tier entry for a check on the bench box: the smoke scenarios, 1 headline run, no deep runs, so only `total` benches. */
+const SMOKE = { scenarios: ['skirmish-smoke', 'war-smoke'], plan: QUICK }
 
 export const buildEntry = async (name: string) => {
   const smoke = name.endsWith(':smoke')
