@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregate, deltaPct, geomeanScore, hlRatio, mannWhitney, median, medianCI, MIN_RUNS, noise, p95, prng, rankScores, scoreTargets, tailMetrics } from './stats.ts'
+import { aggregate, enough, FULL, fixed, deltaPct, geomeanScore, hlRatio, mannWhitney, median, medianCI, MIN_RUNS, noise, p95, prng, rankScores, scoreTargets, tailMetrics } from './stats.ts'
 
 describe('stats', () => {
   it('median and p95', () => {
@@ -47,6 +47,15 @@ describe('stats', () => {
     expect(a.lo).toBeLessThanOrEqual(a.point)
     expect(a.hi).toBeGreaterThanOrEqual(a.point)
     expect(medianCI([5, 5, 5, 5])).toEqual({ point: 5, lo: 5, hi: 5 })
+  })
+  it('stop rule: max stops, min holds, a tight interval stops early, spread keeps going', () => {
+    const spread = [10, 14, 8, 12, 9, 15, 11, 13, 10, 12]
+    expect(enough(spread, FULL)).toBe(true)
+    expect(enough(spread.slice(0, 9), FULL)).toBe(false)
+    expect(enough([5, 5], FULL)).toBe(false)
+    expect(enough([5, 5, 5], FULL)).toBe(true)
+    expect(enough([5], fixed(3, 2))).toBe(false)
+    expect(enough([5, 6, 7], fixed(3, 2))).toBe(true)
   })
   it('geomean score is the geometric mean of matched ratios', () => {
     const base = { a: [10, 10, 10], b: [100, 100, 100] }

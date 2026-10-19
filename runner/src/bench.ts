@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { TIMED_PHASES, SCENARIOS } from '@ecs-arena/spec'
-import { aggregate, scoreTargets, type Aggregate, type RunResult } from './stats.ts'
+import { aggregate, enough, fixed, FULL, scoreTargets, type Aggregate, type RunPlan, type RunResult } from './stats.ts'
 import { commit, recordReport, writeResultsPage } from './results.ts'
 import { cpus, platform, release } from 'node:os'
 import { ensureVariant, parseTarget } from './variants.ts'
@@ -14,7 +14,7 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const WRAP = (process.env.BENCH_WRAP ?? '').split(' ').filter(Boolean)
 
 /** Where and how a report was made, so a result file from any machine stays comparable. */
-export const machine = (runs: number) => ({
+export const machine = (plan: RunPlan) => ({
   date: new Date().toISOString(),
   commit: commit(),
   cpu: cpus()[0]?.model,
@@ -23,7 +23,7 @@ export const machine = (runs: number) => ({
   arch: process.arch,
   node: process.version,
   wrap: WRAP.join(' '),
-  runs,
+  plan,
 })
 
 // Protocol mode keeps stdout for benchbox JSON lines, so child output goes to stderr.
@@ -63,8 +63,8 @@ const runOnce = (impl: string, scenario: string, alias: Record<string, string>, 
 
 export type BenchReport = Record<string, Record<string, Aggregate>>
 
-/** Runs are interleaved target-by-target (ABAB...) so machine drift hits every target alike. `deep` adds deep-dive runs after the headline runs. */
-export const bench = async (targets: string[], scenarios: string[], runs: number, deep = false, child = DEV_CHILD): Promise<BenchReport> => {
+/** Headline runs are interleaved target by target (ABAB...) so machine drift hits every target alike. They go on until every target has `enough` runs, so all targets keep the same count. Then `plan.deep` interleaved deep-dive runs follow. */
+export const bench = async (targets: string[], scenarios: string[], plan: RunPlan, child = DEV_CHILD): Promise<BenchReport> => {
   const prepared = targets.map((target) => {
     const { impl, variant } = parseTarget(target)
     // A bundled entry has its variant built in.
@@ -74,15 +74,16 @@ export const bench = async (targets: string[], scenarios: string[], runs: number
   const report: BenchReport = Object.fromEntries(targets.map((t) => [t, {}]))
   for (const sc of scenarios) {
     if (!SCENARIOS[sc]) throw new Error(`unknown scenario ${sc}`)
-    const collect = async (kind: 'headline' | 'deep') => {
-      const rs: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
-      for (let i = 0; i < runs; i++)
-        for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, kind, child))
-      return rs
+    const head: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
+    const dp: Record<string, RunResult[]> = Object.fromEntries(targets.map((t) => [t, []]))
+    const round = async (kind: 'headline' | 'deep', rs: Record<string, RunResult[]>) => {
+      for (const { target, impl, alias } of prepared) rs[target].push(await runOnce(impl, sc, alias, kind, child))
     }
-    const head = await collect('headline')
-    const dp = deep ? await collect('deep') : undefined
-    for (const t of targets) report[t][sc] = aggregate(head[t], dp?.[t])
+    do {
+      await round('headline', head)
+    } while (!targets.every((t) => enough(head[t].map((r) => r.totalMs), plan)))
+    for (let i = 0; i < plan.deep; i++) await round('deep', dp)
+    for (const t of targets) report[t][sc] = aggregate(head[t], dp[t])
   }
   return report
 }
@@ -125,14 +126,14 @@ export const printScores = (report: BenchReport) => {
 const COLS = [...TIMED_PHASES, 'tick']
 
 /** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. */
-export const writeProtocol = async (target: string, scenarios: string[], runs: number, child = DEV_CHILD) => {
+export const writeProtocol = async (target: string, scenarios: string[], plan: RunPlan, child = DEV_CHILD) => {
   quiet = true
   const out = (r: object) => process.stdout.write(JSON.stringify(r) + '\n')
-  out({ type: 'meta', language: 'js', toolchain: process.version, target: `${process.arch}-${process.platform}`, machine: machine(runs) })
+  out({ type: 'meta', language: 'js', toolchain: process.version, target: `${process.arch}-${process.platform}`, machine: machine(plan) })
   for (const sc of scenarios) {
     const group = `${sc}/${target}`
     try {
-      const a = (await bench([target], [sc], runs, true, child))[target][sc]
+      const a = (await bench([target], [sc], plan, child))[target][sc]
       const ns = (ms: number) => Math.round(ms * 1e6)
       COLS.forEach((c, i) => out({ type: 'bench', group, name: c, ordered: true, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
       out({ type: 'bench', group, name: 'total', ordered: true, samples: a.samples.total.map(ns) })
@@ -150,13 +151,13 @@ export const parseCli = (argv: string[]) => {
     allowPositionals: true,
     options: { runs: { type: 'string' }, out: { type: 'string' }, record: { type: 'boolean', default: false }, deep: { type: 'boolean', default: false }, protocol: { type: 'boolean', default: !!process.env.BENCHBOX_PROTOCOL } },
   })
-  // 10 runs for recorded results, 5 for a quick look.
-  const runs = Number(values.runs ?? (values.record ? 10 : 5))
-  return { pos: positionals, runs, out: values.out, record: values.record, deep: values.deep, protocol: values.protocol }
+  const deep = values.record || values.deep ? 2 : 0
+  const plan = values.runs === undefined ? { ...FULL, deep } : fixed(Number(values.runs), deep)
+  return { pos: positionals, plan, out: values.out, record: values.record, protocol: values.protocol }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { pos, runs, out, record, deep, protocol } = parseCli(process.argv.slice(2))
+  const { pos, plan, out, record, protocol } = parseCli(process.argv.slice(2))
   const scenarios = pos.filter((p) => SCENARIOS[p])
   const targets = pos.filter((p) => !SCENARIOS[p])
   if (targets.length === 0 || scenarios.length === 0 || (protocol && targets.length > 1)) {
@@ -164,15 +165,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(2)
   }
   if (protocol) {
-    await writeProtocol(targets[0], scenarios, runs)
+    await writeProtocol(targets[0], scenarios, plan)
     process.exit(0)
   }
-  const report = await bench(targets, scenarios, runs, deep || record)
+  const report = await bench(targets, scenarios, plan)
   printTable(report)
   printScores(report)
   if (out) {
     mkdirSync(dirname(resolve(out)), { recursive: true })
-    writeFileSync(out, JSON.stringify({ machine: machine(runs), report }, (k, v) => (k === 'ticks' ? undefined : v), 2))
+    writeFileSync(out, JSON.stringify({ machine: machine(plan), report }, (k, v) => (k === 'ticks' ? undefined : v), 2))
   }
   if (record) {
     recordReport(report)
