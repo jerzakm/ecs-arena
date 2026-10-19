@@ -48,9 +48,15 @@ export interface RunPlan {
   width: number
   wallMs: number
 }
-export const FULL: RunPlan = { min: 3, max: 10, deep: 2, width: 0.02, wallMs: 10 * 60_000 }
+export const FULL: RunPlan = { min: 3, max: 10, deep: 0, width: 0.02, wallMs: 10 * 60_000 }
 export const QUICK: RunPlan = { min: 1, max: 1, deep: 0, width: 0.02, wallMs: Infinity }
 export const fixed = (n: number, deep: number): RunPlan => ({ min: n, max: n, deep, width: 0, wallMs: Infinity })
+
+/** The plan of an entry or a bench call. No `--runs` is the adaptive FULL plan. Deep runs (2) only come with `deep`. */
+export const planFor = (runs: number | undefined, deep: boolean): RunPlan => {
+  const d = deep ? 2 : 0
+  return runs === undefined ? { ...FULL, deep: d } : fixed(runs, d)
+}
 
 /** True when the headline run totals of one target need no more runs. */
 export const enough = (totals: number[], plan: RunPlan, elapsedMs = 0): boolean => {

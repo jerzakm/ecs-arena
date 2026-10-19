@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { aggregate, enough, FULL, fixed, deltaPct, geomeanScore, hlRatio, mannWhitney, median, medianCI, MIN_RUNS, noise, p95, prng, rankScores, scoreTargets, tailMetrics } from './stats.ts'
+import { aggregate, enough, FULL, fixed, deltaPct, geomeanScore, hlRatio, mannWhitney, median, planFor, medianCI, MIN_RUNS, noise, p95, prng, rankScores, scoreTargets, tailMetrics } from './stats.ts'
 
 describe('stats', () => {
   it('median and p95', () => {
@@ -54,6 +54,10 @@ describe('stats', () => {
     expect(enough(spread.slice(0, 9), FULL)).toBe(false)
     expect(enough([5, 5], FULL)).toBe(false)
     expect(enough([5, 5, 5], FULL)).toBe(true)
+    expect(FULL.deep).toBe(0)
+    expect(planFor(undefined, true).deep).toBe(2)
+    expect(planFor(3, false).deep).toBe(0)
+    expect(planFor(3, true)).toMatchObject({ min: 3, max: 3, deep: 2 })
     expect(enough([5], fixed(3, 2))).toBe(false)
     expect(enough([5, 6, 7], fixed(3, 2))).toBe(true)
     // wall-time cap: stops a wide interval, but never before min runs

@@ -4,7 +4,7 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { TIMED_PHASES, SCENARIOS } from '@ecs-arena/spec'
-import { aggregate, enough, fixed, FULL, scoreTargets, type Aggregate, type RunPlan, type RunResult } from './stats.ts'
+import { aggregate, enough, planFor, scoreTargets, type Aggregate, type RunPlan, type RunResult } from './stats.ts'
 import { commit, recordReport, writeResultsPage } from './results.ts'
 import { cpus, platform, release } from 'node:os'
 import { ensureVariant, parseTarget } from './variants.ts'
@@ -162,7 +162,7 @@ export const parseCli = (argv: string[]) => {
     options: { runs: { type: 'string' }, out: { type: 'string' }, record: { type: 'boolean', default: false }, deep: { type: 'boolean', default: false }, protocol: { type: 'boolean', default: !!process.env.BENCHBOX_PROTOCOL } },
   })
   const deep = values.record || values.deep ? 2 : 0
-  const plan = values.runs === undefined ? { ...FULL, deep } : fixed(Number(values.runs), deep)
+  const plan = planFor(values.runs === undefined ? undefined : Number(values.runs), deep > 0)
   return { pos: positionals, plan, out: values.out, record: values.record, protocol: values.protocol }
 }
 
