@@ -18,7 +18,7 @@ it('imports protocol benches into summary rows that give a headline score', () =
   expect(koota.summary.p99_ms).toBeUndefined()
   expect(koota.ticks).toHaveLength(2)
   expect(koota.ticks[0].startsWith('0,')).toBe(true)
-  expect(koota.ticks[1].startsWith('1999,')).toBe(true) // 2 samples of 2000 skirmish ticks
+  expect(koota.ticks[1].startsWith('999,')).toBe(true) // 2 samples of 1000 skirmish ticks
   expect(koota.ticks[0].endsWith(',,')).toBe(true)
   const totals = Object.fromEntries(rows.map((r) => [r.target, { skirmish: String(r.summary.run_totals).split(';').map(Number) }]))
   const [score] = scoreTargets(totals)
