@@ -86,3 +86,10 @@ it('logs one quiet skip line for a missing non-baseline impl', () => {
   expect(err.mock.calls).toEqual([['skip iris: no result at abc1234']])
   err.mockRestore()
 })
+
+it('ignores the headline-tick bench: the per-tick CSV and the totals stay as they are', () => {
+  const extra = { group: 'skirmish/koota', name: 'headline-tick', samples: [3, 1, 2].map((t) => t * NS) }
+  const [row] = parseBenchbox({ files: [{ file: 'f', benches: [...group('koota', 1), extra] }] })
+  expect(row.ticks).toHaveLength(2)
+  expect(row.summary).toMatchObject({ runs: 5, total_ms: 105 })
+})

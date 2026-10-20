@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { SCENARIOS, TIMED_PHASES } from '@ecs-arena/spec'
 import { commit, upsertSummary, writeResultsPage, writeTicks } from './results.ts'
+import { HEADLINE_TICK } from './bench.ts'
 import { median, medianCI, scoreTargets } from './stats.ts'
 
 /** The part of `benchbox results <jobId>` this importer reads. */
@@ -31,6 +32,8 @@ export const parseBenchbox = (result: BenchboxResult, log: (line: string) => voi
   const failed = new Set<string>()
   for (const f of result.files)
     for (const b of f.benches) {
+      // The headline per-tick bench is for benchbox verdicts. It is not a deep column and not part of the headline.
+      if (b.name === HEADLINE_TICK) continue
       if (b.error) {
         failed.add(b.group)
         log(`${b.group} ${b.name}: ${b.error}`)

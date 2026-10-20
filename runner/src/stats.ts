@@ -141,6 +141,8 @@ export interface Aggregate {
   over: Summary
   /** The raw total of each run, for the rank tests and the headline score. */
   samples: Record<string, number[]>
+  /** The ms of every timed tick of every headline run, runs one after another. For the per-tick benchbox bench. */
+  tickSamples: number[]
   deep?: DeepAggregate
 }
 
@@ -171,6 +173,7 @@ export const aggregate = (runs: RunResult[], deepRuns: RunResult[] = []): Aggreg
     p99Ms: sum(tails.map((t) => t.p99)),
     maxMs: sum(tails.map((t) => t.max)),
     over: sum(tails.map((t) => t.over)),
+    tickSamples: runs.flatMap((r) => r.tickMs),
     samples: {
       total: totals,
       ...(deepRuns.length && {

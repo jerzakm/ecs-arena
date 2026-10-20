@@ -14,6 +14,7 @@ describe('stats', () => {
     const a = aggregate(rs, rs.map((x) => ({ ...x, totalMs: x.totalMs * 1.1 })))
     expect(a.runs).toBe(3)
     expect(a.totalMs.median).toBe(20)
+    expect(a.tickSamples).toEqual(rs.flatMap((x) => x.tickMs))
     expect(a.deep!.phasesMs.move.median).toBe(10)
     expect(a.deep!.phasesSumMs.median).toBe(10)
     expect(a.deep!.peakHeap.p95).toBeCloseTo(290)

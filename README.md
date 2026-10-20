@@ -71,7 +71,7 @@ pnpm bench baseline-js koota skirmish --runs 5   # 5 timed runs, one child proce
 pnpm bench koota skirmish --deep            # add 2 deep-dive runs after the headline runs
 pnpm bench baseline-js koota skirmish war --record   # adaptive runs, 2 deep runs, save in bench-data/, rebuild docs/results.md
 pnpm compare koota@main koota@fresh-perf battle
-pnpm bench koota skirmish --protocol        # benchbox native protocol: JSON lines on stdout, samples = tick ns
+pnpm bench koota skirmish --protocol        # benchbox native protocol: JSON lines on stdout, samples = tick ns (`headline-tick`: every timed tick of every headline run, unordered, for benchbox verdicts)
 pnpm bench koota skirmish --runs 10 --out a.json   # result file with the machine info and the raw value of each run
 pnpm compare a.json b.json                  # compare two result files, for example from two machines or commits
 BENCH_WRAP="taskset -c 3" pnpm bench ...    # start each child with a prefix command (core pinning, priority)
@@ -93,9 +93,12 @@ Set up the workflow one time:
 
 1. In the benchbox repo, run `pnpm run token mint client ci --ci --remote --env staging`. Copy the token. It shows one time.
 2. Run `gh secret set BENCHBOX_TOKEN`. Paste the token.
-3. Optional: run `gh variable set BENCHBOX_URL --body <url>`. The default is `https://bench-staging.benchbox.app`.
+3. `jerzakm/benchbox` is private. Make a fine-grained personal access token with read-only Contents access to that one repo. Run `gh secret set BENCHBOX_REPO_TOKEN`. Paste the token. The workflow uses it to check out benchbox at `canary`.
+4. Optional: run `gh variable set BENCHBOX_URL --body <url>`. The default is `https://bench-staging.benchbox.app`.
 
-Without the secret, the workflow skips the submit and prints a notice.
+Without either secret, the workflow skips the submit and prints a notice.
+
+Besides the `total` bench, every scenario submits a `headline-tick` bench: the tick time of every timed tick of every headline run, about 1100 samples for each run (a load replays some ticks). benchbox gives a Verdict only from 14 samples on each side, which `total` (3 to 10 samples) never reaches. The bench is not ordered, because the runs are pooled and tick t of one run does not pair with tick t of another. At most 10 runs of about 2250 timed ticks (battle) make about 22500 samples, under the 50000 cap of benchbox, so nothing is subsampled. `pnpm import:benchbox` ignores it.
 
 ## Results
 

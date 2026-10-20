@@ -134,7 +134,10 @@ export const printScores = (report: BenchReport) => {
 
 const COLS = [...TIMED_PHASES, 'tick']
 
-/** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. With no deep runs only the run totals go out. */
+/** Bench of the tick times of the headline runs. It is not `tick`, which is the deep-run column. */
+export const HEADLINE_TICK = 'headline-tick'
+
+/** benchbox native protocol v1. Per scenario: one bench per column (per-tick median ns), plus the run totals and the per-tick median GC time. Each scenario also gets `headline-tick`: the tick ns of every timed tick of every headline run. With no deep runs only the run totals and `headline-tick` go out. */
 export const writeProtocol = async (target: string, scenarios: string[], plan: RunPlan, child = DEV_CHILD) => {
   quiet = true
   const t0 = Date.now()
@@ -147,10 +150,12 @@ export const writeProtocol = async (target: string, scenarios: string[], plan: R
       const ns = (ms: number) => Math.round(ms * 1e6)
       if (a.deep) COLS.forEach((c, i) => out({ type: 'bench', group, name: c, ordered: true, samples: a.deep!.ticks.map((r) => ns(r[i])) }))
       out({ type: 'bench', group, name: 'total', ordered: true, samples: a.samples.total.map(ns) })
+      // Not ordered: the runs are pooled, and tick t of one run has no pairing with tick t of another (the run counts differ across targets and the adaptive plan stops early). benchbox then uses its sorted quantile grid if it must cap the series. Size: at most max runs x ticks = 10 x about 2250 timed ticks (battle, loads replay ticks) = about 22k samples, under benchbox's 50k cap (DEFAULT_MAX_SAMPLES), so there is no subsampling.
+      out({ type: 'bench', group, name: HEADLINE_TICK, samples: a.tickSamples.map(ns) })
       if (a.deep) out({ type: 'bench', group, name: 'gc', ordered: true, samples: a.deep.ticks.map((r) => ns(r[COLS.length])) })
     } catch (e) {
       // A golden hash mismatch exits the child with code 3, so a wrong result never gives samples.
-      for (const c of plan.deep ? [...COLS, 'total', 'gc'] : ['total']) out({ type: 'error', group, name: c, message: String(e) })
+      for (const c of plan.deep ? [...COLS, 'total', HEADLINE_TICK, 'gc'] : ['total', HEADLINE_TICK]) out({ type: 'error', group, name: c, message: String(e) })
     }
   }
 }
@@ -183,7 +188,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   printScores(report)
   if (out) {
     mkdirSync(dirname(resolve(out)), { recursive: true })
-    writeFileSync(out, JSON.stringify({ machine: machine(plan), report }, (k, v) => (k === 'ticks' ? undefined : v), 2))
+    writeFileSync(out, JSON.stringify({ machine: machine(plan), report }, (k, v) => (k === 'ticks' || k === 'tickSamples' ? undefined : v), 2))
   }
   if (record) {
     recordReport(report)
