@@ -1,0 +1,6 @@
+{
+  "rules": {
+    "no-restricted-imports": ["error", { "paths": [{ "name": "bitecs", "importNames": ["removeEntity"], "message": "Use destroyEntity from entities.ts." }] }]
+  },
+  "overrides": [{ "files": ["src/rts/entities.ts", "src/survivors/entities.ts", "src/factory/entities.ts"], "rules": { "no-restricted-imports": "off" } }]
+}

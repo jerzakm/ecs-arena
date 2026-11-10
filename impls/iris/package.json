@@ -1,0 +1,12 @@
+{
+  "name": "@ecs-arena/impl-iris",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/rts/index.ts"
+  },
+  "dependencies": {
+    "@ecs-arena/spec": "workspace:*",
+    "iris-ecs": "0.0.14"
+  }
+}

@@ -1,0 +1,23 @@
+import { describe, it, expect } from 'vitest'
+import { runPhases, RTS, hashState, kernel } from '@ecs-arena/spec'
+import createSim from '../../impls/baseline-js/src/rts/index.ts'
+import { runScheduled } from './schedule.ts'
+import { HARNESS } from './games.ts'
+
+const TICKS = 500 // past tick 417, where cleanup.unlink once changed the hash
+const hashes = (naive: string | null): string[] => {
+  const sc = { ...RTS.scenarios.skirmish, targetPop: 170, maxSquadsPerWave: 15, surgeBase: 3, surgeCap: 260, ticks: TICKS, loadEvery: 200 } // saves every 25 ticks, loads at 199 and 399, a replay
+  const regions = { begin() {}, end() {}, naive: new Set(naive ? [naive] : []) }
+  const sim = createSim(sc, kernel, undefined, regions)
+  const out: string[] = []
+  runScheduled(sim, sc, {
+    tick: () => runPhases(RTS, sim),
+    after: (t) => { if (t % 5 === 0) out.push(hashState(sim.snapshot())) },
+  })
+  return out
+}
+
+describe('naive variants', () => {
+  const base = hashes(null)
+  for (const r of HARNESS.rts.regions) it(`${r} keeps the hash`, () => expect(hashes(r)).toEqual(base))
+})

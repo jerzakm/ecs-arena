@@ -1,0 +1,95 @@
+# Game v3: one number, a load budget, seven new facets
+
+This file records the v3 design and the reasons for it. `SPEC.md` holds the exact rules. `v2-game.md` holds the game that v3 builds on.
+
+## The claim
+
+Each library gets one headline number. The number is the geometric mean, over the 3 scenarios, of the library time divided by the `baseline-js` time. Lower is better.
+
+- `skirmish` has about 5k peak entities, `battle` about 20k and `war` about 50k.
+- A headline run times whole ticks only. The headline is the total run time. The report shows p99, the max tick and the ticks over 16.6 ms next to it.
+- One number is only fair when the game loads each facet by a known amount. The load budget below sets that amount.
+
+## The load budget
+
+Each facet that the game claims to test must use a known share of the tick.
+
+- **Reference.** Shares are measured in `baseline-js` time. Each facet is a named, timed region in `baseline-js`.
+- **Floor and cap (D20).** The floor is on the naive share, the cap on the normal share. A facet passes the floor when its naive run's region time is at least 2% of the normal run's tick total. A facet passes the cap when its normal region time is at most 25% of the normal tick total.
+- **Naive way.** A flag switches each region to naive code. The naive code must be at least 1.5 times slower than the normal region. If it is not, the game does not reward the library feature, and the facet is not a real test.
+- **Where.** The check must pass in every scenario and with each of the K = 3 seeds.
+
+`pnpm budget [scenario...] [--seeds] [--report-only] [--runs N]` measures the table. Each variant runs N times (default 5) in fresh child processes after a full warmup run, and the verdicts use medians. The `Regions` argument of the `baseline-js` `createSim` times each region (nested regions count their own time only) and names the regions that run naive code. Only `runner/src/budget.ts` sets it. The thresholds are constants in `runner/src/budget-check.ts`. The tool also checks that each naive run keeps the hash of the normal run. The `save` and `load` regions are in the table.
+
+A facet that fails the floor gets more load from a tuned number. A facet that passes the cap gets less. Tuning changes the goldens.
+
+## Facets
+
+Region names are proposals. The unit that adds the regions (U4) can change them and must update this table.
+
+| Facet | Game rule | Phase(s) | Naive way for the 1.5x check | `baseline-js` region |
+|---|---|---|---|---|
+| Numeric data, large queries | Units move toward a target or a slot | `move` | Find each unit through a `Map` by `gameId` for every access: the unit, its parent, its target and the write (normal code holds direct references to the parent and the target) | `move.step` |
+| Create and destroy churn | Projectiles, volleys, minions, items | `combat`, `cleanup`, `spawn` | Rebuild the entity array with a filter after each destroy, for units and for projectiles (normal code compacts once, and skips the pass when nothing was destroyed) | `churn` |
+| Buffs | Stun, Burn, Haste with `ticksLeft` | `combat`, `effects` | Scan every unit for each buff kind (normal code keeps a set of buffed units) | `effects.buffs` |
+| Exclusive link | `Targets`, cleared when the target dies | `ai/target`, `cleanup` | Scan all units for links to each destroyed unit (normal code keeps an inverse index) | `cleanup.unlink` |
+| Hierarchy, move order | Warband to depth 4, leader moves first | `move` | Walk the chain of each unit to get its depth, then sort (normal code relies on parents having lower ids) | `move.depthOrder` |
+| Cascade destroy | Minions die with the summoner | `cleanup` | Scan all minions for each destroyed unit (normal code keeps an inverse index) | `cleanup.cascade` |
+| Link with data | `Equips` with quality, `MemberOf` offsets | `spawn`, `cleanup`, `stats` | Find the members of each unit by a scan of all units, instead of the member index (covers the index upkeep, the morale-loss lookup and `promote`). Normal code keeps the index in step at spawn, `promote`, flee and destroy, and no longer rebuilds it each tick | `links` |
+| Sparse set, singleton | Shrines and `Score` | `objectives`, `spawn` | Scan all units for each shrine | `objectives.capture` |
+| Bulk tag add | Rout gives `Fleeing` to a squad | `morale` | Poll every unit for a squad that must rout in every tick, then scan all units for `MemberOf` each routed leader (normal code reads only the units whose `lost` changed in this tick) | `morale.rout` |
+| Rules on `Added` | Drop target and threat on flee | `morale` | Compare the full `Fleeing` set with the set of the last tick | `morale.onFlee` |
+| Change-driven recompute | Stats on a change of items, buffs, kills, `Veteran`, `bannered` | `stats` | Recompute every unit | `stats.recompute` |
+| Many-to-many with data | `Threat` with write, evict, decay | `combat`, `effects` | Scan all units for decay, and scan all units for the edges of each destroyed attacker, instead of the set of threatened units (covers add, evict, decay and purge) | `threat` |
+| Array data | Unit trail (path history) | `move` | Copy the full array on each append. Each unit that moved appends its position, so many arrays change each tick (`TRAIL_POINTS` 12) | `move.trail` |
+| A. Fragmentation | Item tags and buff tags, set bonuses | `stats`, `effects`, `cleanup` | Rebuild the item tags of every unit by a scan of its item list each tick (normal code keeps the tags and reads a bonus table) | `stats.setBonus` |
+| B. Dense change | The library reports moved units to the kernel grid | after `spawn`, `move`, `cleanup` | Send every unit again before each search (`ai/target`, `combat`, `objectives`, pickup) and after `move` | `grid.update` |
+| C. High fan-in | Overwhelmed: 6 or more attackers give more damage | `combat` | Count the enemy `Targets` of every victim in one pass over all units each tick (normal code reads the inverse index of `Targets` and counts only the victims with 6 or more) | `combat.fanIn` |
+| D. Ancestor read | Banner: units below a living warlord get armor | `stats` | Walk the full chain of each unit through the `gameId` map, every tick (normal code reads the direct parent reference of each unit in one pass in gameId order, since a parent has a lower gameId) | `stats.banner` |
+| E. Disabled entities | Garrison: units in a held shrine leave move and target queries | `objectives`, `ai/target`, `move` | Keep garrisoned units in the grid and test a flag in every search, and find the `Targets` to an entering unit by a scan of all units and find the members of each garrison by a scan of all units for `GarrisonOf` (normal code takes the unit out of the grid, reads the inverse index of `Targets` and reads the list of the shrine) | `garrison` |
+| F. Lookup by key | Commander orders by `gameId`, with dead keys | `ai/target` | Scan all units for each key (normal code reads the `gameId` map) | `orders.lookup` |
+| G. Render extraction | A flat int32 buffer of all units, folded into `renderChain` | `stats` | Copy each unit into a new object, then copy that into the buffer. The `foldRender` hash of the buffer is outside the region, because it is the kernel's | `stats.render` |
+| Snapshot and restore | Save each 25 ticks, load the newest save after every 200th tick, replay | between ticks | Serialize the world to JSON and parse it back | `save`, `load` (normal code copies the world into a tree of plain data; the naive code runs the tree through `JSON.stringify` and `JSON.parse`) |
+
+### Why each new facet has a hash effect
+
+A rule that does not change the hash can be skipped. Each new rule changes it.
+
+- A: set bonuses change `attack`, `armor` and `speed`.
+- B: a wrong grid gives wrong targets, splash and captures.
+- C: the multiplier changes damage, `lastHitBy`, `Threat` and `damageN`. Flag bit 3 shows the tag.
+- D: the banner changes `armor`. Flag bit 4 shows it.
+- E: garrison units are in the shrine part of the snapshot and in flag bit 5.
+- F: `orders0` and `orders1` count the orders that took effect. A wrong dead-key result changes them. Most gameIds name items and projectiles, and sight is short, so a single draw per key took effect in no scenario (`orders0` and `orders1` stayed 0). Each order now probes up to 6 keys for a unit of the right team and has no sight limit. In every scenario about 10 to 30% of the orders take effect and about 70 to 80% are dead-key orders, so both paths stay loaded. `pnpm run profile` and a smoke test fail when either count is 0.
+- Array data: the trail has no game effect, but the render buffer reads its count and its oldest point (G) and the snapshot holds it. A run that skips the append gets a different `renderChain` and a different hash.
+- G: `renderChain` folds each buffer. A skipped tick changes the last hash.
+- Snapshot: the replayed ticks must give the golden hashes again.
+
+## Out of scope
+
+| Idea | Reason |
+|---|---|
+| Subscribed reads (React, network clients) | They are event driven with many listeners. They do not fit one tick loop. |
+| Many worlds and world reset | They need a different scenario shape. One world per run keeps the headline simple. |
+| Editor reflection | No game rule needs it. It does not fit one tick loop. |
+| Workers | The spec order and start-of-phase values make one thread the fair base. A worker axis is a separate study. |
+| Symmetric relations | No game rule needs one that `Threat` or `Targets` does not cover. |
+| Prefabs | Spawn already gives each unit kind fixed stats. A prefab adds API surface, not a new load. |
+
+The README lists these items.
+
+## Known biases
+
+- **`baseline-js` under-prices structural change.** Its tags are plain fields, so a tag change costs little. Facet shares in `baseline-js` time make fragmentation look cheap. Archetype libraries pay more than the budget shows.
+- **Start-of-phase copy.** The start-of-phase rule makes libraries that write in place keep a copy. The deep-dive report shows the copy cost as its own line.
+- **Shared grid.** The kernel grid costs the same for every library. This pulls the ratios toward 1. Only the moved-unit report (facet B) is library work.
+
+## Tuned values (U7)
+
+`v3-tuning.md` holds the log of every attempt, with the numbers before and after. The values that the tuning set:
+
+- `targetPop` is 800, 3,200 and 9,200 for `skirmish`, `battle` and `war`. The peak entities are about 5.1k, 21.7k and 54.1k with seed 1 (`pnpm run profile`).
+- Think interval 16 and sight 6 to 8 tiles. The shared target search was 76% of a `war` tick, so every facet share was small. Now it is about 40%.
+- The v2 chronicle is back (`VETERAN_KILLS` 3, `CHRONICLE_MAX` 4), and the per-unit trail of SPEC §6.3 (`TRAIL_POINTS` 12) replaces the U7 veteran log (decision D22). The trail is the one rule change.
+- `SAVE_INTERVAL` 25 and `loadEvery` 200 (decision D21). A run loads after ticks 199, 399 and so on, and replays 24 ticks each time. That gives 10 loads in `skirmish` and `battle` and 5 in `war`. One load per run was too small for the `load` floor. See `v3-tuning.md`.
+- Unchanged: Overwhelmed threshold and multiplier, banner armor, set bonuses, `garrisonCap` and `ordersPerTeam` for each scenario, the order period.

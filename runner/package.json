@@ -1,0 +1,6 @@
+{
+  "name": "@ecs-arena/runner",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@ecs-arena/spec": "workspace:*" }
+}

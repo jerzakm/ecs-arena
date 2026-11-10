@@ -1,0 +1,12 @@
+{
+  "name": "@ecs-arena/impl-koota",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/rts/index.ts"
+  },
+  "dependencies": {
+    "@ecs-arena/spec": "workspace:*",
+    "koota": "^0.6.6"
+  }
+}

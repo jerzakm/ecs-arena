@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECS Arena</title>
+<meta name="description" content="A whole-game benchmark for JavaScript ECS libraries. Three deterministic games, written once per library, timed whole and checked tick by tick.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+<header class="top" id="top">
+<h1 class="logo-h"><pre class="logo wide" role="img" aria-label="ECS Arena"> _____  _____  _____      ___  ______  _____  _   _   ___  
+|  ___|/  __ \/  ___|    / _ \ | ___ \|  ___|| \ | | / _ \ 
+| |__  | /  \/\ `--.    / /_\ \| |_/ /| |__  |  \| |/ /_\ \
+|  __| | |     `--. \   |  _  ||    / |  __| | . ` ||  _  |
+| |___ | \__/\/\__/ /   | | | || |\ \ | |___ | |\  || | | |
+\____/  \____/\____/    \_| |_/\_| \_|\____/ \_| \_/\_| |_/</pre>
+<pre class="logo narrow" role="img" aria-label="ECS Arena"> _____  _____  _____               
+|  ___|/  __ \/  ___|              
+| |__  | /  \/\ `--.               
+|  __| | |     `--. \              
+| |___ | \__/\/\__/ /              
+\____/  \____/\____/               
+  ___  ______  _____  _   _   ___  
+ / _ \ | ___ \|  ___|| \ | | / _ \ 
+/ /_\ \| |_/ /| |__  |  \| |/ /_\ \
+|  _  ||    / |  __| | . ` ||  _  |
+| | | || |\ \ | |___ | |\  || | | |
+\_| |_/\_| \_|\____/ \_| \_/\_| |_/</pre></h1>
+<p class="tagline">A whole-game benchmark for JavaScript ECS libraries.<span class="cursor" aria-hidden="true">_</span></p>
+<nav class="links"><a href="#results">results</a><a href="#frames">frames</a><a href="#games">games</a><a href="https://github.com/jerzakm/ecs-arena/blob/main/docs/method.md">method</a><a href="#submit">submit</a><a href="https://github.com/jerzakm/ecs-arena">GitHub</a><button class="theme" id="theme" type="button">theme: auto</button></nav>
+</header>
+
+<p class="intro">Most synthetic ECS benchmarks time a single operation. That makes it hard to tell which library will actually be fast for your workload, because every workload is a little different. ECS Arena runs three simple, game-like scenarios that come a bit closer to the real thing.</p>
+
+<h2 id="results">Results</h2>
+<p>How many times slower than plain JavaScript each library runs each game. Shorter is faster.</p>
+<p class="legend" aria-hidden="true"><span class="li"><span class="sw" style="--c:var(--s1)"></span>bitecs</span><span class="li"><span class="sw" style="--c:var(--s2)"></span>iris</span><span class="li"><span class="sw" style="--c:var(--s3)"></span>koota</span><span class="dim lnote">log scale</span></p>
+<div id="chart" class="chart" role="img" aria-label="Scores per game; see the table below for values"><p class="meta">Loading results…</p></div>
+<div class="tip" id="tip" hidden></div>
+<div class="scroll"><table class="scores-table" id="scores-table">
+<thead><tr><th>library</th><th>RTS</th><th>Survivors</th><th>Factory</th><th></th></tr></thead>
+<tbody>
+<tr data-lib="bitecs"><td>bitecs <span class="dim">0.4.0</span></td><td data-g="rts">—</td><td data-g="survivors">—</td><td data-g="factory">—</td><td class="meta"><a href="https://github.com/jerzakm/ecs-arena/tree/main/impls/bitecs">code</a></td></tr>
+<tr data-lib="iris"><td>iris <span class="dim">0.0.14, pinned</span></td><td data-g="rts">—</td><td data-g="survivors">—</td><td data-g="factory">—</td><td class="meta"><a href="https://github.com/jerzakm/ecs-arena/tree/main/impls/iris">code</a></td></tr>
+<tr data-lib="koota"><td>koota <span class="dim">0.6.6</span></td><td data-g="rts">—</td><td data-g="survivors">—</td><td data-g="factory">—</td><td class="meta"><a href="https://github.com/jerzakm/ecs-arena/tree/main/impls/koota">code</a></td></tr>
+<tr id="base-row"><td>plain JS <span class="dim">no library</span></td><td data-g="rts">1.00×</td><td data-g="survivors">1.00×</td><td data-g="factory">1.00×</td><td class="meta"><a href="https://github.com/jerzakm/ecs-arena/tree/main/impls/baseline-js">code</a></td></tr>
+</tbody></table></div>
+<p class="meta"><span id="machine">Results pending.</span><br>Score = geometric mean of library time ÷ plain JS time across the game's scenarios.</p>
+
+<h2 id="frames">Frame times</h2>
+<p>Time per tick for one run. A 60 fps game has 16.6 ms per frame (yellow line) for everything, not just the ECS. Spikes show up as stutter.</p>
+<div id="frames-box"><p class="meta">Loading results…</p></div>
+
+<h2 id="games">The games</h2>
+<div class="row">
+  <div>
+    <h3>RTS</h3>
+    <p>Two armies fighting over a map.</p>
+    <p class="dim">relations with data · hierarchies · cascade destroy · lookup by key · many archetypes</p>
+    <p class="meta">skirmish ~5k · war ~50k · 1000 ticks · <a href="games/rts.html">rules →</a> <a href="viewer/?scenario=war&amp;impl=koota" class="btn">▶ preview</a></p>
+  </div>
+  <a href="viewer/?scenario=war&amp;impl=koota"><img class="shot" src="shots/rts-war.webp" width="640" height="360" loading="lazy" alt="RTS war at tick 300: blue and red armies clash around shrines on a green field"></a>
+</div>
+<div class="row">
+  <div>
+    <h3>Survivors-like</h3>
+    <p>One player against endless waves of enemies.</p>
+    <p class="dim">create/destroy churn · tag add/remove · per-system fixed cost · Not/Or queries</p>
+    <p class="meta">grove ~1.1k · swarm ~3k · <a href="games/survivors.html">rules →</a> <a href="viewer/?scenario=swarm&amp;impl=koota" class="btn">▶ preview</a></p>
+  </div>
+  <a href="viewer/?scenario=swarm&amp;impl=koota"><img class="shot" src="shots/survivors-swarm.webp" width="640" height="360" loading="lazy" alt="Survivors swarm at tick 300: a ring of mobs closes on the player in the centre"></a>
+</div>
+<div class="row">
+  <div>
+    <h3>Factory</h3>
+    <p>A factory simulation: machines and the drones that move goods between them.</p>
+    <p class="dim">large worlds · sparse queries (~1.5% active) · change detection · numeric iteration</p>
+    <p class="meta">mill 1.6k · works 150k · <a href="games/factory.html">rules →</a> <a href="viewer/factory.html?scenario=mill&amp;impl=bitecs" class="btn">▶ preview</a></p>
+  </div>
+  <a href="viewer/factory.html?scenario=mill&amp;impl=bitecs"><img class="shot" src="shots/factory-mill.webp" width="640" height="360" loading="lazy" alt="Factory mill at tick 300: an isometric grid of lit machines with drones flying between them"></a>
+</div>
+
+<h2 id="tests">What the games test</h2>
+<div class="scroll">
+<table>
+<thead><tr><th>ECS feature</th><th>RTS</th><th><span class="long">Survivors</span><span class="short">Surv</span></th><th><span class="long">Factory</span><span class="short">Fact</span></th></tr></thead>
+<tbody>
+<tr><td>Large numeric queries</td><td>+</td><td></td><td>+</td></tr>
+<tr><td>Create and destroy churn</td><td>+</td><td>+</td><td>+</td></tr>
+<tr><td>Add and remove tags</td><td>+</td><td>+</td><td>+</td></tr>
+<tr><td>Many distinct component sets</td><td>+</td><td>+</td><td></td></tr>
+<tr><td>Query with <code>Not</code> or <code>Or</code></td><td>+</td><td>+</td><td>+</td></tr>
+<tr><td>Small result in a large world</td><td></td><td></td><td>+</td></tr>
+<tr><td>Fixed cost of a query and a system</td><td></td><td>+</td><td></td></tr>
+<tr><td>Relations with data</td><td>+</td><td></td><td></td></tr>
+<tr><td>Hierarchy and transforms</td><td>+</td><td></td><td>+</td></tr>
+<tr><td>Cascade destroy</td><td>+</td><td>+</td><td>+</td></tr>
+<tr><td>Change detection</td><td>+</td><td>+</td><td>+</td></tr>
+<tr><td>Lookup by key</td><td>+</td><td></td><td></td></tr>
+<tr><td>Render extraction</td><td>+</td><td>+</td><td></td></tr>
+<tr><td>Save and load</td><td>+</td><td>+</td><td>+</td></tr>
+</tbody>
+</table>
+</div>
+<p class="meta">Details per game are on the rules pages.</p>
+
+<h2 id="submit">Submit a framework</h2>
+<p>To submit a library it must pass the baseline test: <code>pnpm verify &lt;lib&gt; …</code> matches the golden trace of baseline-js on every scenario, 3 seeds each. See <a href="https://github.com/jerzakm/ecs-arena/blob/main/packages/spec/SPEC.md">SPEC.md</a>.</p>
+<p><code>&lt;lib&gt;</code> is your folder name under <code>impls/</code>. Start with the smoke set, then run the full set. <code>works</code> has 150k machines and takes a while.</p>
+<pre><code>pnpm install
+pnpm verify:all                         # smoke set, as in CI
+pnpm verify &lt;lib&gt; skirmish battle war    # RTS
+pnpm verify &lt;lib&gt; grove thicket swarm    # Survivors
+pnpm verify &lt;lib&gt; mill works             # Factory</code></pre>
+<p>Then open a pull request.</p>
+<p class="meta"><a href="https://github.com/jerzakm/ecs-arena/blob/main/CONTRIBUTING.md">CONTRIBUTING.md</a> · <a href="https://github.com/jerzakm/ecs-arena/blob/main/packages/spec/SPEC.md">SPEC.md</a> · <a href="https://github.com/jerzakm/ecs-arena/blob/main/packages/spec/SPEC-survivors.md">SPEC-survivors.md</a> · <a href="https://github.com/jerzakm/ecs-arena/blob/main/packages/spec/SPEC-factory.md">SPEC-factory.md</a> · <a href="https://github.com/jerzakm/ecs-arena/blob/main/docs/method.md">method</a></p>
+
+<footer class="meta">MIT · <a href="https://github.com/jerzakm/ecs-arena">github.com/jerzakm/ecs-arena</a> · <span id="commit">results not published yet</span></footer>
+</main>
+<script>
+const REPO = 'https://github.com/jerzakm/ecs-arena'
+const GAMES = [['rts', 'RTS'], ['survivors', 'Survivors'], ['factory', 'Factory']]
+
+const theme = document.getElementById('theme')
+const setTheme = (t) => {
+  if (t === 'auto') delete document.documentElement.dataset.theme
+  else document.documentElement.dataset.theme = t
+  theme.textContent = `theme: ${t}`
+  try { t === 'auto' ? localStorage.removeItem('theme') : localStorage.setItem('theme', t) } catch {}
+}
+theme.onclick = () => setTheme({ auto: 'dark', dark: 'light', light: 'auto' }[document.documentElement.dataset.theme ?? 'auto'])
+try { const t = localStorage.getItem('theme'); if (t) setTheme(t) } catch {}
+
+
+// Shrink the sticky header once the page scrolls.
+const hdr = document.getElementById('top')
+// Hard cutoff with a gap between the two thresholds: shrinking the header moves the page, so one threshold would flip back and forth.
+const onScroll = () => {
+  const y = window.scrollY, stuck = hdr.classList.contains('stuck')
+  if (!stuck && y > 160) hdr.classList.add('stuck')
+  else if (stuck && y < 8) hdr.classList.remove('stuck')
+}
+addEventListener('scroll', onScroll, { passive: true })
+onScroll()
+</script>
+<script src="frames.js"></script>
+</body>
+</html>

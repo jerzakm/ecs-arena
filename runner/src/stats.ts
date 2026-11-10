@@ -1,0 +1,346 @@
+export const quantile = (xs: number[], q: number): number => {
+  const s = [...xs].sort((a, b) => a - b)
+  const i = (s.length - 1) * q
+  const lo = Math.floor(i)
+  return s[lo] + (s[Math.ceil(i)] - s[lo]) * (i - lo)
+}
+export const median = (xs: number[]) => quantile(xs, 0.5)
+export const p95 = (xs: number[]) => quantile(xs, 0.95)
+
+export const FRAME_MS = 16.6
+
+/** p99 tick ms, slowest tick ms and the count of ticks over one 60 fps frame. */
+export const tailMetrics = (tickMs: number[]) => ({
+  p99: quantile(tickMs, 0.99),
+  max: tickMs.reduce((a, b) => (a > b ? a : b), -Infinity),
+  over: tickMs.filter((t) => t > FRAME_MS).length,
+})
+
+/** One run's frame times for a chart: at most `points` values, each the slowest tick of its bucket, plus the run's percentiles. */
+export interface FrameSeries {
+  /** Ticks the run executed. Loads rewind the sim, so this is more than the scenario's `ticks`. */
+  ticks: number
+  /** Ticks per point; 1 when ticks <= points. */
+  bucket: number
+  /** Max tick ms in each bucket, rounded to 0.01 ms. */
+  max: number[]
+  p50: number
+  p90: number
+  p99: number
+  worst: number
+  /** Ticks over FRAME_MS in this run. */
+  over: number
+}
+
+const r2 = (x: number) => Math.round(x * 100) / 100
+
+export const frameSeries = (tickMs: number[], points = 600): FrameSeries => {
+  const bucket = Math.max(1, Math.ceil(tickMs.length / points))
+  const max: number[] = []
+  for (let i = 0; i < tickMs.length; i += bucket) max.push(r2(Math.max(...tickMs.slice(i, i + bucket))))
+  const { p99, max: worst, over } = tailMetrics(tickMs)
+  return { ticks: tickMs.length, bucket, max, p50: r2(quantile(tickMs, 0.5)), p90: r2(quantile(tickMs, 0.9)), p99: r2(p99), worst: r2(worst), over }
+}
+
+/** The run whose total is closest to the median total, so its frame times show real spikes rather than an average. */
+export const pickMedianRun = <T extends { totalMs: number }>(runs: T[]): T => {
+  const m = median(runs.map((r) => r.totalMs))
+  return runs.reduce((best, r) => (Math.abs(r.totalMs - m) < Math.abs(best.totalMs - m) ? r : best))
+}
+
+/** Small seeded PRNG (mulberry32) so a bootstrap interval is the same on every run. */
+export const prng = (seed: number) => () => {
+  seed = (seed + 0x6d2b79f5) | 0
+  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
+
+export interface Interval {
+  point: number
+  lo: number
+  hi: number
+}
+
+/** Percentile bootstrap 95% interval of a statistic over resamples of the run indices. */
+const bootstrap = (n: number, stat: (idx: number[]) => number, point: number, resamples = 2000, seed = 1): Interval => {
+  const rnd = prng(seed)
+  const vals = Array.from({ length: resamples }, () => stat(Array.from({ length: n }, () => Math.floor(rnd() * n))))
+  return { point, lo: quantile(vals, 0.025), hi: quantile(vals, 0.975) }
+}
+
+export const medianCI = (xs: number[], resamples = 2000, seed = 1): Interval =>
+  bootstrap(xs.length, (idx) => median(idx.map((i) => xs[i])), median(xs), resamples, seed)
+
+/** How many runs a scenario gets. Headline runs stop at `max`, or earlier once `min` runs give a 95% median interval narrower than `width` of the median. After `min` runs, an entry that has used `wallMs` of wall time stops too. */
+export interface RunPlan {
+  min: number
+  max: number
+  deep: number
+  width: number
+  wallMs: number
+}
+export const FULL: RunPlan = { min: 3, max: 10, deep: 0, width: 0.02, wallMs: 10 * 60_000 }
+export const QUICK: RunPlan = { min: 1, max: 1, deep: 0, width: 0.02, wallMs: Infinity }
+export const fixed = (n: number, deep: number): RunPlan => ({ min: n, max: n, deep, width: 0, wallMs: Infinity })
+
+/** The plan of an entry or a bench call. No `--runs` is the adaptive FULL plan. Deep runs (2) only come with `deep`. */
+export const planFor = (runs: number | undefined, deep: boolean): RunPlan => {
+  const d = deep ? 2 : 0
+  return runs === undefined ? { ...FULL, deep: d } : fixed(runs, d)
+}
+
+/** True when the headline run totals of one target need no more runs. */
+export const enough = (totals: number[], plan: RunPlan, elapsedMs = 0): boolean => {
+  if (totals.length >= plan.max) return true
+  if (totals.length < plan.min) return false
+  if (elapsedMs >= plan.wallMs) return true
+  const { lo, hi, point } = medianCI(totals)
+  return (hi - lo) / point < plan.width
+}
+
+/**
+ * Geometric mean over scenarios of median(lib total) / median(baseline total), with matched runs
+ * (run i of each side shares a resample index). Each argument maps scenario to run totals.
+ */
+export const geomeanScore = (lib: Record<string, number[]>, base: Record<string, number[]>, resamples = 2000, seed = 1): Interval => {
+  const scs = Object.keys(base).filter((s) => lib[s])
+  const n = Math.min(...scs.map((s) => Math.min(lib[s].length, base[s].length)))
+  const gm = (idx: number[]) => Math.exp(scs.reduce((a, s) => a + Math.log(median(idx.map((i) => lib[s][i])) / median(idx.map((i) => base[s][i]))), 0) / scs.length)
+  const all = Array.from({ length: n }, (_, i) => i)
+  return bootstrap(n, gm, gm(all), resamples, seed)
+}
+
+/** Best point first. A score whose interval overlaps the interval that opened the current rank shares that rank. */
+export const rankScores = <T extends Interval>(scores: T[]): (T & { rank: number })[] => {
+  const sorted = [...scores].sort((a, b) => a.point - b.point)
+  let lead = sorted[0]
+  let rank = 1
+  return sorted.map((s, i) => {
+    if (s.lo > lead.hi) {
+      lead = s
+      rank = i + 1
+    }
+    return { ...s, rank }
+  })
+}
+
+export const BASELINE = 'baseline-js'
+
+/** Ranked headline score for every target but the baseline. totals maps target to scenario to run totals. */
+export const scoreTargets = (totals: Record<string, Record<string, number[]>>) => {
+  const base = totals[BASELINE]
+  if (!base) return []
+  return rankScores(Object.entries(totals).filter(([t]) => t !== BASELINE).map(([target, lib]) => ({ target, ...geomeanScore(lib, base) })))
+}
+
+/** A run is unstable when its two clock probes differ by more than this share of their mean. Ported from the 5% CLOCK_COMPARE_THRESHOLD of pmndrs/labs (ISC), src/compare.ts. */
+export const CLOCK_DRIFT_MAX = 0.05
+
+/** Relative gap between the clock rates measured before and after a run. */
+export const clockDrift = ({ before, after }: ClockProbe): number => Math.abs(before - after) / ((before + after) / 2)
+
+/** Iterations per ms of a fixed integer loop, timed before the warmup and after the timed run. */
+export interface ClockProbe {
+  before: number
+  after: number
+}
+
+export interface RunResult {
+  totalMs: number
+  /** Absent when the child predates the probe, as a base tree can. */
+  clock?: ClockProbe
+  /** Whole-tick ms for each tick. */
+  tickMs: number[]
+  /** Deep-dive runs only. */
+  deep?: {
+    phasesMs: Record<string, number>
+    peakHeap: number
+    gcMs: number
+    allocBytes: number
+    /** One row per tick: each phase ms, tick ms, GC ms, allocated bytes, used heap bytes. */
+    ticks: number[][]
+  }
+}
+export interface Summary {
+  median: number
+  p95: number
+}
+export interface DeepAggregate {
+  runs: number
+  totalMs: Summary
+  phasesSumMs: Summary
+  phasesMs: Record<string, Summary>
+  peakHeap: Summary
+  gcMs: Summary
+  allocBytes: Summary
+  /** Per-tick median over the runs, same columns as the deep ticks rows. */
+  ticks: number[][]
+  /** Median deep total over median headline total, minus 1: what the timers, GC profiler and heap reads cost. */
+  overhead: number
+}
+/** The deep runs boiled down for the project page. */
+export interface MemoryRow {
+  runs: number
+  /** Median peak heap, MB. */
+  peakHeapMB: number
+  /** Median total GC ms over a run. */
+  gcMs: number
+  /** gcMs over the median deep total. */
+  gcShare: number
+  /** Median allocated MB per tick. */
+  allocMBPerFrame: number
+  /** DeepAggregate.overhead. */
+  overhead: number
+  /** GC ms per tick of the first deep run, max per bucket of `gcBucket` ticks (the same downsampling as FrameSeries). */
+  gcFrames?: number[]
+  gcBucket?: number
+}
+
+export interface Aggregate {
+  runs: number
+  totalMs: Summary & Interval
+  p99Ms: Summary
+  maxMs: Summary
+  over: Summary
+  /** The raw total of each run, for the rank tests and the headline score. */
+  samples: Record<string, number[]>
+  /** Relative spread of the headline totals, and the smallest change that this many runs could detect. */
+  spread: number
+  minDetectable: number
+  /** Headline runs whose clock drifted past CLOCK_DRIFT_MAX. Absent when no run carries a probe. */
+  unstable?: number
+  /** Median and largest clock drift of the headline runs. Absent when no run carries a probe. */
+  drift?: { median: number; max: number }
+  deep?: DeepAggregate
+  /** Frame times of the median-length headline run. */
+  frames?: FrameSeries
+  memory?: MemoryRow
+}
+
+const sum = (xs: number[]): Summary => ({ median: median(xs), p95: p95(xs) })
+
+const aggregateDeep = (runs: RunResult[], headlineMedian: number): DeepAggregate => {
+  const ds = runs.map((r) => r.deep!)
+  const phases = Object.keys(ds[0].phasesMs)
+  return {
+    runs: runs.length,
+    totalMs: sum(runs.map((r) => r.totalMs)),
+    phasesSumMs: sum(ds.map((d) => Object.values(d.phasesMs).reduce((a, b) => a + b, 0))),
+    phasesMs: Object.fromEntries(phases.map((p) => [p, sum(ds.map((d) => d.phasesMs[p]))])),
+    peakHeap: sum(ds.map((d) => d.peakHeap)),
+    gcMs: sum(ds.map((d) => d.gcMs)),
+    allocBytes: sum(ds.map((d) => d.allocBytes)),
+    ticks: ds[0].ticks.map((row, t) => row.map((_, c) => median(ds.map((d) => d.ticks[t][c])))),
+    overhead: median(runs.map((r) => r.totalMs)) / headlineMedian - 1,
+  }
+}
+
+/** The clock fields of an aggregate, from the runs that carry a probe. */
+const clockOf = (runs: RunResult[]): Pick<Aggregate, 'unstable' | 'drift'> => {
+  const drifts = runs.flatMap((r) => (r.clock ? [clockDrift(r.clock)] : []))
+  if (drifts.length === 0) return {}
+  return { unstable: drifts.filter((d) => d > CLOCK_DRIFT_MAX).length, drift: { median: median(drifts), max: Math.max(...drifts) } }
+}
+
+export const aggregate = (runs: RunResult[], deepRuns: RunResult[] = []): Aggregate => {
+  const tails = runs.map((r) => tailMetrics(r.tickMs))
+  const totals = runs.map((r) => r.totalMs)
+  return {
+    runs: runs.length,
+    totalMs: { ...sum(totals), ...medianCI(totals) },
+    p99Ms: sum(tails.map((t) => t.p99)),
+    maxMs: sum(tails.map((t) => t.max)),
+    over: sum(tails.map((t) => t.over)),
+    spread: relativeSpread(totals),
+    minDetectable: minDetectableEffect(relativeSpread(totals), totals.length),
+    ...clockOf(runs),
+    samples: {
+      total: totals,
+      ...(deepRuns.length && {
+        ...Object.fromEntries(Object.keys(deepRuns[0].deep!.phasesMs).map((p) => [p, deepRuns.map((r) => r.deep!.phasesMs[p])])),
+        gc: deepRuns.map((r) => r.deep!.gcMs),
+        alloc: deepRuns.map((r) => r.deep!.allocBytes),
+      }),
+    },
+    frames: frameSeries(pickMedianRun(runs).tickMs),
+    ...(deepRuns.length && memoryOf(aggregateDeep(deepRuns, median(totals)), deepRuns[0])),
+  }
+}
+
+/** Each deep tick row ends with [tick ms, gc ms, alloc bytes, heap bytes]. */
+const gcSeries = (run: RunResult) => {
+  const gc = (run.deep?.ticks ?? []).map((row) => row[row.length - 3])
+  const { bucket, max } = frameSeries(gc)
+  return gc.length ? { gcFrames: max, gcBucket: bucket } : {}
+}
+
+const memoryOf = (deep: DeepAggregate, run: RunResult): Pick<Aggregate, 'deep' | 'memory'> => {
+  const ticks = run.tickMs.length
+  return {
+  deep,
+  memory: {
+    runs: deep.runs,
+    peakHeapMB: r2(deep.peakHeap.median / 2 ** 20),
+    gcMs: r2(deep.gcMs.median),
+    gcShare: +(deep.gcMs.median / deep.totalMs.median).toFixed(4),
+    allocMBPerFrame: +(deep.allocBytes.median / 2 ** 20 / Math.max(1, ticks)).toFixed(4),
+    overhead: +deep.overhead.toFixed(4),
+    ...gcSeries(run),
+  },
+  }
+}
+
+/** Percent change of b relative to a (positive = b slower/larger). */
+export const deltaPct = (a: number, b: number): number => ((b - a) / a) * 100
+
+/** Robust relative spread: 1.4826 * MAD / median, a sigma equivalent as a fraction of the median. Ported from `relativeSpread` in pmndrs/labs (ISC), src/stats.ts. */
+export const relativeSpread = (xs: number[]): number => {
+  const m = median(xs)
+  return xs.length > 1 && m > 0 ? (1.4826 * median(xs.map((x) => Math.abs(x - m)))) / m : 0
+}
+
+/**
+ * Smallest relative change that comparing two sets of `runs` fresh-process runs with this spread could detect.
+ * 2.8 is the normal-theory factor for alpha 0.05 at power 0.8, and sqrt(2 / runs) is the standard error of a difference of two equal-size means.
+ * The verdicts use a rank test, so read this as a guide for the order of magnitude. Ported from `minDetectableEffect` in pmndrs/labs (ISC), src/stats.ts.
+ */
+export const minDetectableEffect = (spread: number, runs: number): number => (runs < 2 || spread <= 0 ? 0 : 2.8 * spread * Math.sqrt(2 / runs))
+
+/** Hodges-Lehmann shift as a ratio: the median of all b/a pairs. 1.05 = b is 5% larger. */
+export const hlRatio = (a: number[], b: number[]): number => median(a.flatMap((x) => b.map((y) => y / x)))
+
+/**
+ * Two-sided Mann-Whitney U p-value, normal approximation with tie and continuity correction.
+ * ponytail: the approximation is loose with few runs per side, use an exact test if small n matters.
+ */
+export const mannWhitney = (a: number[], b: number[]): number => {
+  const all = [...a.map((v) => ({ v, g: 0 })), ...b.map((v) => ({ v, g: 1 }))].sort((x, y) => x.v - y.v)
+  const n = all.length, n1 = a.length, n2 = b.length
+  const rank: number[] = []
+  let ties = 0
+  for (let i = 0; i < n; ) {
+    let j = i
+    while (j + 1 < n && all[j + 1].v === all[i].v) j++
+    for (let k = i; k <= j; k++) rank[k] = (i + j) / 2 + 1
+    const t = j - i + 1
+    ties += t ** 3 - t
+    i = j + 1
+  }
+  const r1 = all.reduce((s, x, i) => s + (x.g === 0 ? rank[i] : 0), 0)
+  const u = r1 - (n1 * (n1 + 1)) / 2
+  const sd = Math.sqrt(((n1 * n2) / 12) * (n + 1 - ties / (n * (n - 1))))
+  if (!sd) return 1
+  const z = Math.max(0, Math.abs(u - (n1 * n2) / 2) - 0.5) / sd
+  return Math.min(1, 2 * (1 - phi(z)))
+}
+
+/** Fewest runs per side where a perfectly separated pair reaches p < 0.05 (4 gives 0.030, 3 gives 0.081). */
+export const MIN_RUNS = 4
+
+/** Standard normal CDF (Abramowitz-Stegun 7.1.26, error below 1.5e-7). */
+const phi = (z: number): number => {
+  const t = 1 / (1 + 0.3275911 * (z / Math.SQRT2))
+  const erf = 1 - ((((1.061405429 * t - 1.453152027) * t + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-(z * z) / 2)
+  return 0.5 * (1 + erf)
+}

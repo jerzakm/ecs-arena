@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ecs-arena viewer: factory</title>
+    <style>
+      :root { --bg: #0d1117; --panel: rgba(22, 27, 34, 0.88); --line: #30363d; --text: #d0d7de; --dim: #8b949e; --blue: #4c9aff; --red: #ff6b6b }
+      * { box-sizing: border-box }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px system-ui, sans-serif; overflow: hidden }
+      canvas#view { position: fixed; inset: 0; width: 100%; height: 100%; display: block; cursor: grab }
+      canvas#view.drag { cursor: grabbing }
+      .bar { position: fixed; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); backdrop-filter: blur(6px) }
+      .bar .grow { flex: 1 }
+      .bar a { color: var(--blue); text-decoration: none }
+      .bar a:hover { text-decoration: underline }
+      select, button { background: #21262d; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer }
+      button:hover, select:hover { border-color: var(--dim) }
+      button.on { background: #1f6feb; border-color: #1f6feb; color: #fff }
+      .group { display: flex }
+      .group button { border-radius: 0; margin-left: -1px }
+      .group button:first-child { border-radius: 6px 0 0 6px; margin-left: 0 }
+      .group button:last-child { border-radius: 0 6px 6px 0 }
+      .hud { position: fixed; top: 52px; left: 10px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; line-height: 1.6; font-variant-numeric: tabular-nums; min-width: 200px }
+      .hud .dim, .dim { color: var(--dim) }
+      .legend { position: fixed; top: 52px; right: 10px; padding: 8px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; line-height: 1.7 }
+      .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px }
+      .help { position: fixed; left: 10px; bottom: 10px; color: var(--dim); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; max-width: 460px; line-height: 1.5 }
+      #err { position: fixed; top: 44px; left: 50%; transform: translateX(-50%); color: var(--red) }
+    </style>
+  </head>
+  <body>
+    <canvas id="view"></canvas>
+    <div class="bar">
+      <select id="impl" title="implementation"></select>
+      <select id="scenario" title="scenario"></select>
+      <button id="play">Pause</button>
+      <button id="restart">Restart</button>
+      <div class="group" id="speed">
+        <button data-speed="1x">1x</button>
+        <button data-speed="4x" class="on">4x</button>
+        <button data-speed="max">max</button>
+      </div>
+      <button id="endless" title="Keep playing past the scenario's last tick">endless</button>
+      <span class="grow"></span>
+      <span id="stat" class="dim"></span>
+      <a href="./">RTS and survivors</a>
+      <a href="../">ECS Arena results</a>
+    </div>
+    <div class="hud">
+      <div>Tick <b id="tick">0</b></div>
+      <div>Gears sunk <b id="score">0</b></div>
+      <div>Working <span id="working">0</span> <span class="dim">of <span id="machines">0</span> machines</span></div>
+      <div>Districts powered <span id="powered">0</span> <span class="dim">of <span id="districts">0</span></span></div>
+      <div>Drones <span id="drones">0</span>, crates <span id="crates">0</span></div>
+      <div class="dim">Picked <span id="picked">0</span>, delivered <span id="delivered">0</span>, lost <span id="lost">0</span></div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="err"></div>
+    <div class="help">Drag: pan. Wheel: zoom. F: fit. Lit machines are working, dark ones are idle, red ones have no power. Drones tow crates of ore, plates and gears along the production lines. Zoom out for the whole world.</div>
+    <script type="module" src="/src/factory/main.ts"></script>
+  </body>
+</html>

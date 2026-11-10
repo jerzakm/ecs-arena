@@ -1,0 +1,7 @@
+node_modules
+.worktrees
+results
+dist
+.claude/worktrees
+_site
+site/results.dev.json

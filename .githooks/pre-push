@@ -1,0 +1,4 @@
+#!/bin/sh
+# CI runs the light tests. The heavy tests take minutes, so they run here before each push.
+# Skip once with: git push --no-verify
+exec pnpm test:heavy

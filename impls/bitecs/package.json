@@ -1,0 +1,12 @@
+{
+  "name": "@ecs-arena/impl-bitecs",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/rts/index.ts"
+  },
+  "dependencies": {
+    "@ecs-arena/spec": "workspace:*",
+    "bitecs": "^0.4.0"
+  }
+}

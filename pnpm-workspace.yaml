@@ -1,0 +1,7 @@
+packages:
+  - packages/*
+  - impls/*
+  - runner
+  - apps/*
+allowBuilds:
+  esbuild: false

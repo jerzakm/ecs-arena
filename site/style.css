@@ -1,0 +1,198 @@
+:root {
+  --bg: #0e0e0c; --fg: #d8d6cc; --dim: #8a887e; --rule: #2a2a26;
+  --accent: #e8542b; --logo: #ff7a3d; --good: #8fbf6a; --bad: #d98a6a; --code: #1a1a17;
+  --budget: #f2c230; --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f6f5f0; --fg: #1b1b18; --dim: #6b695f; --rule: #d9d7cd;
+    --accent: #b8380f; --logo: #b8380f; --good: #3f7a1f; --bad: #9c3b1a; --code: #ebe9e1;
+    --budget: #9a6b00; --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f6f5f0; --fg: #1b1b18; --dim: #6b695f; --rule: #d9d7cd;
+  --accent: #b8380f; --logo: #b8380f; --good: #3f7a1f; --bad: #9c3b1a; --code: #ebe9e1;
+  --budget: #9a6b00; --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --bg: #0e0e0c; --fg: #d8d6cc; --dim: #8a887e; --rule: #2a2a26;
+  --accent: #e8542b; --logo: #ff7a3d; --good: #8fbf6a; --bad: #d98a6a; --code: #1a1a17;
+  --budget: #f2c230; --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box }
+html, body { background: var(--bg); color: var(--fg) }
+body { margin: 0; font: 15px/1.6 "JetBrains Mono", ui-monospace, Menlo, monospace }
+main { max-width: 1400px; margin: 0 auto; padding: 32px 24px 64px }
+main > p, .row p, .intro { max-width: 72ch }
+@media (max-width: 599px) { main { padding: 24px 16px 48px } }
+a { color: var(--accent); text-underline-offset: 3px; text-decoration-thickness: 1px }
+a:hover { text-decoration-thickness: 2px }
+h1 { font-size: 18px; margin: 32px 0 8px }
+h2 { font-size: 18px; margin: 32px 0 12px; padding-top: 16px; border-top: 1px solid var(--rule) }
+h3, h4 { font-size: 15px; margin: 24px 0 8px }
+p, ul, ol { margin: 0 0 12px }
+code { background: var(--code); padding: 0 3px }
+pre { overflow-x: auto }
+pre code { background: none; padding: 0 }
+.meta, figcaption, table { font-size: 13px }
+.dim, .meta { color: var(--dim) }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+
+.logo-h { margin: 0; font-size: inherit }
+.logo { color: var(--logo); line-height: 1.1; font-weight: 700; letter-spacing: 0; font-size: clamp(9px, 2.1vw, 15px); margin: 0 0 16px; overflow: visible }
+.logo.narrow { display: none }
+@media (max-width: 599px) {
+  .logo.wide { display: none }
+  .logo.narrow { display: block; font-size: clamp(11px, 3.4vw, 15px) }
+}
+.tagline { margin: 0 0 8px }
+.cursor { animation: blink 1s steps(1) infinite }
+@keyframes blink { 50% { opacity: 0 } }
+@media (prefers-reduced-motion: reduce) { .cursor { animation: none } }
+nav.links { font-size: 13px }
+nav.links > * + *::before { content: "·"; display: inline-block; margin: 0 1ch; color: var(--dim); text-decoration: none }
+.meta a { white-space: nowrap }
+
+img.shot, .hero img { display: block; width: 100%; height: auto; border: 1px solid var(--rule) }
+figure { margin: 0 }
+.hero { margin: 16px 0 }
+
+.row { display: grid; grid-template-columns: 1fr 320px; gap: 8px 24px; padding: 16px 0; border-top: 1px solid var(--rule) }
+.row:first-of-type { border-top: 0 }
+.row.lib { grid-template-columns: 1fr }
+.row h3 { margin: 0 0 4px }
+.row p { margin: 0 0 4px }
+@media (max-width: 599px) {
+  .row { grid-template-columns: 1fr 120px; gap: 8px 16px }
+  table { font-size: 12px }
+  th .long { display: none }
+}
+th .short { display: none }
+@media (max-width: 599px) { th .short { display: inline } }
+.scores { font-variant-numeric: tabular-nums }
+.scores b { font-weight: 700 }
+.good { color: var(--good); font-weight: 700 }
+.bad { color: var(--bad); font-weight: 700 }
+.claims { list-style: none; padding: 0; margin: 4px 0 }
+.claims li { padding-left: 2ch; text-indent: -2ch }
+
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums }
+th, td { text-align: left; vertical-align: top; padding: 4px 12px 4px 0; border-bottom: 1px solid var(--rule) }
+th { color: var(--dim); font-weight: 400 }
+.scroll { overflow-x: auto }
+
+footer { margin-top: 32px; padding-top: 16px; border-top: 1px solid var(--rule) }
+button.theme { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px }
+
+.small-logo { font-weight: 700; text-decoration: none }
+nav.top { font-size: 13px }
+.spec h1 { font-size: 18px }
+.spec .anchor { color: var(--dim); text-decoration: none; font-weight: 400 }
+.spec pre { background: var(--code); padding: 8px 12px; font-size: 13px }
+.spec table { display: block; overflow-x: auto }
+
+.intro { margin-top: 32px }
+a.btn { display: inline-block; margin-left: 8px; padding: 2px 10px; border: 1px solid var(--accent); color: var(--accent); text-decoration: none; font-weight: 700 }
+a.btn:hover { background: var(--accent); color: var(--bg, #0d0d0c) }
+
+/* results chart: one panel per game, log scale 1x..32x */
+.legend { font-size: 13px; color: var(--fg); display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center }
+.legend .li { white-space: nowrap; display: inline-flex; align-items: center; gap: 6px }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; background: var(--c) }
+.chart { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; margin: 20px 0 28px }
+@media (max-width: 900px) { .chart { grid-template-columns: 1fr } }
+.panel h3 { margin: 0 0 8px; font-size: 16px }
+.plot { position: relative; padding: 4px 0 26px; border-left: 1px solid var(--dim) }
+.grid { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--rule) }
+.grid i { position: absolute; bottom: 0; transform: translateX(-50%); font-style: normal; font-size: 12px; color: var(--dim) }
+.grid:first-child i { transform: none }
+.bar-row { position: relative; height: 50px; margin: 8px 0; cursor: default; outline: none }
+.bar { position: absolute; left: 0; top: 24px; height: 22px; background: var(--c); border-radius: 0 4px 4px 0 }
+.ci { position: absolute; top: 34px; height: 2px; background: var(--fg); opacity: .7 }
+.val { position: absolute; top: 0; left: 6px; font-size: 14px; white-space: nowrap; color: var(--fg); line-height: 18px }
+.bar-row:hover .bar, .bar-row:focus .bar { filter: brightness(1.15) }
+.tip { position: absolute; z-index: 5; max-width: min(480px, calc(100vw - 16px)); white-space: pre-wrap; padding: 8px 10px; font-size: 12px; line-height: 1.5; background: var(--bg); color: var(--fg); border: 1px solid var(--dim); border-radius: 4px; pointer-events: none }
+.scores-table td b { font-weight: 700 }
+.grid:nth-child(6) i { transform: translateX(-100%) }
+
+/* ms/frame over the 60 fps budget: bold plus ▲, not color alone */
+.over { font-weight: 700; color: var(--fg) }
+.sw.dash { background: none; border-top: 2px dashed var(--dim); border-radius: 0; height: 0 }
+
+/* frame times: one tab per game */
+.gtabs { display: flex; gap: 0; border-bottom: 1px solid var(--rule); margin: 16px 0 16px }
+.gtabs button { font: inherit; font-size: 15px; padding: 8px 18px; background: none; color: var(--dim); border: 0; border-bottom: 3px solid transparent; margin-bottom: -1px; cursor: pointer }
+.gtabs button:hover { color: var(--fg) }
+.gtabs button[aria-selected=true] { color: var(--fg); border-bottom-color: var(--accent); font-weight: 700 }
+.gtabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px }
+.picker .sep { width: 16px }
+.sw.budget { background: none; border-top: 2px dashed var(--budget); border-radius: 0; height: 0 }
+.fsvg .ptitle { fill: var(--fg); font: 700 13px "JetBrains Mono", ui-monospace, monospace }
+.picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px }
+.picker button, .picker select, .linkbtn { font: inherit; font-size: 13px; color: var(--fg); background: none; border: 1px solid var(--rule); padding: 2px 10px; cursor: pointer }
+.picker button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 700 }
+.picker select { background: var(--bg) }
+.linkbtn { border: 0; padding: 0; color: var(--accent); text-decoration: underline; text-underline-offset: 3px; font-size: 13px }
+.fchart { width: 100% }
+.fsvg { display: block; max-width: 100%; height: auto; overflow: visible }
+.fsvg .gl { stroke: var(--rule); stroke-width: 1 }
+.fsvg .axl, .msvg .axl { stroke: var(--dim); stroke-width: 1 }
+.fsvg .ax, .msvg .ax { fill: var(--dim); font: 12px "JetBrains Mono", ui-monospace, monospace }
+.msvg .val { fill: var(--fg) }
+.fsvg .budget { stroke: var(--budget); stroke-width: 1.5; stroke-dasharray: 6 3 }
+.fsvg .budget-t { fill: var(--budget); font-weight: 700; paint-order: stroke; stroke: var(--bg); stroke-width: 3 }
+.fsvg .clipm { font-size: 10px; paint-order: stroke; stroke: var(--bg); stroke-width: 2 }
+.fsvg .dsw { stroke-width: 3 }
+.fsvg .dsw.dash { stroke-dasharray: 3 2 }
+.mhit { outline: none; cursor: default }
+.mhit:focus-visible { stroke: var(--accent) }
+.tsw { display: inline-block; width: 9px; height: 9px; border-radius: 2px; background: var(--c); margin-right: 6px }
+.nw { white-space: nowrap }
+.lnote::before { content: "· " }
+@media (max-width: 599px) { .lnote { display: block; width: 100% } .lnote::before { content: none } }
+.ftable { margin: 4px 0 8px }
+.mults { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px }
+@media (max-width: 900px) { .mults { grid-template-columns: 1fr } }
+.mults h5 { font-size: 14px; font-weight: 400; color: var(--dim); margin: 0 0 4px }
+.msvg { display: block; width: 100%; max-width: 520px; height: auto }
+@media (max-width: 599px) { .scores-table td[data-caps], .scores-table th:last-child { display: none } }
+.ftable th { white-space: nowrap }
+
+.fsvg .col { fill-opacity: .9 }
+.fsvg .col.base { fill: var(--dim) !important }
+.fsvg .whisk { stroke-width: 1.5; stroke-opacity: .8 }
+.fsvg .rowlab { font: 12px "JetBrains Mono", ui-monospace, monospace }
+.fsvg .rname { fill: var(--fg); font-weight: 700 }
+.fsvg .colhl { fill: var(--fg); opacity: .07; pointer-events: none }
+.tip { white-space: pre }
+
+.fsvg .fl { fill: none; stroke-width: 2; stroke-opacity: .85; stroke-linejoin: round }
+.fsvg .fl.dash { stroke-dasharray: 5 3 }
+.fsvg .fl.gc { stroke-width: 1.5; stroke-opacity: 1 }
+.tip.docked { width: calc(100vw - 16px); white-space: pre-wrap }
+.scores-table, .ftable { width: auto; min-width: min(60ch, 100%) }
+.fsvg .dl { cursor: pointer; outline: none }
+.fsvg .dl text { fill: var(--fg); font: 700 12px "JetBrains Mono", ui-monospace, monospace }
+.fsvg .dl.off text { fill: var(--dim); text-decoration: line-through }
+.fsvg .dl.off .dsw { opacity: .35 }
+.fsvg .dl:focus-visible text { text-decoration: underline }
+.fsvg .dot { stroke: var(--bg); stroke-width: 2 }
+.fsvg .cross { stroke: var(--dim); stroke-width: 1 }
+
+.fcopy { margin-top: 8px }
+main > p.meta { max-width: none }
+
+/* sticky header: full logo at the top, compact once scrolled */
+header.top { position: sticky; top: 0; z-index: 10; background: var(--bg); padding: 8px 0; margin-top: -8px; border-bottom: 1px solid transparent; }
+header.top.stuck { border-bottom-color: var(--rule) }
+header.top.stuck .logo.wide { font-size: 9px; margin-bottom: 6px }
+header.top.stuck .logo.narrow { font-size: 6px; margin-bottom: 6px }
+header.top.stuck .tagline { display: none }
+html { scroll-padding-top: 116px; overflow-anchor: none }
+@media (max-width: 599px) { html { scroll-padding-top: 160px } }

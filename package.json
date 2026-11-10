@@ -1,0 +1,37 @@
+{
+  "name": "ecs-arena",
+  "private": true,
+  "packageManager": "pnpm@11.9.0",
+  "type": "module",
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "test": "vitest run --exclude **/node_modules/** --exclude **/.worktrees/** --exclude **/.claude/** --exclude **/*.heavy.test.ts",
+    "test:heavy": "vitest run .heavy.test.ts --exclude **/node_modules/** --exclude **/.worktrees/** --exclude **/.claude/**",
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "oxlint --deny-warnings",
+    "verify": "tsx runner/src/verify.ts",
+    "profile": "tsx runner/src/profile.ts",
+    "bench": "tsx runner/src/bench.ts",
+    "compare": "tsx runner/src/compare.ts",
+    "diff": "tsx runner/src/diff.ts",
+    "check:caps": "tsx runner/src/check-capabilities.ts",
+    "verify:all": "tsx runner/src/verify-all.ts",
+    "budget": "tsx runner/src/budget.ts",
+    "results": "tsx runner/src/results.ts",
+    "bench:site": "tsx runner/src/bench.ts baseline-js bitecs koota iris skirmish war grove swarm mill works --deep --deep-scenarios board --out site/results.json",
+    "site:dev": "node runner/src/site-dev.mjs",
+    "site:gen": "node runner/src/site-build.mjs",
+    "site:shots": "node runner/src/shots.mjs",
+    "site": "node runner/src/site-build.mjs && pnpm --filter @ecs-arena/viewer build && rm -rf _site && mkdir _site && cp -r site/. _site/ && rm _site/vite.config.mjs && rm -f _site/results.dev.json && cp -r apps/viewer/dist _site/viewer"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "oxlint": "^1.88.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": ">=24.2.0"
+  }
+}
