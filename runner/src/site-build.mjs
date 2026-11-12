@@ -25,9 +25,9 @@ const GAMES = [
   },
 ]
 
-// The README "What the games test" table, one column per game.
-const readme = await readFile(join(root, 'README.md'), 'utf8')
-const facetRows = readme.split('## What the games test')[1].split('\n## ')[0].split('\n').filter((l) => l.startsWith('| ')).slice(1)
+// The "What the large games test" table of docs/features.md, one column per game.
+const readme = await readFile(join(root, 'docs/features.md'), 'utf8')
+const facetRows = readme.split('## What the large games test')[1].split('\n## ')[0].split('\n').filter((l) => l.startsWith('| ')).slice(1)
   .map((l) => l.split('|').slice(1, -1).map((c) => c.trim()))
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const code = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>')

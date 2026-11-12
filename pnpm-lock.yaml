@@ -46,6 +46,18 @@ importers:
         specifier: ^6.0.0
         version: 6.4.4(@types/node@22.20.5)(tsx@4.23.15)
 
+  games/bricks:
+    dependencies:
+      bitecs:
+        specifier: ^0.4.0
+        version: 0.4.0
+      iris-ecs:
+        specifier: 0.0.14
+        version: 0.0.14
+      koota:
+        specifier: ^0.6.6
+        version: 0.6.6
+
   impls/baseline-js:
     dependencies:
       '@ecs-arena/spec':

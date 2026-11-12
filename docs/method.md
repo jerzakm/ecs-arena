@@ -9,7 +9,7 @@ Each library gets one score for each game. No number mixes the games.
 - The score is the geometric mean, over the board scenarios of the game, of the library time divided by the `baseline-js` time. Lower is better. `baseline-js` is 1.
 - The board scenarios are `skirmish` (about 5k peak entities) and `war` (about 50k) for the RTS, `grove` (about 1.1k) and `swarm` (about 3k) for survivors, and `mill` (about 6k) and `works` (about 160k) for factory. `battle` and `thicket` are for local use.
 - The time is the total run time of a headline run. The report also shows p99, the max tick and the ticks over 16.6 ms.
-- `baseline-js` uses plain arrays and no library. It is the reference for correctness and for the ratio. It is not ranked.
+- `baseline-js` uses plain arrays and no library. It is the vanilla entry for correctness and for the ratio. It is not ranked.
 
 ## How a run works
 
@@ -18,15 +18,15 @@ Each library gets one score for each game. No number mixes the games.
 - **Adaptive run count.** A headline has 3 to 10 runs. It stops when the 95% interval of the median is under 2% of the median. An entry that has used 10 min of wall time stops after the 3-run minimum. Two libraries whose intervals overlap share a rank.
 - **Clock check.** A fixed integer loop runs before the warmup and after the timed run. If the two times differ by more than 5%, the CPU clock moved and the run counts as unstable. Each entry reports its relative spread (1.4826 * MAD / median), the smallest change its run count can detect, and its unstable runs. Read a gap smaller than the min detectable change as noise.
 - **Deep-dive runs** (`--deep`) call the phases one by one and record phase times, GC time, allocation and heap for each tick. The report shows the overhead of the extra timers.
-- **Save and load.** The runner asks for a save after each 25th tick. It loads the newest save every `loadEvery` ticks (200 in the RTS and factory, 50 in survivors) and replays the ticks after it. The hash trace must match a run without the loads. The time of each save and load is in the total. See `runner/src/schedule.ts`.
+- **Save and load.** The runner asks for a save after each 25th tick. It loads the newest save every `loadEvery` ticks (200 in the RTS and factory, 50 in survivors) and replays the ticks after it. The hashes must match a run without the loads. The time of each save and load is in the total. See `runner/src/schedule.ts`.
 
 The statistics follow [pmndrs/labs](https://github.com/pmndrs/labs) (ISC).
 
 ## Correctness
 
-An implementation is correct when its hash trace matches the golden for every tick. `pnpm verify` checks 3 seeds for each scenario. Timing uses the first seed only. `baseline-js` writes the goldens in `goldens/`.
+An implementation is correct when its hash matches the golden for every tick. `pnpm verify` checks 3 seeds for each scenario. Timing uses the first seed only. `baseline-js` writes the goldens in `goldens/`.
 
-All state is int32, and positions use 1/1024 of a tile. Float addition is not associative, so two libraries that visit entities in different orders would get different sums and different hashes. Integer state makes the result independent of iteration order. Every random number is a pure function of seed, tick, entity and purpose, so the call order does not matter either.
+In rts, survivors and factory, all state is int32, and positions use 1/1024 of a tile. Float addition is not associative, so two libraries that visit entities in different orders would get different sums and different hashes. Integer state makes the result independent of iteration order. Every random number is a pure function of seed, tick, entity and purpose, so the call order does not matter either.
 
 ## Load budget
 
@@ -45,12 +45,33 @@ A region passes when all of these are true, in every scenario that claims it and
 
 A rule that never fires never changes the hash, so an implementation could skip it. `pnpm run profile` counts the activations of each rule in `baseline-js` for each seed. It fails when a counter stays at 0. A factory rule is checked only for the scenarios that its facet names. The RTS rules are in `HARNESS` in `runner/src/games.ts`. The survivors rules come from `FACETS` and `SYSTEMS` in `packages/spec/src/survivors/facets.ts`, and the factory rules from `FACETS` in `packages/spec/src/factory/facets.ts`.
 
-## Idiomatic and tuned entries
+## Main and tuned entries
 
-- `impls/<lib>` is **idiomatic**. It uses only the APIs that the library docs teach. This is the ranked entry.
+- `impls/<lib>` is the **main entry**. It does the same game logic as the baseline. Each loop uses the form that the library recommends for hot loops. When that form cannot express the logic, the entry uses the next documented form and marks it with one short comment. This is the ranked entry.
 - `impls/<lib>-tuned` is optional. It can use any public API for maximum speed. The results label it apart.
 
-The gap between the two shows the cost of the idiomatic style.
+- For bricks, the main entry is `games/bricks/entries/<lib>.ts`. It does the same logic as `vanilla.ts` in each system. The block lookup in hitBlocks and the cell check in respawnBlocks stop at the first match.
+
+The gap between the two shows the cost of the recommended style. A main entry keeps its state in the library. It does not keep side lists, grids or maps to go around the library.
+
+The spec fixes only the fields of the snapshot. The component layout of an entry is free.
+
+## Numbers
+
+The large games (rts, survivors, factory) use integers only. An integer keeps its value in every storage type.
+
+Bricks uses plain float math. The rules use only `+`, `-`, `*`, `/` and `Math.floor`, with `DT = 1 / 60` from `shared.ts`. The vanilla entry keeps JS numbers (64-bit floats) and writes the one golden. The runner hashes the exact 64-bit value of each number, and changes -0 to 0 first.
+
+An experiment ran 40 seeds for 10000 ticks:
+
+- Each 64-bit layout gives the same bits on each tick: plain objects, `Float64Array` columns, plain arrays, and values in local variables.
+- A `Float32Array` column changes each stored value, so the hash fails at tick 0. The game state then moves apart: 2 of 40 seeds in 200 ticks, 6 in 1000, and 35 in 10000.
+- Rounding to 0.01 does not fix this. A tolerance does not fix it either, because the game state moves apart.
+- Two methods fix it. One method rounds each value to 32-bit when it is stored, with one golden. The other method writes one golden for each storage type. Both methods are parked.
+
+koota keeps JS numbers. bitecs and iris let the author pick the array type, and pass with a plain array or a 64-bit type.
+
+Decision of the owner: ignore 32-bit for now. The project looks at it again if it becomes a problem.
 
 ## Known biases
 
@@ -77,7 +98,7 @@ Use Node 24.2 or later (`.nvmrc`).
 ```sh
 pnpm test                                   # unit and behaviour tests
 pnpm test:heavy                             # full fights, minutes. The pre-push hook runs it
-pnpm verify koota skirmish-smoke            # compare the hash trace of each seed with the golden
+pnpm verify koota skirmish-smoke            # compare the hashes of each seed with the golden
 pnpm verify:all                             # every implementation, every smoke scenario
 pnpm run diff koota skirmish 120 7 9        # first differing RTS snapshot record against baseline-js
 pnpm run profile skirmish grove             # count operations in baseline-js, run the liveness check

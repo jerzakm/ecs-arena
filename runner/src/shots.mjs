@@ -15,6 +15,7 @@ const SHOTS = [
   ['survivors-swarm', 'viewer/?scenario=swarm&impl=baseline-js'],
   ['factory-mill', 'viewer/factory.html?scenario=mill&impl=baseline-js'],
   ['factory-works', 'viewer/factory.html?scenario=works&impl=baseline-js'],
+  ['bricks-koota', 'viewer/bricks.html?scenario=bricks&impl=koota'],
 ]
 const TICKS = 300
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.json': 'application/json', '.webp': 'image/webp' }
@@ -52,7 +53,11 @@ try {
       out.width = 640
       out.height = 360
       const g = out.getContext('2d')
-      g.drawImage(src, 0, 0, out.width, out.height)
+      // Fit the canvas inside the frame without stretching. A 4:3 canvas gets dark bars at the sides.
+      g.fillStyle = '#0b0e14'
+      g.fillRect(0, 0, out.width, out.height)
+      const k = Math.min(out.width / src.width, out.height / src.height)
+      g.drawImage(src, (out.width - src.width * k) / 2, (out.height - src.height * k) / 2, src.width * k, src.height * k)
       const px = g.getImageData(0, 0, out.width, out.height).data
       let sum = 0, sq = 0
       for (let i = 0; i < px.length; i += 4) { const v = px[i] + px[i + 1] + px[i + 2]; sum += v; sq += v * v }

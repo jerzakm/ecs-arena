@@ -1,0 +1,10 @@
+{
+  "name": "@ecs-arena/games-bricks",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "bitecs": "^0.4.0",
+    "iris-ecs": "0.0.14",
+    "koota": "^0.6.6"
+  }
+}

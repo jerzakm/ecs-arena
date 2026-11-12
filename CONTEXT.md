@@ -1,6 +1,6 @@
-# ecs-arena
+# RTS glossary
 
-This glossary defines the terms of the RTS (`packages/spec/SPEC.md`). The survivors and factory games define their own terms in `packages/spec/SPEC-survivors.md` and `packages/spec/SPEC-factory.md`. Where a game spec differs from this glossary, for example in when a write becomes visible and how often the game loads, the game spec wins for that game.
+This glossary defines the terms of the RTS (`packages/spec/SPEC.md`). [GLOSSARY.md](GLOSSARY.md) holds the terms that all games share. The survivors and factory games define their own terms in `packages/spec/SPEC-survivors.md` and `packages/spec/SPEC-factory.md`. Where a game spec differs from this glossary, for example in when a write becomes visible and how often the game loads, the game spec wins for that game.
 
 ## Language
 

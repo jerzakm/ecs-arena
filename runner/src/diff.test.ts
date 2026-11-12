@@ -31,7 +31,7 @@ describe('diffParsed', () => {
     const a = snapshot(), b = snapshot()
     b.projectiles.push({ gameId: 999, owner: 1, target: 2, x: 0, y: 0, age: 0, speed: 512, volley: 1 })
     const [r] = diffParsed(a, b)
-    expect([r.section, r.key, r.baseline]).toEqual(['projectile', '999', undefined])
+    expect([r.section, r.key, r.vanilla]).toEqual(['projectile', '999', undefined])
   })
   it('reports a different record order when every record is equal', () => {
     const a = snapshot(), b = snapshot()

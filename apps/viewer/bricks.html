@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ecs-arena viewer: bricks</title>
+    <style>
+      :root { --bg: #0d1117; --panel: rgba(22, 27, 34, 0.88); --line: #30363d; --text: #d0d7de; --dim: #8b949e; --blue: #4c9aff }
+      * { box-sizing: border-box }
+      html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px system-ui, sans-serif; overflow: hidden }
+      canvas#view { position: fixed; top: 40px; left: 50%; transform: translateX(-50%); display: block; background: #0b0e14 }
+      .bar { position: fixed; top: 0; left: 0; right: 0; height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line) }
+      .bar .grow { flex: 1 }
+      .bar a { color: var(--blue); text-decoration: none }
+      .bar a:hover { text-decoration: underline }
+      select, button { background: #21262d; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer }
+      .dim { color: var(--dim) }
+      #err { position: fixed; top: 44px; left: 50%; transform: translateX(-50%); color: #ff6b6b }
+    </style>
+  </head>
+  <body>
+    <canvas id="view" width="1024" height="768"></canvas>
+    <div class="bar">
+      <select id="impl" title="entry"></select>
+      <select id="scenario" title="scenario"></select>
+      <button id="play">Pause</button>
+      <button id="restart">Restart</button>
+      <span class="grow"></span>
+      <span id="stat" class="dim"></span>
+      <a href="./">RTS and survivors</a>
+      <a href="../">ECS Arena results</a>
+    </div>
+    <span id="tick" hidden>0</span>
+    <div id="err"></div>
+    <script type="module" src="/src/bricks/main.ts"></script>
+  </body>
+</html>

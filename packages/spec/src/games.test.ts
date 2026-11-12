@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FACTORY, GAMES, RTS, SURVIVORS, assertUniqueScenarioNames, findScenario, hasScenario } from './index.ts'
+import { FACTORY, GAMES, RTS, BRICKS, SURVIVORS, assertUniqueScenarioNames, findScenario, hasScenario } from './index.ts'
 
 describe('games', () => {
   it('finds the game of a scenario by name', () => {
@@ -9,7 +9,7 @@ describe('games', () => {
   it('finds the survivors scenarios', () => {
     expect(findScenario('grove-smoke').game).toBe(SURVIVORS)
     expect(SURVIVORS.board).toEqual(['grove', 'swarm'])
-    expect(GAMES).toHaveLength(3)
+    expect(GAMES).toContain(BRICKS)
   })
   it('finds the factory scenarios', () => {
     expect(findScenario('works-smoke').game).toBe(FACTORY)

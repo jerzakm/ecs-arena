@@ -146,7 +146,7 @@ const writePage = (game: AnyGame) => {
   const slot = (t: string) => targets.indexOf(t) % SERIES.length
   mkdirSync(CHARTS, { recursive: true })
   const out = [
-    `# Bench results${game.slug && ` (${game.slug})`}`,
+    `# Bench results${game.slug && ` (${game.slug}${game.tutorial ? ', tutorial' : ''})`}`,
     '',
     'Generated from the files in `bench-data/`, which `pnpm bench --record` writes. Do not edit by hand.',
     `Raw data: [\`${rel(summaryOf(game))}\`](../${rel(summaryOf(game))}) (one row per commit, target and scenario) and \`${rel(dirOf(game))}/ticks/<scenario>/<target>.csv\` (per-tick median of the runs).`,
@@ -155,7 +155,7 @@ const writePage = (game: AnyGame) => {
   const totals: Record<string, Record<string, number[]>> = {}
   for (const r of latest.values()) if (r.run_totals) (totals[r.target] ??= {})[r.scenario] = r.run_totals.split(';').map(Number)
   for (const { scores } of scoreByGame(totals).filter((g) => g.game === game))
-    out.push('', '## Headline score', '', 'Geometric mean over the scenarios of target total ms divided by `baseline-js` total ms, from matched runs. The interval is a 95% percentile bootstrap. Targets whose intervals overlap share a rank.', '',
+    out.push('', '## Headline score', '', `Geometric mean over the scenarios of target total ms divided by \`${game.vanilla ?? 'baseline-js'}\` total ms, from matched runs. The interval is a 95% percentile bootstrap. Targets whose intervals overlap share a rank.`, '',
       table(['rank', 'target', 'score', '95% interval'], scores.map((s) => [s.rank, s.target, s.point.toFixed(3), `${s.lo.toFixed(3)} to ${s.hi.toFixed(3)}`])))
   for (const sc of scenarios) {
     const rows = targets.map((t) => latest.get(`${sc}|${t}`)).filter((r) => r !== undefined)

@@ -28,7 +28,7 @@ export interface Scenario extends BaseScenario {
 /** SPEC §10: the runner asks for a save after each tick `t > 0` with `t % SAVE_INTERVAL == 0`. */
 export const SAVE_INTERVAL = 25
 
-/** SPEC §8: one flat array of int32 values. */
+/** SPEC §8: one flat array of int32 values. Bricks is the exception: it returns a Float64Array, and `hashState` hashes its 64-bit words. */
 export type CanonicalState = number[]
 
 /**
@@ -72,6 +72,12 @@ export interface Game<S extends BaseScenario, K, P extends string> {
   board: readonly string[]
   /** Path of the impl entry, relative to `impls/<impl>/`. */
   entry: string
+  /** A small game: its entries are the files `<dir>/<entry>.ts` (relative to the repo root), and a sim has `systems` and no save or load. */
+  dir?: string
+  /** The vanilla entry: the entry that the score divides by. The default is baseline-js. */
+  vanilla?: string
+  /** A tutorial game is verified and timed, and its results carry a "tutorial" label. */
+  tutorial?: true
 }
 
 /** One tick through the phases of the game in spec order, with `moveStart` before the start hook. Callers that have no `tick()` shortcut use this. */

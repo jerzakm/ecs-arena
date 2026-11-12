@@ -5,7 +5,7 @@
 import { spawnSync } from 'node:child_process'
 import { parseArgs } from 'node:util'
 import { GAMES, SEEDS, findScenario, runPhases, hashState, withSeed, type BaseScenario } from '@ecs-arena/spec'
-import { HARNESS, loadBaseline, type BaselineSim } from './games.ts'
+import { harnessOf, loadBaseline, type BaselineSim } from './games.ts'
 import { isMain, parseRuns } from './cli.ts'
 import { wrapped } from './wrap.ts'
 import { runScheduled } from './schedule.ts'
@@ -123,11 +123,13 @@ const main = (): number => {
     return 2
   }
   const seeds = values.seeds ? SEEDS.map((_, i) => i) : [0]
-  const names = positionals.length > 0 ? positionals : GAMES.flatMap((g) => g.board)
+  const names = positionals.length > 0 ? positionals : GAMES.filter(harnessOf).flatMap((g) => g.board)
   const verdicts: Verdict[] = []
   for (const name of names) {
     const { game, scenario } = findScenario(name)
-    const REGIONS = HARNESS[game.id].regionsFor(name)
+    const harness = harnessOf(game)
+    if (!harness) { console.log(`skip ${name}: no harness`); continue }
+    const REGIONS = harness.regionsFor(name)
     for (const i of seeds) {
       const normal: Run[] = []
       const naive = new Map<string, Run[]>(REGIONS.map((r) => [r, []]))

@@ -3,7 +3,7 @@ import { isMain } from './cli.ts'
 import { parseArgs } from 'node:util'
 import { SEEDS, findScenario, runPhases, withSeed, type BaseScenario } from '@ecs-arena/spec'
 import { runScheduled } from './schedule.ts'
-import { HARNESS, loadBaseline, type BaselineSim } from './games.ts'
+import { harnessOf, loadBaseline, type BaselineSim } from './games.ts'
 import type { Counters } from '../../impls/baseline-js/src/shared/instrumentation.ts'
 
 export interface Stat { total: number; mean: number; max: number }
@@ -44,12 +44,13 @@ export const profile = (createSim: BaselineSim, scenario: BaseScenario): Profile
 }
 
 const main = async () => {
-  const { positionals: scenarios, values: { json } } = parseArgs({
+  const { positionals, values: { json } } = parseArgs({
     args: process.argv.slice(2),
     allowPositionals: true,
     options: { json: { type: 'boolean', default: false } },
   })
-  if (scenarios.length === 0) { console.error('usage: pnpm run profile <scenario...> [--json]'); return 2 }
+  if (positionals.length === 0) { console.error('usage: pnpm run profile <scenario...> [--json]'); return 2 }
+  const scenarios = positionals.filter((n) => harnessOf(findScenario(n).game) || void console.log(`skip ${n}: no harness`))
   const out: Record<string, Profile> = {}
   const sims = new Map<string, BaselineSim>()
   for (const n of scenarios) {
@@ -72,7 +73,7 @@ const main = async () => {
   for (const n of scenarios) {
     const { game, scenario } = findScenario(n)
     const perSeed = SEEDS.map((_, i) => (i === 0 ? out[n] : profile(sims.get(game.id)!, withSeed(scenario, i))).counts)
-    for (const [rule, counter, , minMean] of HARNESS[game.id].livenessFor(n)) {
+    for (const [rule, counter, , minMean] of harnessOf(game)!.livenessFor(n)) {
       const totals = perSeed.map((c) => c[counter]?.total ?? 0)
       const low = minMean !== undefined && totals.some((t) => t / scenario.ticks < minMean)
       if (totals.includes(0)) dead++

@@ -144,7 +144,7 @@ export const resultFile = (report: BenchReport, plan: RunPlan) => ({
 export const printScores = (report: BenchReport) => {
   const byGame = scoresOf(report)
   for (const { game, scores } of byGame) {
-    console.log(`\nheadline score${byGame.length > 1 ? ` (${game.id})` : ''}: geomean over scenarios of target total / baseline-js total, 95% bootstrap interval, equal rank when intervals overlap`)
+    console.log(`\n${game.tutorial ? 'tutorial' : 'headline'} score${byGame.length > 1 || game.tutorial ? ` (${game.id})` : ''}: geomean over scenarios of target total / ${game.vanilla ?? 'baseline-js'} total, 95% bootstrap interval, equal rank when intervals overlap`)
     console.table(Object.fromEntries(scores.map((s) => [s.target, { rank: s.rank, score: +s.point.toFixed(3), 'ci95 lo': +s.lo.toFixed(3), 'ci95 hi': +s.hi.toFixed(3) }])))
   }
 }

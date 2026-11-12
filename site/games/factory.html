@@ -246,6 +246,8 @@ The drone list and the crate list have no count in front. `droneCount` and `crat
 
 The machines part holds only the changed machines, so the snapshot of a tick grows with the work of the tick, not with the size of the world. A machine that diverges shows up in the first tick that it changes.
 
+**Known faults.** Item 2 of the snapshot list above demands a list of changed machines. Thus each entry must track changes only for the hash, not for the game. The planned fix is to hash every machine on sampled ticks. This note changes no rule.
+
 ## 9. Hash
 
 As `SPEC.md` §9.

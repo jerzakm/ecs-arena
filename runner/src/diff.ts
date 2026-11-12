@@ -1,4 +1,4 @@
-// Debug lever: run baseline-js and another impl in lockstep, stop at the first tick whose hash differs
+// Debug lever: run the vanilla entry of the game (baseline-js, or vanilla for bricks) and another impl in lockstep, stop at the first tick whose hash differs
 // (or at the given tick) and print the first differing record of each snapshot section, decoded with SPEC §8 names.
 // Usage: pnpm run diff <impl> <scenario> <tick> [gameIds...]
 import { isMain } from './cli.ts'
@@ -7,11 +7,34 @@ import { runPhases, findScenario, hashState, type CanonicalState } from '@ecs-ar
 import { loadSim } from './games.ts'
 import { parse, type Parsed } from '../../impls/baseline-js/src/rts/testkit.ts'
 
+const BALL_FIELDS = ['gameId', 'x', 'y', 'vx', 'vy'] as const
+const BLOCK_FIELDS = ['gameId', 'cx', 'cy', 'hp'] as const
+// The flat state is [score, ballCount, ...balls, blockCount, ...blocks].
+const brickRows = (s: CanonicalState) => {
+  const flat = s as unknown as number[]
+  const rows = (at: number, fields: readonly string[]) =>
+    Array.from({ length: flat[at] }, (_, i) => Object.fromEntries(fields.map((f, j) => [f, flat[at + 1 + i * fields.length + j]])) as Record<string, number>)
+  const balls = rows(1, BALL_FIELDS)
+  return { score: flat[0], balls, blocks: rows(2 + balls.length * BALL_FIELDS.length, BLOCK_FIELDS) }
+}
+const diffBricks = (a: CanonicalState, b: CanonicalState): RecordDiff[] => {
+  const x = brickRows(a), y = brickRows(b)
+  return [
+    ...diffRecord('world', 'world', { score: x.score }, { score: y.score }),
+    ...diffList('ball', x.balls, y.balls, (r) => r.gameId),
+    ...diffList('block', x.blocks, y.blocks, (r) => r.gameId),
+  ]
+}
+const findBrick = (s: CanonicalState, id: number) => [...brickRows(s).balls, ...brickRows(s).blocks].find((r) => r.gameId === id)
+
 /** The games whose snapshot this tool can decode. A game without an entry is refused. */
-const DECODERS: Readonly<Record<string, (snapshot: CanonicalState) => Parsed>> = { rts: parse }
+const DECODERS: Readonly<Record<string, { sections: string[]; diff(a: CanonicalState, b: CanonicalState): RecordDiff[]; find(s: CanonicalState, id: number): object | undefined }>> = {
+  rts: { sections: ['world', 'shrine', 'unit', 'projectile', 'ground'], diff: (a, b) => diffParsed(parse(a), parse(b)), find: (s, id) => recordOf(parse(s), id) },
+  bricks: { sections: ['world', 'ball', 'block'], diff: diffBricks, find: findBrick },
+}
 
 type Fields = Record<string, unknown>
-export interface RecordDiff { section: string; key: string; baseline?: Fields; other?: Fields; differing: string[] }
+export interface RecordDiff { section: string; key: string; vanilla?: Fields; other?: Fields; differing: string[] }
 
 const show = (v: unknown) => JSON.stringify(v)
 
@@ -22,7 +45,7 @@ const diffRecord = (section: string, key: string, a?: object, b?: object): Recor
   const fa = a && fieldsOf(a), fb = b && fieldsOf(b)
   const names = Object.keys(fa ?? fb ?? {})
   const differing = !fa || !fb ? names : names.filter((n) => show(fa[n]) !== show(fb[n]))
-  return differing.length ? [{ section, key, baseline: fa, other: fb, differing }] : []
+  return differing.length ? [{ section, key, vanilla: fa, other: fb, differing }] : []
 }
 
 const diffList = <T extends object>(section: string, a: T[], b: T[], keyOf: (r: T, i: number) => number): RecordDiff[] => {
@@ -47,17 +70,16 @@ export const diffParsed = (a: Parsed, b: Parsed): RecordDiff[] => {
   ]
 }
 
-const render = (d: RecordDiff): string => {
-  const names = Object.keys(d.baseline ?? d.other ?? {})
+const render = (d: RecordDiff, baselineName: string): string => {
+  const names = Object.keys(d.vanilla ?? d.other ?? {})
   const w = Math.max(...names.map((n) => n.length))
   const rows = names.map((n) => {
     const mark = d.differing.includes(n) ? '*' : ' '
-    return `${mark} ${n.padEnd(w)}  ${(d.baseline ? show(d.baseline[n]) : '(missing)').padEnd(40)}  ${d.other ? show(d.other[n]) : '(missing)'}`
+    return `${mark} ${n.padEnd(w)}  ${(d.vanilla ? show(d.vanilla[n]) : '(missing)').padEnd(40)}  ${d.other ? show(d.other[n]) : '(missing)'}`
   })
-  return [`${d.section} ${d.key}`, `  ${' '.repeat(w)}  ${'baseline-js'.padEnd(40)}  other`, ...rows].join('\n')
+  return [`${d.section} ${d.key}`, `  ${' '.repeat(w)}  ${baselineName.padEnd(40)}  other`, ...rows].join('\n')
 }
 
-const SECTIONS = ['world', 'shrine', 'unit', 'projectile', 'ground']
 const recordOf = (p: Parsed, id: number): object | undefined =>
   [...p.shrines, ...p.units, ...p.projectiles, ...p.ground].find((r) => r.gameId === id)
 
@@ -74,7 +96,8 @@ const main = async (): Promise<number> => {
     return 2
   }
   const last = Math.min(Number(tickArg), scenario.ticks - 1)
-  const baseline = await loadSim('baseline-js', game)
+  const baseName = game.vanilla ?? 'baseline-js'
+  const baseline = await loadSim(baseName, game)
   const other = await loadSim(impl, game)
   const a = baseline(scenario, game.kernel), b = other(scenario, game.kernel)
   for (let t = 0; t <= last; t++) {
@@ -82,17 +105,16 @@ const main = async (): Promise<number> => {
     const sa = a.snapshot(), sb = b.snapshot()
     const differs = hashState(sa) !== hashState(sb)
     if (!differs && t < last) continue
-    const pa = decode(sa), pb = decode(sb)
-    const all = diffParsed(pa, pb)
-    console.log(differs ? `tick ${t}: hashes differ (baseline ${hashState(sa)}, ${impl} ${hashState(sb)})` : `tick ${t}: hashes match`)
-    for (const section of SECTIONS) {
+    const all = decode.diff(sa, sb)
+    console.log(differs ? `tick ${t}: hashes differ (vanilla ${hashState(sa)}, ${impl} ${hashState(sb)})` : `tick ${t}: hashes match`)
+    for (const section of decode.sections) {
       const rows = all.filter((d) => d.section === section)
-      if (rows.length) console.log(`\n${section}: ${rows.length} differing, first below\n${render(rows[0])}`)
+      if (rows.length) console.log(`\n${section}: ${rows.length} differing, first below\n${render(rows[0], baseName)}`)
     }
     for (const id of ids) {
-      const rec = recordOf(pa, Number(id)), rec2 = recordOf(pb, Number(id))
+      const rec = decode.find(sa, Number(id)), rec2 = decode.find(sb, Number(id))
       if (!rec && !rec2) console.log(`\ngameId ${id}: in neither snapshot`)
-      else console.log(`\n${render(all.find((d) => d.key === id) ?? { section: 'record', key: `${id} (identical)`, baseline: rec && fieldsOf(rec), other: rec2 && fieldsOf(rec2), differing: [] })}`)
+      else console.log(`\n${render(all.find((d) => d.key === id) ?? { section: 'record', key: `${id} (identical)`, vanilla: rec && fieldsOf(rec), other: rec2 && fieldsOf(rec2), differing: [] }, baseName)}`)
     }
     return differs ? 1 : 0
   }

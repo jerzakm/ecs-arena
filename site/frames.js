@@ -71,6 +71,10 @@ fetch(src).then((r) => r.ok ? r.json() : null).then((res) => {
     }
   }
 
+  // The tutorial game has its own line. Its score divides by the vanilla entry, and it never joins the headline.
+  const tut = scores.find((x) => x.game === 'bricks')?.scores ?? []
+  if (tut.length) document.getElementById('tutorial-results').textContent = `Tutorial score, time ÷ vanilla entry: ${tut.map((s) => `${s.target} ${s.point.toFixed(2)}×`).join(', ')}. It is not in the headline.`
+
   const show = (row) => {
     const { g, lib } = row.dataset
     const lines = shown(g).map((sc) => {

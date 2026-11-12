@@ -128,10 +128,10 @@ export const rankScores = <T extends Interval>(scores: T[]): (T & { rank: number
 export const BASELINE = 'baseline-js'
 
 /** Ranked headline score for every target but the baseline. totals maps target to scenario to run totals. */
-export const scoreTargets = (totals: Record<string, Record<string, number[]>>) => {
-  const base = totals[BASELINE]
+export const scoreTargets = (totals: Record<string, Record<string, number[]>>, baseline = BASELINE) => {
+  const base = totals[baseline]
   if (!base) return []
-  return rankScores(Object.entries(totals).filter(([t]) => t !== BASELINE).map(([target, lib]) => ({ target, ...geomeanScore(lib, base) })))
+  return rankScores(Object.entries(totals).filter(([t]) => t !== baseline).map(([target, lib]) => ({ target, ...geomeanScore(lib, base) })))
 }
 
 /** A run is unstable when its two clock probes differ by more than this share of their mean. Ported from the 5% CLOCK_COMPARE_THRESHOLD of pmndrs/labs (ISC), src/compare.ts. */

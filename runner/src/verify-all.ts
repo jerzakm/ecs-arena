@@ -6,8 +6,11 @@ import { implEntry } from './games.ts'
 const ROOT = resolve(import.meta.dirname, '../..')
 const impls = readdirSync(resolve(ROOT, 'impls'), { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)
 let failed = false
-for (const impl of impls)
-  for (const game of GAMES) {
+// The entries of a small game are the .ts files of its entries folder.
+const entriesOf = (game: (typeof GAMES)[number]) =>
+  game.dir ? readdirSync(resolve(ROOT, game.dir, 'entries')).filter((f) => f.endsWith('.ts')).map((f) => f.slice(0, -3)) : impls
+for (const game of GAMES)
+  for (const impl of entriesOf(game)) {
     // An impl with no entry for a game does not play it. That is a skip, not a failure.
     if (!existsSync(implEntry(impl, game))) { console.log(`skip ${impl} ${game.id}: no entry`); continue }
     const smoke = Object.keys(game.scenarios).filter((n) => n.endsWith('-smoke'))

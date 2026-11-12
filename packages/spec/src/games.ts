@@ -1,8 +1,9 @@
-import { PHASES, TIMED_PHASES, type Game, type Kernel, type PhaseName, type Scenario } from './contract.ts'
+import { PHASES, TIMED_PHASES, type BaseScenario, type Game, type Kernel, type PhaseName, type Scenario } from './contract.ts'
 import * as kernel from './kernel.ts'
-import { BOARD_SCENARIOS, SCENARIOS } from './scenarios.ts'
+import { BOARD_SCENARIOS, SCENARIOS, SEEDS } from './scenarios.ts'
 import * as sv from './survivors/index.ts'
 import * as fa from './factory/index.ts'
+import * as bricksShared from '../../../games/bricks/shared.ts'
 
 export type SvKernel = typeof sv.kernel
 export type FactoryKernel = typeof fa.kernel
@@ -22,7 +23,21 @@ export const FACTORY: Game<fa.FactoryScenario, FactoryKernel, fa.FPhase> = {
   scenarios: fa.SCENARIOS, board: fa.BOARD, entry: 'src/factory/index.ts',
 }
 
-export const GAMES = [RTS, SURVIVORS, FACTORY] as const
+/** A tutorial game from its shared code. It adds the seed and the board list (each scenario that does not end in -smoke). */
+const tutorialGame = <P extends string>(
+  id: string,
+  shared: { SYSTEMS: readonly P[]; SCENARIOS: Readonly<Record<string, { name: string; ticks: number }>> },
+): Game<BaseScenario, typeof shared, P> => {
+  const scenarios = Object.fromEntries(Object.entries(shared.SCENARIOS).map(([n, s]) => [n, { ...s, seed: SEEDS[0], loadEvery: Infinity }]))
+  return {
+    id, slug: id, phases: shared.SYSTEMS, timedPhases: shared.SYSTEMS, startHook: undefined, kernel: shared,
+    scenarios, board: Object.keys(scenarios).filter((n) => !n.endsWith('-smoke')), entry: '', dir: `games/${id}`, vanilla: 'vanilla', tutorial: true,
+  }
+}
+
+export const BRICKS = tutorialGame('bricks', bricksShared)
+
+export const GAMES = [RTS, SURVIVORS, FACTORY, BRICKS] as const
 export type AnyGame = (typeof GAMES)[number]
 
 /** Throws when a scenario name is in two games. `goldens/` is one flat dir, so a name must select one game. */

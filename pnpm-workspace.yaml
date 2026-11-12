@@ -1,6 +1,7 @@
 packages:
   - packages/*
   - impls/*
+  - games/*
   - runner
   - apps/*
 allowBuilds:

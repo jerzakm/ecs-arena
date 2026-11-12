@@ -1,5 +1,9 @@
 # Add an ECS library
 
+> This guide uses two old words: "phase" means system and "kernel" means shared code, and `baseline-js` is the vanilla entry.
+>
+> This guide is for the three large games. Start with bricks: add one file `games/bricks/entries/<lib>.ts` as [games/bricks/README.md](games/bricks/README.md) shows.
+
 This guide shows how to add a library to ecs-arena. You write the three games, the RTS, survivors and factory, with your library, and the runner checks every tick against a committed hash trace. Library authors and maintainers are welcome, and so are agents working from this guide. Plan on 1 to 3 days for the RTS, about as long for survivors, and less than a day for factory.
 
 ## Before you start

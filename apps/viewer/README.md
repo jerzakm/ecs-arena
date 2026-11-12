@@ -4,6 +4,8 @@ Run it with `pnpm --filter @ecs-arena/viewer dev`. The scenario list has two gro
 
 A URL such as `?scenario=war&impl=koota` opens that run. The viewer keeps the URL in step with the lists, so you can copy it to share a run. The project page (`site/index.html`) links to the viewer this way.
 
+The factory and bricks games have their own pages: `factory.html` and `bricks.html`. Bricks draws the blocks and balls and runs the `vanilla`, `koota`, `bitecs` and `iris` entries of `games/bricks/entries/`. The game never ends, so the page keeps running after the last tick of the scenario. Example: `bricks.html?scenario=bricks&impl=koota`.
+
 ## Change a sprite for a survivors mob kind
 
 All looks are in `src/svlook.ts`. Edit one row of `KIND_LOOK`. The row is indexed by mob kind.

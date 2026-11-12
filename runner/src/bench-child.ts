@@ -16,7 +16,8 @@ const entry = pathToFileURL(implEntry(impl, game)).href
 const createSim = await loadSim(impl, game)
 
 // Print which koota build the run uses, so a variant run is easy to confirm.
-const usesKoota = 'koota' in (JSON.parse(readFileSync(resolve(ROOT, 'impls', impl, 'package.json'), 'utf8')).dependencies ?? {})
+const pkg = resolve(ROOT, 'impls', impl, 'package.json') // a small game has entry files, not impl packages
+const usesKoota = existsSync(pkg) && 'koota' in (JSON.parse(readFileSync(pkg, 'utf8')).dependencies ?? {})
 if (usesKoota) console.log(`koota -> ${process.env.ECS_ALIAS?.includes('"koota"') ? import.meta.resolve('koota') : findPackageJSON('koota', entry)}`)
 
 const goldenPath = resolve(ROOT, 'goldens', `${name}.json`)
